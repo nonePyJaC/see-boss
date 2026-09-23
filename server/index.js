@@ -1,34 +1,51 @@
 /**
- * 仓鼠聚会 — 房间服务（云托管容器）
+ * 仓鼠聚会 — 单进程服务（静态站点 + 房间 API + SQLite）
  *
- * 职责边界（2026-09 架构调整后）：
- *   · 全部房间逻辑都在这里：线下计分 + 线上牌局
- *   · PG 只做数据增删改查（accounts / account_ledger / history /
- *     room_snapshots），不再有任何房间状态机函数
- *   · 容器 = 内存态。退出 / 重启 = 房间消失，靠 PG 快照兜底恢复
+ * 一台阿里云服务器跑这一个 Node 进程，三件事全包：
+ *   1. serve client/dist      静态页（同域，天然免 CORS）
+ *   2. /api/room/*            房间状态机（内存 + SQLite 快照）
+ *   3. /api/account/*         账号 / 金瓜子账本 / 历史
  *
- * 两种模式共用一个 rooms Map，用 mode 区分：
+ * CloudBase 已整体退役。数据全在 server/data/hamster.db（SQLite），
+ * 备份 = 拷一个文件。
+ *
+ * 两种房间模式共用 rooms Map，用 mode 区分：
  *   offline  线下计分：不洗牌、不发底牌、不摊牌，只记瓜子
  *            → shared/logic/offline-room.mjs
  *   online   线上牌局：完整德州，发底牌 + 公共牌 + 摊牌比牌
  *            → shared/logic/betting.mjs
  *
- * 接口（均 POST，JSON in / JSON out，Bearer JWT 鉴权）：
- *   /api/room/create   建房占 1 号位
- *   /api/room/join     扫码 / 输房间号 / 从列表加入
- *   /api/room/list     可加入的房间列表
- *   /api/room/state    拉状态（前端轮询用）
- *   /api/room/start    开局（offline 自动下大小麦；online 发牌）
- *   /api/room/action   动作：collect / call / raise / fold
- *   /api/room/stage    换街（花生节拍器，offline 专用）
- *   /api/room/settle   结算：金瓜子转账 + 重置 / 解散
- *   /api/room/leave    退出：只删自己，房主退出则删房
+ * 接口（均 POST，JSON in / JSON out）：
+ *   账号
+ *     /api/account/login     账号名登录 / 注册（无密码）
+ *     /api/account/me        当前身份 + 金瓜子 + 局数
+ *     /api/account/update    改昵称 / 头像
+ *     /api/account/logout    解绑本机
+ *     /api/account/ledger    我的账本明细
+ *     /api/account/clear     与某人结清
+ *   房间
+ *     /api/room/create   建房占 1 号位
+ *     /api/room/join     扫码 / 输房间号 / 从列表加入
+ *     /api/room/list     可加入的房间列表
+ *     /api/room/state    拉状态（前端轮询用）
+ *     /api/room/start    开局（offline 自动下大小麦；online 发牌）
+ *     /api/room/action   动作：collect / call / raise / fold
+ *     /api/room/stage    换街（花生节拍器，offline 专用）
+ *     /api/room/settle   结算：金瓜子入账 + 重置 / 解散
+ *     /api/room/leave    退出：只删自己，房主退出则删房
  *
- * 约定：不写日志文件、不存任何用户信息到磁盘。
+ * 身份：请求体带 uid（前端 localStorage 生成）+ 昵称。
+ *      朋友局，服务端信任，不验签、不设密码。
+ *
+ * 持久：每次房间状态变更后 upsert room_snapshots；
+ *      进程启动时载回 → pm2 restart / 宕机后对局自动恢复。
  */
 
 import http from 'node:http'
+import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
+import { fileURLToPath } from 'node:url'
 
 import {
   PHASE,
@@ -51,7 +68,21 @@ import {
 
 import { buildSettlement, transfersAfterTiePick } from '../shared/logic/settlement.mjs'
 
+import {
+  openDb, DB_PATH,
+  loginAccount, accountByUid, updateMyAccount, logoutAccount,
+  accountSeedTransfer, accountLedgerRows, clearAccountLedgerRow,
+  bumpTotalGames, goldenSeedsOf,
+  addHistory, listHistory,
+  saveRoomSnapshot, loadRoomSnapshot, loadAllRoomSnapshots, deleteRoomSnapshot,
+} from './db.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
 const PORT = Number(process.env.PORT) || 80
+/** 前端构建产物目录：../client/dist */
+const STATIC_DIR = process.env.HAMSTER_STATIC_DIR
+  || path.join(__dirname, '..', 'client', 'dist')
 const MAX_SEATS = 8
 /** 请求体上限，防恶意大包打爆内存 */
 const MAX_BODY = 16 * 1024
@@ -188,9 +219,19 @@ function publicState(room, viewerUid) {
 }
 
 /** 每次改动 rooms 后递增，供前端探针比对手工省流量 */
+/**
+ * 每次房间状态变更后调它。做三件事：
+ *   1. 刷新 lastActive（清扫判据）
+ *   2. rev +1（前端轮询探针，没变就打便宜请求）
+ *   3. 落库快照 —— pm2 restart / 宕机后对局自动恢复
+ *
+ * rev 变化但快照没写，是之前踩过的坑：动作后不 persist，
+ * 结果重启丢局。所以 persist 放在这唯一收口处，调用方忘不掉。
+ */
 function touch(room) {
   room.lastActive = Date.now()
   room.rev = (room.rev ?? 0) + 1
+  persistRoom(room)
 }
 
 // ── 接口实现 ────────────────────────────────────────────
@@ -482,27 +523,75 @@ function handleSettle(body, uid) {
     : st
   const transfers = finalSt.transfers ?? []
 
-  // 暂停：不转账、不重置，只把状态置 paused（特殊场景：全员 all-in
-  // 归零后又平分继续）。也算处理掉了，所以置 handDone。
+  // 暂停：不转账、不重置，只置 paused（特殊场景：全员 all-in
+  // 归零后又平分继续）。必须排在入账之前 return，否则会把账也结了。
   if (action === 'pause') {
     room.state.settlePending = false
     room.state.paused = true
     room.state.handDone = true
-    touch(room)
+    touch(room)          // touch 已含 persistRoom
     return ok(publicState(room, uid))
   }
 
-  // 解散：转账清单交给客户端，房间删掉
+  // ── 金瓜子入账（服务端直写，不再让客户端转发）──
+  //
+  // 旧做法是返回 transfers 给前端，由前端调 account_seed_transfer。
+  // 那意味着：房主手机上跑通才算数；房主中途关页面，账就不会记。
+  // 而且转账责任落在客户端，谁都能伪造请求。
+  //
+  // 现在服务端自己写。座位 uid → 账号名，没绑账号就跳过
+  // （朋友局里没登录账号的人不参与金瓜子，只记瓜子数）。
+  const paid = []
+  const skipped = []
+  for (const t of transfers) {
+    const fromAcct = accountByUid(t.fromUid)
+    const toAcct = accountByUid(t.toUid)
+    if (!fromAcct || !toAcct) {
+      skipped.push({ ...t, reason: '任一方未登录账号' })
+      continue
+    }
+  const r = accountSeedTransfer(fromAcct.account, toAcct.account, t.amount ?? 1)
+  if (r.ok && !r.skipped) paid.push(t)
+  else {
+    // 余额不足等原因导致没转成 —— 不能静默吞掉。
+    // 朋友局里"输光了但金瓜子是 0"很常见，至少要让房主看见。
+    skipped.push({ ...t, reason: r.error ?? r.reason ?? '跳过' })
+    console.warn(`[room] 金瓜子未入账: ${fromAcct.account} → ${toAcct.account}，${r.error ?? r.reason ?? '未知原因'}`)
+  }
+  }
+
+  // 局数 +1（在座且登录了账号的人）
+  const gamers = room.seats.map((s) => accountByUid(s.uid)?.account).filter(Boolean)
+  bumpTotalGames(gamers)
+
+  // 写历史
+  try {
+    addHistory({
+      roomNo: room.id,
+      mode: room.mode,
+      roundNo: room.roundNo,
+      payload: {
+        seats: room.state.seats.map((s) => ({
+          name: s.nickname,
+          delta: s.seeds - room.initialSeeds,
+        })),
+        transfers: paid,
+      },
+      createdBy: gamers[0] ?? '',
+    })
+  } catch (e) {
+    console.error('[room] 写历史失败', e)
+  }
+
   if (action === 'disband') {
     room.state.handDone = true
+    deleteRoomSnapshot(room.id)
     rooms.delete(room.id)
-    return ok({ transfers, disbanded: true })
+    return ok({ paid, skipped, transfers: paid, disbanded: true })
   }
 
   // 结算并重置：全员回初始值 + 清空大小麦麦位。
-  //
-  // 先用 handDone 把「这一手已经结算过」钉在旧 state 上，
-  // 再做重置 —— 否则旧 state 上没留痕，重复请求查不到。
+  // handDone 钉在旧 state 上，重复请求会被幂等判据挡掉。
   room.state.handDone = true
   room.state.settlePending = false
 
@@ -527,7 +616,7 @@ function handleSettle(body, uid) {
   room.state = reset
   room.roundNo += 1
   touch(room)
-  return ok({ transfers, roundNo: room.roundNo })
+  return ok({ paid, skipped, transfers: paid, roundNo: room.roundNo })
 }
 
 function handleLeave(body, uid) {
@@ -579,27 +668,128 @@ function createShuffledDeckSafe(gameType) {
   return createShuffledDeck(gameType, () => crypto.randomInt(2 ** 32) / 2 ** 32)
 }
 
+// ── 账号 API ────────────────────────────────────────────
+
+/** 账号名登录 / 注册。无密码，知道名字就能登（朋友局设定）。 */
+function handleAccountLogin(body) {
+  const uid = String(body?.uid ?? '').trim()
+  if (!uid) return fail('缺少设备身份')
+  const r = loginAccount(body?.account, uid, {
+    nickname: body?.nickname, avatar: body?.avatar,
+  })
+  if (!r.ok) return fail(r.error)
+  return ok(r)
+}
+
+/** 当前身份 + 金瓜子 + 局数 */
+function handleAccountMe(body) {
+  const uid = String(body?.uid ?? '').trim()
+  const me = accountByUid(uid)
+  if (!me) return ok({ loggedIn: false })
+  return ok({ loggedIn: true, ...me, ledger: accountLedgerRows(me.account) })
+}
+
+function handleAccountUpdate(body) {
+  return ok(updateMyAccount(String(body?.uid ?? ''), {
+    nickname: body?.nickname, avatar: body?.avatar,
+  }))
+}
+
+function handleAccountLogout(body) {
+  return ok(logoutAccount(String(body?.uid ?? '')))
+}
+
+function handleAccountLedger(body) {
+  const me = accountByUid(String(body?.uid ?? ''))
+  if (!me) return ok({ rows: [] })
+  return ok({ rows: accountLedgerRows(me.account) })
+}
+
+/** 与某人结清账本（双方同时冲销） */
+function handleAccountClear(body) {
+  const me = accountByUid(String(body?.uid ?? ''))
+  if (!me) return fail('尚未登录账号')
+  const r = clearAccountLedgerRow(me.account, body?.peer)
+  if (!r.ok) return fail(r.error)
+  return ok({ ...r, goldenSeeds: goldenSeedsOf(me.account) })
+}
+
+function handleAccountHistory(body) {
+  const me = accountByUid(String(body?.uid ?? ''))
+  return ok({ rows: listHistory(50, me?.account ?? null) })
+}
+
 function fail(msg) { return { ok: false, error: msg } }
 function ok(data) { return { ok: true, data } }
 
-// ── 鉴权：解 JWT 取 sub ────────────────────────────────
+// ── 房间快照 ────────────────────────────────────────────
 
-function parseUid(req) {
-  const h = req.headers.authorization || ''
-  if (!h.startsWith('Bearer ')) return null
+/** 每次房间状态变更后调用：写 SQLite，重启后能恢复 */
+function persistRoom(room) {
   try {
-    const payload = JSON.parse(
-      Buffer.from(h.slice(7).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString()
-    )
-    return payload.sub || null
-  } catch {
-    return null
+    saveRoomSnapshot(room.id, room.mode, serializeRoom(room))
+  } catch (e) {
+    console.error('[room] 快照写入失败', e)
   }
+}
+
+/** 房间 → 可 JSON 化快照 */
+function serializeRoom(room) {
+  return {
+    id: room.id,
+    mode: room.mode,
+    gameType: room.gameType,
+    smallBlind: room.smallBlind,
+    bigBlind: room.bigBlind,
+    initialSeeds: room.initialSeeds,
+    hostUid: room.hostUid,
+    // online 的底牌只存内存不落盘：重启后重新发比恢复更安全
+    seats: room.seats.map((s) => ({
+      uid: s.uid, nickname: s.nickname, avatar: s.avatar, seeds: s.seeds,
+      bet: s.bet, totalBet: s.totalBet, blind: s.blind,
+    })),
+    state: room.mode === 'offline' ? room.state : null,
+    dealerUid: room.dealerUid,
+    roundNo: room.roundNo,
+    rev: room.rev ?? 0,
+  }
+}
+
+function restoreRoom(snap) {
+  const room = {
+    id: snap.roomId,
+    mode: snap.mode,
+    gameType: snap.state?.gameType ?? 'long',
+    smallBlind: snap.state?.smallBlind ?? 10,
+    bigBlind: snap.state?.bigBlind ?? 20,
+    initialSeeds: snap.state?.initialSeeds ?? 3000,
+    hostUid: snap.state?.hostUid,
+    seats: snap.state?.seats ?? [],
+    state: snap.state?.state ?? null,
+    hands: {},
+    dealerUid: snap.state?.dealerUid ?? null,
+    roundNo: snap.state?.roundNo ?? 1,
+    rev: snap.state?.rev ?? 0,
+    lastActive: Date.now(),
+    restored: true,
+  }
+  if (!room.seats.length || !room.hostUid) return null
+  rooms.set(room.id, room)
+  return room
 }
 
 // ── HTTP 骨架 ─────────────────────────────────────────
 
 const ROUTES = {
+  // 账号
+  '/api/account/login': handleAccountLogin,
+  '/api/account/me': handleAccountMe,
+  '/api/account/update': handleAccountUpdate,
+  '/api/account/logout': handleAccountAccountLogoutWrap,
+  '/api/account/ledger': handleAccountLedger,
+  '/api/account/clear': handleAccountClear,
+  '/api/account/history': handleAccountHistory,
+  // 房间
   '/api/room/create': handleCreate,
   '/api/room/join': handleJoin,
   '/api/room/list': handleList,
@@ -611,41 +801,84 @@ const ROUTES = {
   '/api/room/leave': handleLeave,
 }
 
-const server = http.createServer(async (req, res) => {
-  const origin = req.headers.origin || '*'
-  res.setHeader('Access-Control-Allow-Origin', origin)
-  res.setHeader('Vary', 'Origin')
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+function handleAccountAccountLogoutWrap(b) { return handleAccountLogout(b) }
 
+// ── 静态文件 ───────────────────────────────────────────
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.map': 'application/json',
+}
+
+/** 静态资源；SPA 回退到 index.html（hash 路由，其实用不上，但兜底） */
+function serveStatic(url, res) {
+  let p = decodeURIComponent(url.pathname)
+  if (p === '/') p = '/index.html'
+  // 防目录穿越
+  const full = path.normalize(path.join(STATIC_DIR, p))
+  if (!full.startsWith(STATIC_DIR)) {
+    res.writeHead(403); return res.end('Forbidden')
+  }
+  fs.readFile(full, (err, buf) => {
+    if (err) {
+      // SPA 回退
+      const idx = path.join(STATIC_DIR, 'index.html')
+      return fs.readFile(idx, (e2, b2) => {
+        if (e2) { res.writeHead(404); return res.end('Not Found') }
+        res.writeHead(200, { 'Content-Type': MIME['.html'] })
+        res.end(b2)
+      })
+    }
+    res.writeHead(200, {
+      'Content-Type': MIME[path.extname(full).toLowerCase()] || 'application/octet-stream',
+      'Cache-Control': path.extname(full) === '.html' ? 'no-cache' : 'public, max-age=31536000',
+    })
+    res.end(buf)
+  })
+}
+
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x')
 
-  // 健康检查：不鉴权，方便云托管探活。容器缩容到 0 时靠它唤醒。
+  // 健康检查：不鉴权，服务器探活用
   if (url.pathname === '/health') {
-    res.writeHead(200)
+    res.writeHead(200, { 'Content-Type': 'application/json' })
     return res.end(JSON.stringify({
       ok: true, rooms: rooms.size, mode: 'up',
+      restored: restoredCount,
       uptime: Math.round(process.uptime()),
     }))
   }
 
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end() }
 
+  // GET/HEAD → 静态资源（前端页面；同域所以不需要 CORS）
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return serveStatic(url, res)
+  }
+
   const handler = ROUTES[url.pathname]
   if (!handler) {
-    res.writeHead(404)
+    res.writeHead(404, { 'Content-Type': 'application/json' })
     return res.end(JSON.stringify(fail('接口不存在')))
   }
   if (req.method !== 'POST') {
-    res.writeHead(405)
+    res.writeHead(405, { 'Content-Type': 'application/json' })
     return res.end(JSON.stringify(fail('仅支持 POST')))
-  }
-
-  const uid = parseUid(req)
-  if (!uid) {
-    res.writeHead(401)
-    return res.end(JSON.stringify(fail('未登录')))
   }
 
   // 请求体大小上限
@@ -654,23 +887,33 @@ const server = http.createServer(async (req, res) => {
   try {
     for await (const c of req) {
       size += c.length
-      if (size > MAX_BODY) { res.writeHead(413); return res.end(JSON.stringify(fail('请求体过大'))) }
+      if (size > MAX_BODY) {
+        res.writeHead(413, { 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify(fail('请求体过大')))
+      }
       chunks.push(c)
     }
     const text = Buffer.concat(chunks).toString('utf8')
     var body = text ? JSON.parse(text) : {}
   } catch {
-    res.writeHead(400)
+    res.writeHead(400, { 'Content-Type': 'application/json' })
     return res.end(JSON.stringify(fail('请求体不是合法 JSON')))
+  }
+
+  // 身份从请求体拿（朋友局，服务端信任，不验签不设密码）
+  const uid = String(body.uid ?? '').trim()
+  if (!uid) {
+    res.writeHead(400, { 'Content-Type': 'application/json' })
+    return res.end(JSON.stringify(fail('缺少 uid')))
   }
 
   try {
     const out = handler(body, uid)
-    res.writeHead(out.ok ? 200 : 400)
+    res.writeHead(out.ok ? 200 : 400, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out))
   } catch (e) {
     console.error('[room] 未捕获异常', e)
-    res.writeHead(500)
+    res.writeHead(500, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(fail('服务端异常：' + (e?.message ?? String(e)))))
   }
 })
@@ -679,15 +922,37 @@ const server = http.createServer(async (req, res) => {
 setInterval(() => {
   const now = Date.now()
   for (const [id, r] of rooms) {
-    if (now - r.lastActive > ROOM_TTL) rooms.delete(id)
+    if (now - r.lastActive > ROOM_TTL) {
+      rooms.delete(id)
+      deleteRoomSnapshot(id)
+    }
   }
 }, 5 * 60 * 1000).unref()
 
+// ── 启动：开库 + 恢复快照 ──────────────────────────────
+
+let restoredCount = 0
+openDb()
+try {
+  for (const snap of loadAllRoomSnapshots()) {
+    if (restoreRoom(snap)) restoredCount++
+  }
+  if (restoredCount > 0) {
+    console.log(`[room] 从快照恢复 ${restoredCount} 个房间`)
+  }
+} catch (e) {
+  console.error('[room] 快照恢复失败', e)
+}
+
 // 只有直接 `node server/index.js` 运行时才监听端口。
-// 被测试 import 时（isMain 为假）不 listen，测试自己控制端口。
+// 被测试 import 时不 listen，测试自己控制端口。
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}`
 if (isMain || process.env.LISTEN !== '0') {
-  server.listen(PORT, () => console.log(`[room] listening on ${PORT}, mode: offline+online`))
+  server.listen(PORT, () => {
+    console.log(`[room] listening on ${PORT}`)
+    console.log(`[room] static: ${STATIC_DIR} ${fs.existsSync(STATIC_DIR) ? '' : '(未构建，仅 API 可用)'}`)
+    console.log(`[room] db: ${DB_PATH}`)
+  })
 }
 
 // 导出：供集成测试在进程内起服务（避免重复 listen）
