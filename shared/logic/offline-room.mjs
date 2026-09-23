@@ -119,22 +119,22 @@ export function initOfflineHand({
     actedUids: [],
   }
 
-  // 自动下大小麦（沿用现行行为：开局自动扣）
-  // 两人局：庄家下小麦、同时下大麦（ Heads-up 规则简化）
-  // 多人局：第一家小麦、第二家大麦
-  const twoHeads = seats.length === 2
+  // 自动下大小麦。
+  //   · 两人局：第一家小麦、第二家大麦（不是一个人全下两注）
+  //   · 多人局：第一家小麦、第二家大麦
+  // 座次分配一样，区别只在「谁第一个行动」。
   const sbSeat = seats.find((s) => s.uid === rotated[0].uid)
-  const bbSeat = twoHeads ? sbSeat : seats.find((s) => s.uid === rotated[1].uid)
+  const bbSeat = seats.find((s) => s.uid === rotated[1].uid) ?? sbSeat
 
   postBlind(state, sbSeat, sb, 'sb')
   postBlind(state, bbSeat, bb, 'bb')
 
-  // 翻前第一家行动：大麦下家；两人局从小麦开始
-  const firstUid = twoHeads
+  // 翻前第一个行动的人：
+  //   · 多人局：大麦下家
+  //   · 两人局：小麦（Heads-up 规则）
+  const firstUid = seats.length === 2
     ? sbSeat.uid
-    : bbSeat.uid === null
-      ? null
-      : seats[(seats.indexOf(bbSeat) + 1) % seats.length].uid
+    : seats[(seats.indexOf(bbSeat) + 1) % seats.length].uid
   setTurn(state, seats, firstUid)
 
   return state
@@ -276,7 +276,9 @@ export function applyOfflineAction(state, action) {
   if (st.finished && type !== 'collect') return { error: '本手已结束' }
 
   if (me.folded) return { error: '你已经弃牌' }
-  if (me.allIn) return { error: '你已经全下' }
+  // 全下不能再投注，但「收池」是中性动作，必须放行 ——
+  // 线下常见「输光的人顺手把池子收了」，拦住了他就没法推进对局。
+  if (me.allIn && type !== 'collect') return { error: '你已经全下' }
 
   switch (type) {
     case 'fold': {
