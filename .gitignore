@@ -1,0 +1,34 @@
+# ── 依赖 ──
+node_modules/
+client/node_modules/
+
+# ── 构建产物 ──
+client/dist/
+dist/
+*.tsbuildinfo
+
+# ── 环境变量（含密钥，绝不提交）──
+.env
+.env.local
+.env.*.local
+client/.env
+
+# ── 日志 ──
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── 系统 / 编辑器 ──
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ── 测试与临时产物 ──
+test-out.txt
+dist.zip
+*.tmp
+
+# ── 部署中间物 ──
+cloudbaserc.local.json

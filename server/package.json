@@ -1,0 +1,11 @@
+{
+  "name": "hamster-online-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "仓鼠聚会线上对局服务 — 全内存态，退出即焚",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  }
+}

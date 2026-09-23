@@ -1,0 +1,18 @@
+{
+  "name": "hamster-party",
+  "version": "1.0.0",
+  "private": true,
+  "description": "仓鼠聚会 — 线上对局云托管服务（全内存态，退出即焚）",
+  "scripts": {
+    "dev": "npm run dev --prefix client",
+    "build": "npm run build --prefix client",
+    "preview": "npm run preview --prefix client",
+    "start": "node server/index.js",
+    "dev:server": "node server/index.js",
+    "test:server": "node scripts/test-online-server.mjs",
+    "test:logic": "node --test \"shared/logic/**/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

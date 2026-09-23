@@ -1,0 +1,240 @@
+:root {
+  /* 暖色调卡通配色 */
+  --c-bg: #FFF8E7;
+  --c-bg-deep: #FFE9C4;
+  --c-primary: #F6A623;
+  --c-primary-dark: #E08900;
+  --c-secondary: #FF8A65;
+  --c-accent: #FFD54F;
+  --c-gold: #FFC107;
+  --c-text: #5D4037;
+  --c-text-light: #8D6E63;
+  --c-card: #FFFFFF;
+  --c-border: #F0DCC0;
+  --c-danger: #EF5350;
+  --c-success: #66BB6A;
+
+  /* 安全区（刘海屏） */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+
+  /* 触屏友好的按钮高度 */
+  --btn-h: 52px;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overscroll-behavior: none; /* 禁止下拉刷新干扰游戏 */
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  color: var(--c-text);
+  background: var(--c-bg);
+  /* 禁止文字选中，游戏 UI 不该被选中 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  height: 100%;
+}
+
+/* 手机竖屏全屏容器：用 dvh 处理移动端浏览器工具栏 */
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sat) var(--sar) var(--sab) var(--sal);
+  background: linear-gradient(160deg, var(--c-bg) 0%, var(--c-bg-deep) 100%);
+}
+
+/* ── 按钮 ── */
+.btn {
+  height: var(--btn-h);
+  border: none;
+  border-radius: 26px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, var(--c-primary) 0%, var(--c-primary-dark) 100%);
+  box-shadow: 0 4px 0 #C77A00, 0 6px 12px rgba(0, 0, 0, 0.12);
+  transition: transform 0.08s, box-shadow 0.08s;
+  cursor: pointer;
+  padding: 0 24px;
+}
+
+.btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #C77A00, 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.btn--ghost {
+  background: #fff;
+  color: var(--c-primary-dark);
+  box-shadow: 0 4px 0 var(--c-border);
+}
+
+.btn--ghost:active {
+  box-shadow: 0 1px 0 var(--c-border);
+}
+
+.btn--danger {
+  background: linear-gradient(180deg, #EF5350 0%, #C62828 100%);
+  box-shadow: 0 4px 0 #B71C1C;
+}
+
+.btn--sm {
+  height: 38px;
+  font-size: 14px;
+  border-radius: 19px;
+  padding: 0 16px;
+}
+
+/* ── 卡片 ── */
+.card {
+  background: var(--c-card);
+  border-radius: 20px;
+  padding: 18px;
+  box-shadow: 0 2px 12px rgba(216, 167, 104, 0.18);
+  border: 2px solid var(--c-border);
+}
+
+/* ── 输入框 ── */
+.input {
+  width: 100%;
+  height: 48px;
+  border: 2px solid var(--c-border);
+  border-radius: 14px;
+  padding: 0 16px;
+  font-size: 16px;
+  background: #fff;
+  color: var(--c-text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: var(--c-primary);
+}
+
+/* ── 头像 ── */
+.avatar {
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--c-border);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.avatar--selected {
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 4px rgba(246, 166, 35, 0.25);
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── 工具类 ── */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.row--between {
+  justify-content: space-between;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-sm {
+  font-size: 13px;
+}
+
+.text-light {
+  color: var(--c-text-light);
+}
+
+.muted {
+  opacity: 0.6;
+}
+
+/* 金瓜子徽标 */
+.gold-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(180deg, #FFF59D, #FFD54F);
+  color: #6D4C41;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid #FFB300;
+}
+
+/* 弹窗 */
+.mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(93, 64, 55, 0.5);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: 24px;
+  backdrop-filter: blur(2px);
+}
+
+.dialog {
+  background: #fff;
+  border-radius: 24px;
+  padding: 24px;
+  width: 100%;
+  max-width: 340px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  border: 3px solid var(--c-border);
+}
+
+/* PC 端提示：需求要求禁止 PC 端冗余布局 */
+@media (min-width: 768px) and (hover: hover) {
+  .page {
+    max-width: 430px;
+    margin: 0 auto;
+    box-shadow: 0 0 0 1px var(--c-border), 0 0 40px rgba(0, 0, 0, 0.08);
+  }
+}
