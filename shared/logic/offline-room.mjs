@@ -8,20 +8,38 @@
  *     2. 现在轮到谁决策
  *     3. 有没有人瓜子归零 → 触发结算
  *
- * 「街道」在这里只是个视觉节拍器：stage ∈ preflop|flop|turn|river，
- * 纯粹给 UI 播花生用（翻前三颗不亮、flop 亮三颗、turn 第四颗、
- * river 第五颗）。服务端不因为它发任何牌。
- * 换街由房主显式触发（nextStage），或收池后自动回到 preflop。
+ * ── 回合规则（2026-09-23 定稿，按真实下注节奏）──
  *
- * 状态字段（全部可 JSON 序列化，写 PG 快照 / 内存都行）：
- *   players[]  {uid, nickname, avatar, seeds, bet, totalBet, folded, allIn, isTurn}
- *   pot        公共池瓜子数
- *   currentBet 本手当前最高注额（「跟」要补齐到这里）
- *   stage      花生节拍器阶段
- *   turnUid    轮到谁
- *   roundNo    第几手
- *   actionLog  下注流水，最新在末尾
- *   finished   本手是否已被收掉
+ * 按钮按「我的注额 vs 本街最高注额」动态决定，不是固定三个：
+ *   我的注额 < currentBet  → 加倍 / 弃   （补不满就不能过）
+ *   我的注额 = currentBet  → check / 加倍 / 弃
+ *   收池独立成键，任何时刻谁都能点（不是回合决策）
+ *
+ * 推进下一街（花生 +1）的判据：
+ *   转完一圈 + 除弃牌者外所有人都平注了。
+ *   不靠房主手动点，全是玩家行动自然推动。
+ *
+ * 每街第一个行动的人 = 小麦位（房主只指定小麦，下家自动大麦）。
+ *
+ * ── 大小麦 ──
+ * 开局由房主指定小麦位（sbIndex），下家自动是大麦。
+ * 自动下大小麦，下完从小麦下家开始 preflop 行动轮。
+ *
+ * 「街道」只是花生节拍器：stage ∈ preflop|flop|turn|river，
+ * 亮 0/3/4/5 颗。服务端不因为它发任何牌。
+ *
+ * 状态字段（全部可 JSON 序列化）：
+ *   seats[]     {uid, nickname, avatar, seeds, bet, totalBet, blind,
+ *                folded, allIn, isTurn, acted}
+ *   pot         公共池瓜子数
+ *   currentBet  本街当前最高注额
+ *   stage       preflop | flop | turn | river
+ *   turnUid     轮到谁
+ *   sbIndex     小麦位索引（房主指定）
+ *   roundNo     第几手
+ *   actionLog   下注流水，最新在末尾（= 前端的 betLog）
+ *   finished    本手是否已被收掉
+ *   actedUids   本街已表态的人（没有它就分不出「满注未动」和「已动」）
  */
 
 export const STAGE = {
@@ -60,30 +78,22 @@ export const RAISE_PRESETS = [10, 20, 50, 100, 300, 500]
  * @param {number} cfg.smallBlind
  * @param {number} cfg.bigBlind
  * @param {number} cfg.roundNo
- * @param {string} cfg.dealerUid 上一手庄家，用于定大小麦顺序
+ * @param {number} cfg.sbIndex   小麦位索引（房主指定）；缺省 0
+ *
+ * 房主只需指定小麦位，下家自动是大麦（玩家原话）。
  */
 export function initOfflineHand({
   players,
   smallBlind = 10,
   bigBlind = 20,
   roundNo = 1,
-  dealerUid = null,
+  sbIndex = 0,
 }) {
   if (!Array.isArray(players) || players.length < 2) {
     throw new Error('至少需要 2 名玩家')
   }
   const bb = Math.max(1, Number(bigBlind) || 20)
   const sb = Math.max(1, Math.min(Number(smallBlind) || 10, bb))
-
-  // 庄家右手第一家 = 小麦，第二家 = 大麦。第一手没有庄家，按座位顺序。
-  // ⚠️ 这里全程用「轮转后的顺序」思考，不再混用原数组下标 ——
-  //    早期版本把 order 里的位置和 seats 里的 seatIndex 混着算，
-  //    三人局一开就崩（postBlind 拿到 undefined）。
-  let rotated = players.slice()
-  if (dealerUid) {
-    const d = rotated.findIndex((p) => p.uid === dealerUid)
-    if (d >= 0) rotated = [...rotated.slice(d + 1), ...rotated.slice(0, d + 1)]
-  }
 
   const seats = players.map((p, i) => ({
     uid: p.uid,
@@ -96,46 +106,40 @@ export function initOfflineHand({
     folded: false,
     allIn: false,
     isTurn: false,
-    joinedAt: p.joinedAt ?? null,
+    acted: false,
     seatIndex: i,
   }))
+
+  // 小麦位校验：必须是有效座位
+  let sbIdx = Number(sbIndex)
+  if (!Number.isInteger(sbIdx) || sbIdx < 0 || sbIdx >= seats.length) sbIdx = 0
+  const bbIdx = (sbIdx + 1) % seats.length
 
   const state = {
     stage: STAGE.PREFLOP,
     pot: 0,
     currentBet: 0,
-    // ⚠️ seats 必须挂在 state 上。
-    // postBlind / setTurn 改的是这个数组，不挂上去调用方
-    // 拿到的是没有 seats 的状态，所有动作都会「你不在这个房间」。
+    // ⚠️ seats 必须挂在 state 上。不挂上去调用方拿到的是
+    // 没有 seats 的状态，所有动作都会「你不在这个房间」。
     seats,
     turnUid: null,
+    sbIndex: sbIdx,
     roundNo,
     actionLog: [],
     finished: false,
     lastAggressorUid: null,
-    // 本下注轮里已经「回应过当前注额」的人。
-    // 没有它就无法区分「已满注但还没表态」和「已表态」——
-    // 大小麦是自动下的，他们从没表态过，必须给一次机会。
     actedUids: [],
   }
 
-  // 自动下大小麦。
-  //   · 两人局：第一家小麦、第二家大麦（不是一个人全下两注）
-  //   · 多人局：第一家小麦、第二家大麦
-  // 座次分配一样，区别只在「谁第一个行动」。
-  const sbSeat = seats.find((s) => s.uid === rotated[0].uid)
-  const bbSeat = seats.find((s) => s.uid === rotated[1].uid) ?? sbSeat
+  // 自动下大小麦
+  postBlind(state, seats[sbIdx], sb, 'sb')
+  postBlind(state, seats[bbIdx], bb, 'bb')
 
-  postBlind(state, sbSeat, sb, 'sb')
-  postBlind(state, bbSeat, bb, 'bb')
-
-  // 翻前第一个行动的人：
+  // preflop 第一个行动的人：
   //   · 多人局：大麦下家
   //   · 两人局：小麦（Heads-up 规则）
-  const firstUid = seats.length === 2
-    ? sbSeat.uid
-    : seats[(seats.indexOf(bbSeat) + 1) % seats.length].uid
-  setTurn(state, seats, firstUid)
+  const firstIdx = seats.length === 2 ? sbIdx : (bbIdx + 1) % seats.length
+  setTurn(state, seats, seats[firstIdx].uid)
 
   return state
 }
@@ -173,7 +177,15 @@ function markActed(state, uid, { reset } = {}) {
   if (!state.actedUids.includes(uid)) state.actedUids.push(uid)
 }
 
-/** 下一个该行动的人：未弃牌、未全下、且有行动义务（未满注或未表态） */
+/**
+ * 下一个该行动的人：未弃牌、未全下、且有行动义务（未满注或未表态）。
+ *
+ * ⚠️ 关键：没人欠行动时必须返回 null，不能 fallback 到
+ *    「第一个还能自主决定的人」。上一版就是 fallback 了，
+ *    结果走完一圈后 nextActor 返回非 null，afterMove 判断不到
+ *    「本街已结束」，花生永远推不下去。
+ *    调用方（afterMove）靠 null 来触发换街。
+ */
 function nextActor(state, seats, fromUid) {
   const from = seats.findIndex((s) => s.uid === fromUid)
   const start = from < 0 ? 0 : from
@@ -184,8 +196,7 @@ function nextActor(state, seats, fromUid) {
     const s = seats[(start + step) % seats.length]
     if (needsAct(s)) return s
   }
-  // 没人欠行动 → 交给第一个还能自主决定的人（通常是收池）
-  return seats.find((s) => !s.folded && !s.allIn && s.seeds > 0) ?? null
+  return null
 }
 
 /** 未弃牌的玩家（含全下） */
@@ -231,9 +242,19 @@ export function toCall(state, uid) {
 }
 
 /**
- * viewer 能做什么。
+ * viewer 能做什么 —— 按「我的注额 vs 本街最高注额」动态决定。
  *
- * 只在自己的回合返回非空数组（服务端强校验，这里只是给 UI 用）。
+ * 玩家原话：翻牌前小麦大麦自动下完后，下家只有「加倍/弃」，
+ * 一路轮到大盲位；大盲行动完才进下一街，轮到小麦位时才有 check。
+ * 所以按钮不是固定的三个，而是：
+ *
+ *   我的注额 < currentBet  → 加倍 / 弃        （补不满不能过）
+ *   我的注额 = currentBet  → check / 加倍 / 弃
+ *
+ * 「收」不占三键之一 —— 它是中性动作，任何时刻谁都能点，
+ * 由服务端单独处理，不进回合决策。
+ *
+ * @returns {Array<{type,label,amount?,enabled}>} 不是自己的回合返回 []
  */
 export function availableActions(state, uid) {
   const st = normalize(state)
@@ -241,16 +262,30 @@ export function availableActions(state, uid) {
   if (st.turnUid !== uid) return []
   const me = st.seats.find((s) => s.uid === uid)
   if (!me || me.folded || me.allIn) return []
-  // 只剩自己没弃牌时不给操作，由服务端自动收
+  // 只剩自己没弃牌 → 不给操作，服务端会自动收池
   if (activePlayers(st.seats).length <= 1) return []
+  // 暂停中：手动模式，出/收自由，不构成回合
+  if (st.paused) return []
 
-  const call = toCall(st, uid)
-  return [
-    { type: 'collect', label: '收', enabled: true },
-    { type: 'call', label: '跟', amount: call, enabled: call <= me.seeds },
-    { type: 'raise', label: '倍', enabled: me.seeds > call },
-    { type: 'fold', label: '弃', enabled: true },
-  ]
+  const need = toCall(st, uid)          // 还需补多少才平注
+  const out = []
+
+  if (need <= 0) {
+    // 已平注 → 可以过牌
+    out.push({ type: 'check', label: '过', enabled: true })
+  } else {
+    // 未平注 → 只能跟/加注，不能过
+    out.push({
+      type: 'call', label: '跟', amount: need,
+      enabled: need <= me.seeds,
+      // 我的瓜子不够平注时，这一下实际上是全下
+      allIn: need > me.seeds,
+    })
+  }
+
+  out.push({ type: 'raise', label: '加倍', enabled: me.seeds > 0 })
+  out.push({ type: 'fold', label: '弃', enabled: true })
+  return out
 }
 
 /**
@@ -289,10 +324,21 @@ export function applyOfflineAction(state, action) {
       return afterMove(st, uid)
     }
 
+    case 'check': {
+      // 过牌：不花钱，但必须已平注。
+      // 翻牌前大小麦刚下完时没人能过 —— 这是玩家明确要的规则。
+      if (st.turnUid !== uid) return { error: '还没到你的回合' }
+      const need = toCall(st, uid)
+      if (need > 0) return { error: `还未平注，需补 ${need}` }
+      markActed(st, uid)
+      st.actionLog.push({ uid, nickname: me.nickname, type: 'check', amount: 0, stage: st.stage })
+      return afterMove(st, uid)
+    }
+
     case 'call': {
       if (st.turnUid !== uid) return { error: '还没到你的回合' }
       const need = toCall(st, uid)
-      if (need <= 0) return { error: '当前无需跟注' }
+      if (need <= 0) return { error: '已经平注，请过牌' }
       const pay = Math.min(need, me.seeds)
       moveIn(st, me, pay)
       markActed(st, uid)
@@ -359,11 +405,23 @@ function moveIn(st, seat, amount) {
   if (seat.bet > st.currentBet) st.currentBet = seat.bet
 }
 
-/** 一次行动之后：推进回合 / 判断是否本手已了 */
+/**
+ * 一次行动之后：推进回合 / 换街 / 判断本手是否已了。
+ *
+ * 顺序很重要：
+ *   1. 有人打光 / 只剩一人未弃 → 本手真的结束
+ *   2. 这一街下注轮走完（都平注且都表态）→ 自动换街，花生 +1
+ *   3. 否则 → 把回合交给下一个欠行动的人
+ *
+ * ⚠️ 踩过的坑：一开始把「本街已结束」和「本手已结束」混在一个
+ *    handResolved 判断里，结果大盲 check 完直接被判成整手结束，
+ *    花生永远停在 preflop。两者必须分开 —— 街结束只是换花生，
+ *    手结束才涉及收池和结算。
+ */
 function afterMove(st, uid) {
-  if (handResolved(st)) {
-    // 只剩 1 人未弃牌 → 自动替他收池
-    const alive = st.seats.filter((s) => !s.folded)
+  // ── 1. 只剩 1 人未弃牌 → 自动替他收池，本手结束 ──
+  const alive = st.seats.filter((s) => !s.folded)
+  if (alive.length <= 1) {
     if (alive.length === 1 && st.pot > 0) {
       const w = alive[0]
       w.seeds += st.pot
@@ -372,24 +430,88 @@ function afterMove(st, uid) {
         amount: st.pot, auto: true, stage: st.stage,
       })
       st.pot = 0
-      st.finished = true
-      st.turnUid = null
-      for (const s of st.seats) { s.isTurn = false; s.bet = 0 }
-      return { state: st, autoCollected: { uid: w.uid } }
     }
-    // 其他情况（全下结束）：停在这，等有人点「收」
+    st.finished = true
     st.turnUid = null
-    for (const s of st.seats) s.isTurn = false
-    return { state: st }
+    for (const s of st.seats) { s.isTurn = false; s.bet = 0 }
+    return { state: st, autoCollected: alive[0] ? { uid: alive[0].uid } : null }
   }
 
+  // ── 2. 本街走完 → 换街 ──
+  if (streetClosed(st)) {
+    const r = advanceStreet(st)
+    if (r.advanced) return { state: r.state, streetAdvanced: r.state.stage }
+    // river 已换无可换：停在等人收池
+    st.turnUid = null
+    for (const s of st.seats) s.isTurn = false
+    return { state: st, needCollect: true }
+  }
+
+  // ── 3. 还有人欠行动 → 交给他 ──
   const next = nextActor(st, st.seats, uid)
   setTurn(st, st.seats, next?.uid ?? null)
   return { state: st }
 }
 
 /**
- * 换街：只推进花生节拍器，不发牌。
+ * 本街下注轮是否结束：所有人都已表态（含满注的人）。
+ *
+ * 这是「花生 +1」的判据 —— 玩家原话：
+ *   「如果轮询转圈结束，除了弃牌的人都平注了就推进到下一街」
+ * 即：有人行动 + 转完一圈 + 没有人还欠行动。
+ */
+export function streetClosed(state) {
+  const st = normalize(state)
+  if (st.finished) return false
+  // 还有人的注额没平，或者没表态 → 没结束
+  const owes = st.seats.filter(
+    (s) => !s.folded && !s.allIn && s.seeds > 0 &&
+      (s.bet < st.currentBet || !st.actedUids.includes(s.uid))
+  )
+  return owes.length === 0
+}
+
+/**
+ * 尝试推进到下一街。
+ *
+ * 只在 streetClosed 为真时推进，推进后：
+ *   · 花生 +1（stage 前进一步）
+ *   · 每人 bet 清零（注额计入 totalBet，花生是新一轮的视觉边界）
+ *   · actedUids 清空
+ *   · 行动轮从小麦位开始
+ *
+ * 返回 { advanced: boolean, state }。没到时机就不动状态。
+ */
+export function advanceStreet(state) {
+  const st = normalize(state)
+  if (!streetClosed(st)) return { advanced: false, state: st }
+
+  const i = STAGE_ORDER.indexOf(st.stage)
+  if (i >= STAGE_ORDER.length - 1) {
+    // 已经在 river，没有下一街了
+    return { advanced: false, state: st, atRiver: true }
+  }
+
+  st.stage = STAGE_ORDER[i + 1]
+  st.currentBet = 0
+  st.actedUids = []
+  st.lastAggressorUid = null
+  for (const s of st.seats) {
+    if (!s.folded) { s.bet = 0; s.acted = false }
+  }
+
+  // 每街从小麦位开始（玩家原话）
+  const sb = st.seats[st.sbIndex ?? 0]
+  const first = st.seats.find((s) => !s.folded && !s.allIn && s.seeds > 0 && s.uid === sb?.uid)
+    ?? st.seats.find((s) => !s.folded && !s.allIn && s.seeds > 0)
+  setTurn(st, st.seats, first?.uid ?? null)
+
+  st.actionLog.push({ type: 'street', stage: st.stage, amount: 0 })
+  return { advanced: true, state: st }
+}
+
+/**
+ * 换街：只推进花生节拍器，不发牌。保留给房主手动用。
  * 收池后由 nextHand 重置回 preflop。
  */
 export function nextStage(state) {
@@ -400,10 +522,10 @@ export function nextStage(state) {
 }
 
 /**
- * 收池后开下一手：
+ * 收池后开下一手。
  *   · 阶段回 preflop（花生重新灭）
- *   · bet 全清，totalBet 累计
- *   · 不清 folded —— 由房主在结算弹窗里决定重置范围
+ *   · bet / acted / folded 全清，totalBet 累计保留
+ *   · 大小麦由下一次开局重新下（房主可重新指定小麦位）
  */
 export function nextHand(state) {
   const st = normalize(state)
@@ -413,11 +535,16 @@ export function nextHand(state) {
   st.lastAggressorUid = null
   st.actedUids = []
   st.actionLog = []
+  st.paused = false
+  st.settlePending = false
   for (const s of st.seats) {
     s.bet = 0
     s.folded = false
     s.allIn = false
     s.blind = null
+    s.acted = false
+    s.isTurn = false
   }
+  st.turnUid = null
   return st
 }
