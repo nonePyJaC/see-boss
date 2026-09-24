@@ -48,9 +48,10 @@ export function startRoom(roomId, sbIndex, uid = getUid()) {
  *   raise   加注，amount = 需跟数 + 额外加注额（上限全下）
  *   fold    弃牌
  *   collect 收公共池（不占回合，任何时候谁都能收）
+ *   give    暂停中划拨，amount = 数量，toUid = 接收人
  */
-export function roomAction(roomId, type, amount, uid = getUid()) {
-  return request('/api/room/action', { uid, roomId, type, amount })
+export function roomAction(roomId, type, amount, toUid, uid = getUid()) {
+  return request('/api/room/action', { uid, roomId, type, amount, toUid })
 }
 
 /** 推进花生阶段（线下用） */

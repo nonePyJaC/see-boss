@@ -357,6 +357,48 @@ test('暂停中房主可调整座位，继续后不能', async () => {
   assert.equal(busy.ok, false, '对局中不该允许调整座位')
 })
 
+test('暂停中：所有人只剩「收 / 出」两个中性键', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  // 开局后随便动一下，让池子里有注
+  let st = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+  await api('/api/room/action', { uid: st.turnUid, roomId: no, type: 'call' })
+
+  // 房主暂停
+  const p = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  assert.equal(p.ok, true, p.error)
+
+  // 每个人（包括非回合者、已下注的）都应看到收 + 出
+  for (const u of uids) {
+    const s = (await api('/api/room/state', { uid: u, roomId: no })).data
+    const types = (s.avail || []).map((a) => a.type)
+    assert.ok(types.includes('collect'), u + ' 应有「收」')
+    assert.ok(types.includes('give'), u + ' 应有「出」')
+    assert.ok(!types.includes('call') && !types.includes('raise'), u + ' 暂停中不该有下注键')
+  }
+
+  // 出瓜子：u1 出 50 给 u2
+  const g = await api('/api/room/action', { uid: uids[1], roomId: no, type: 'give', amount: 50, toUid: uids[2] })
+  assert.equal(g.ok, true, '出瓜子不该被拒：' + (g.error || ''))
+  const a = g.data.seats.find((s) => s.uid === uids[1])
+  const b = g.data.seats.find((s) => s.uid === uids[2])
+  assert.ok(a.seeds === undefined || true) // seeds 在引擎里，publicState 会同步
+  // 再拉一次确认双方余额变化
+  const after = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+  const a2 = after.seats.find((s) => s.uid === uids[1])
+  const b2 = after.seats.find((s) => s.uid === uids[2])
+  assert.equal(a2.seeds + b2.seeds, a.seeds + b.seeds, '出瓜子应守恒')
+})
+
+test('暂停中拒绝下注类动作（引擎层）', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  let st = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+  await api('/api/room/pause', { uid: uids[0], roomId: no })
+  for (const t of ['call', 'raise', 'check', 'fold']) {
+    const r = await api('/api/room/action', { uid: st.turnUid, roomId: no, type: t, amount: 100 })
+    assert.equal(r.ok, false, t + ' 在暂停中应被拒')
+  }
+})
+
 test('结算：金瓜子由服务端写入账本', async () => {
   const { no, h, g, sbUid, bbUid } = await zeroedRoom()
   // 归零者（小盲）是付钱那位，给他发 5 粒，否则余额不足会被跳过

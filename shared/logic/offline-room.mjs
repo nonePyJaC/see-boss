@@ -270,12 +270,23 @@ export function availableActions(state, uid) {
   // 唯一条件：池子不是 0。
   const collect = [{ type: 'collect', label: '收', enabled: st.pot > 0 }]
 
+  // 暂停中：桌上只剩「收」和「出」两个中性键。
+  //   · 收 = 把公共池收走（房主平衡账目用）
+  //   · 出 = 把手上的瓜子拨给某人（balance 别人的筹码 / 补救下错注）
+  // 没有回合概念，谁都能点。这是「 All-in 和牌后分池」「有人下错了
+  // 给他补回去」这类特殊场景的唯一入口。
+  if (st.paused) {
+    const others = st.seats.filter((s) => s.uid !== uid)
+    return [
+      ...collect,
+      { type: 'give', label: '出', enabled: me.seeds > 0 && others.length > 0 },
+    ]
+  }
+
   if (st.turnUid !== uid) return collect
   if (me.folded || me.allIn) return collect
   // 只剩自己没弃牌 → 不给下注操作，服务端会自动收池
   if (activePlayers(st.seats).length <= 1) return collect
-  // 暂停中：手动模式，出/收自由，不构成回合
-  if (st.paused) return collect
 
   const need = toCall(st, uid)          // 还需补多少才平注
   const out = [...collect]

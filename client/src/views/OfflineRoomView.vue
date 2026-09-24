@@ -51,6 +51,9 @@ const settleOpen = ref(false)   // 结算弹窗
 const logOpen = ref(false)      // 下注流水弹窗
 const inviteOpen = ref(false)   // 邀请二维码弹窗
 const orderMode = ref(false)    // 拖拽换座模式（房主 + 开锁）
+const giveOpen = ref(false)     // 暂停中「出瓜子」弹窗
+const giveTarget = ref('')      // 出给谁
+const giveAmount = ref('')      // 出多少
 const raisePreview = ref(0)
 const customInput = ref('')
 const inputClamped = ref(false)
@@ -345,6 +348,32 @@ function onSeatPointerCancel() {
   drag.target = ''
 }
 
+// ── 暂停中「出瓜子」──
+// 暂停态所有人操作栏只有「收 / 出」两个中性键。出 = 把手上的瓜子
+// 拨给别人，用于「All-in 和牌后分池」「有人下错注给他补回去」。
+const giveTargets = computed(() => seats.value.filter((s) => s.uid !== uid))
+const giveMax = computed(() => mySeeds.value)
+
+function openGive() {
+  if (!d.value?.paused) return toast('只有暂停中才能出瓜子')
+  giveTarget.value = giveTargets.value[0]?.uid || ''
+  giveAmount.value = ''
+  giveOpen.value = true
+}
+
+function submitGive() {
+  const amt = Math.floor(Number(giveAmount.value))
+  if (!giveTarget.value) return toast('选一个接收人')
+  if (!Number.isFinite(amt) || amt <= 0) return toast('出多少要大于 0')
+  if (amt > giveMax.value) return toast('手上只有 ' + giveMax.value)
+  roomRepo.roomAction(roomId(), 'give', amt, giveTarget.value).then((x) => {
+    if (!x.ok) return toast(x.error)
+    giveOpen.value = false
+    toast('已出 ' + amt)
+    pull()
+  })
+}
+
 // ── 加注弹窗 ──
 function openSheet() {
   if (!d.value) { toast('房间状态还没加载'); return }
@@ -464,6 +493,7 @@ onUnmounted(() => {
       <button class="room-tag" @click="openInvite">
         <span class="no">{{ d.id }}</span>
         <span v-if="isHost" class="host">房主</span>
+        <span class="qricon" title="扫码邀请">▣</span>
       </button>
       <div class="spacer"></div>
       <!-- 房主：排序 + 锁 + 开始|暂停|继续
@@ -539,8 +569,12 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 操作栏 -->
-    <div class="actionbar">
+    <!-- 操作栏：暂停态只有「收 / 出」，正常态是 收/跟|过/加倍/弃 -->
+    <div v-if="d.paused" class="actionbar actionbar--paused">
+      <button class="collect" :disabled="!has('collect')" @click="confirmCollect">收</button>
+      <button class="give" :disabled="!has('give')" @click="openGive">出</button>
+    </div>
+    <div v-else class="actionbar">
       <button class="collect" :disabled="!has('collect')" @click="confirmCollect">收</button>
       <button class="mid" :disabled="!has(toCall > 0 ? 'call' : 'check')"
               @click="toCall > 0 ? act('call') : act('check')">
@@ -629,6 +663,26 @@ onUnmounted(() => {
     </div>
   </div>
 
+  <!-- 暂停中「出瓜子」弹窗 -->
+  <div v-if="giveOpen" class="mask" @click.self="giveOpen = false">
+    <div class="sheet">
+      <h3>出瓜子</h3>
+      <p class="hint">我手上有 {{ giveMax }}，出给谁、出多少</p>
+      <div class="give-list">
+        <button v-for="t in giveTargets" :key="t.uid"
+                :class="{ on: giveTarget === t.uid }"
+                @click="giveTarget = t.uid">
+          {{ t.nickname }}<span class="x">{{ t.seeds }}</span>
+        </button>
+      </div>
+      <div class="row">
+        <input v-model="giveAmount" type="number" min="1" :max="giveMax" placeholder="数量" />
+        <button class="ok" @click="submitGive">确定</button>
+      </div>
+      <button class="cancel" @click="giveOpen = false">取消</button>
+    </div>
+  </div>
+
   <div class="toast" :class="{ show: showToast }">{{ toastMsg }}</div>
 </template>
 
@@ -665,6 +719,12 @@ onUnmounted(() => {
 .room-tag .host {
   font-size: 10px; font-weight: 800; color: #fff; background: var(--c-primary);
   padding: 2px 7px; border-radius: 7px;
+}
+/* 房间号旁边的扫码图标：二维码入口藏得太深，实测没人找到 */
+.room-tag .qricon {
+  font-size: 14px;
+  color: var(--c-primary-dark);
+  margin-left: 2px;
 }
 .topbar .spacer { flex: 1; }
 .iconbtn {
@@ -821,6 +881,13 @@ onUnmounted(() => {
   background: #e8dcc4; color: var(--c-text-light); box-shadow: 0 4px 0 #cdbe9e;
 }
 
+/* 暂停态：只有两个按钮，各占一半 */
+.actionbar--paused { grid-template-columns: 1fr 1fr; }
+.actionbar button.give {
+  background: linear-gradient(180deg, #81c784 0%, #43a047 100%);
+  color: #fff; box-shadow: 0 4px 0 #2e7d32;
+}
+
 .gate {
   min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 10px; background: var(--c-bg); color: var(--c-text);
@@ -869,6 +936,35 @@ onUnmounted(() => {
   color: var(--c-text); text-align: center;
 }
 .row input.hot { border-color: var(--c-danger); color: var(--c-danger); }
+
+/* 「出瓜子」弹窗 */
+.give-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.give-list button {
+  height: 48px;
+  border: 2px solid var(--c-border);
+  border-radius: 14px;
+  background: var(--c-card);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--c-text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+.give-list button.on {
+  border-color: var(--c-primary);
+  background: #fff6e0;
+  color: var(--c-primary-dark);
+}
+.give-list button .x { font-size: 10px; font-weight: 700; color: var(--c-text-light); }
 .row .ok {
   width: 88px; height: 46px; border: none; border-radius: 14px; background: var(--c-primary);
   color: #fff; font-weight: 800; font-size: 15px; cursor: pointer;
