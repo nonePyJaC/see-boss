@@ -20,7 +20,7 @@ const { user, refresh } = useUser()
 
 // 直接打开这个 URL（扫码）时 user store 可能是空的，自己拉一次
 onMounted(async () => {
-  if (!user.value) await refresh()
+  await refresh()
 })
 
 const roomNo = computed(() => String(route.params.roomNo ?? '').trim())
@@ -38,9 +38,10 @@ async function enter() {
   joining.value = true
   joinError.value = ''
   try {
-    // 先确保拿的是当前 uid 的档案。store 是本地缓存，同会话里换过 uid
-    // （比如另一个人扫了码）时不刷新就会拿上一个身份去入座。
-    if (!user.value) await refresh()
+    // 每次都刷一次，别用本地缓存的身份入座。
+    // store 是本地缓存，同会话里换过 uid（另一个人扫了码）时
+    // 缓存还是上一个身份 —— 表现为两个人进房却显示同一个昵称（踩过）。
+    await refresh()
     const r = await roomRepo.joinRoom(roomNo.value, {
       nickname: user.value?.nickname || user.value?.account || '匿名',
       avatar: user.value?.avatar ?? 1,
