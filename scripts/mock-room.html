@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>仓鼠聚会 — 房间（紧凑头像版）</title>
+<style>
+  :root {
+    --c-bg: #FFF8E7;
+    --c-bg-deep: #FFE9C4;
+    --c-primary: #F6A623;
+    --c-primary-dark: #E08900;
+    --c-secondary: #FF8A65;
+    --c-accent: #FFD54F;
+    --c-gold: #FFC107;
+    --c-text: #5D4037;
+    --c-text-light: #8D6E63;
+    --c-card: #FFFFFF;
+    --c-border: #F0DCC0;
+    --c-danger: #EF5350;
+    --c-success: #66BB6A;
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    color: var(--c-text);
+    background: var(--c-bg);
+    user-select: none;
+    -webkit-user-select: none;
+    overscroll-behavior: none;
+  }
+  #app { height: 100%; }
+  .page {
+    min-height: 100dvh;
+    display: flex; flex-direction: column;
+    padding: var(--sat) 0 var(--sab);
+    background: linear-gradient(160deg, var(--c-bg) 0%, var(--c-bg-deep) 100%);
+    max-width: 480px; margin: 0 auto;
+  }
+
+  /* ── 顶栏 ─────────────────────────────── */
+  .topbar {
+    flex: 0 0 auto; height: 52px;
+    display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  }
+  .back {
+    width: 38px; height: 38px; border: none; border-radius: 50%;
+    background: var(--c-card); color: var(--c-text);
+    font-size: 22px; line-height: 1; cursor: pointer;
+    box-shadow: 0 2px 0 var(--c-border);
+  }
+  .room-tag { display: flex; align-items: center; gap: 6px; }
+  .room-tag .no { font-size: 17px; font-weight: 900; letter-spacing: .5px; }
+  .room-tag .host {
+    font-size: 10px; font-weight: 800; color: #fff;
+    background: var(--c-primary); padding: 2px 7px; border-radius: 7px;
+  }
+  .topbar .spacer { flex: 1; }
+  .iconbtn {
+    width: 38px; height: 38px; border: none; border-radius: 50%;
+    font-size: 17px; cursor: pointer;
+    background: var(--c-card); box-shadow: 0 2px 0 var(--c-border);
+  }
+  .iconbtn.locked { color: var(--c-success); }
+  .iconbtn.unlocked { color: var(--c-text-light); }
+  .iconbtn.qr {
+    width: auto; padding: 0 11px; height: 32px; border-radius: 10px;
+    font-size: 12px; font-weight: 800;
+  }
+
+  .roundbar { flex: 0 0 auto; text-align: center; font-size: 12px; color: var(--c-text-light); padding: 2px 0 8px; }
+  .roundbar b { color: var(--c-text); }
+
+  /* ── 公共池 ───────────────────────────── */
+  .pool {
+    flex: 0 0 auto; margin: 0 14px 12px; padding: 14px 16px 16px;
+    background: var(--c-card); border-radius: 22px; cursor: pointer;
+    box-shadow: 0 4px 0 var(--c-border), 0 8px 20px rgba(224,137,0,.07);
+  }
+  .pool-head { display: flex; align-items: baseline; justify-content: center; gap: 9px; }
+  .pool-head .nut { font-size: 24px; }
+  .pool-head .num { font-size: 32px; font-weight: 900; color: var(--c-primary-dark); line-height: 1; }
+  .pool-head .lbl { font-size: 13px; color: var(--c-text-light); }
+
+  .peanuts { display: flex; justify-content: center; gap: 6px; margin-top: 9px; height: 12px; }
+  .peanut { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--c-border); }
+  .peanut.on { background: var(--c-gold); border-color: var(--c-primary-dark); }
+
+  .bets { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+  .bet-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .bet-row .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c-border); flex: 0 0 auto; }
+  .bet-row .dot.sb { background: var(--c-gold); }
+  .bet-row .dot.bb { background: var(--c-secondary); }
+  .bet-row .nm { color: var(--c-text-light); }
+  .bet-row .val { font-weight: 800; margin-left: auto; color: var(--c-text); }
+  .bet-row.folded { opacity: .4; }
+
+  /* ── 座位：圆形头像，无白框 ───────────── */
+  .table {
+    flex: 1 1 auto;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 8px 0; padding: 4px 8px 10px;
+    align-content: start; overflow-y: auto; min-height: 0;
+  }
+  .seat { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
+  .locked .seat:active .avatar { transform: scale(.93); }
+  .avatar {
+    width: 58px; height: 58px; border-radius: 50%;
+    border: 3px solid var(--c-border);
+    background: var(--c-card);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .12s, border-color .2s, box-shadow .2s;
+    overflow: hidden;
+  }
+  .avatar img { width: 100%; height: 100%; display: block; }
+  .seat.me .avatar { border-color: var(--c-accent); box-shadow: 0 0 0 3px rgba(255,213,79,.28); }
+  .seat.turn .avatar { border-color: var(--c-danger); animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,83,80,.5); }
+    50%      { transform: scale(1.07); box-shadow: 0 0 0 9px rgba(239,83,80,0); }
+  }
+  .seat.folded .avatar { opacity: .45; filter: grayscale(1); }
+
+  .seat-name { font-size: 12px; font-weight: 700; max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+  .seat-nums { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--c-text-light); }
+  .seat-nums .g { display: flex; align-items: center; gap: 3px; }
+  .seat-nums .i { width: 9px; height: 9px; border-radius: 50%; }
+  .seat-nums .i.gold { background: var(--c-gold); }
+  .seat-nums .i.seed { background: #C9AE85; }
+  .seat-nums .s { font-weight: 800; color: var(--c-text); font-size: 12px; }
+
+  .tag { position: absolute; font-size: 9px; font-weight: 800; padding: 1.5px 6px; border-radius: 6px; white-space: nowrap; }
+  .tag.me { left: 50%; transform: translateX(-50%); bottom: 46px; background: var(--c-accent); color: #7A5B00; }
+  .tag.host { top: -3px; right: 8px; font-size: 14px; background: none; }
+  .tag.sb { left: 6px; bottom: 46px; background: var(--c-primary); color: #fff; }
+  .tag.bb { left: 6px; bottom: 46px; background: var(--c-secondary); color: #fff; }
+  .seat.turn::after {
+    content: "决策中"; position: absolute; top: -3px; left: 50%; transform: translateX(-50%);
+    background: var(--c-danger); color: #fff;
+    font-size: 9px; font-weight: 800; padding: 1.5px 6px; border-radius: 6px;
+  }
+
+  /* ── 底部操作 ─────────────────────────── */
+  .actionbar { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 7px; padding: 6px 14px 16px; }
+  .actionbar button {
+    height: 60px; border: none; border-radius: 50%;
+    font-size: 15px; font-weight: 800; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    transition: transform .08s, box-shadow .08s;
+  }
+  .actionbar button .sub { font-size: 10px; font-weight: 700; opacity: .7; }
+  .actionbar button:active { transform: translateY(3px); box-shadow: none; }
+  .actionbar button.collect { background: linear-gradient(180deg, var(--c-primary) 0%, var(--c-primary-dark) 100%); color: #fff; box-shadow: 0 4px 0 #C77A00; }
+  .actionbar button.mid { background: var(--c-card); color: var(--c-primary-dark); box-shadow: 0 4px 0 var(--c-border); }
+  .actionbar button.raise { background: linear-gradient(180deg, #FFD54F 0%, #FFB300 100%); color: #7A5B00; box-shadow: 0 4px 0 #D89B00; }
+  .actionbar button.fold { background: #E8DCC4; color: var(--c-text-light); box-shadow: 0 4px 0 #CDBE9E; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%);
+    background: rgba(93,64,55,.94); color: #fff;
+    font-size: 13px; padding: 9px 16px; border-radius: 12px;
+    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; max-width: 78%;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ── 加注弹窗 ─────────────────────────── */
+  .mask { position: fixed; inset: 0; background: rgba(93,64,55,.5); display: none; align-items: flex-end; justify-content: center; z-index: 20; }
+  .mask.show { display: flex; }
+  .sheet { width: 100%; max-width: 480px; background: var(--c-bg); border-radius: 26px 26px 0 0; padding: 20px 18px 24px; animation: up .22s ease-out; }
+  @keyframes up { from { transform: translateY(30px); opacity: .3; } to { transform: none; opacity: 1; } }
+  .sheet h3 { margin: 0 0 6px; font-size: 17px; text-align: center; }
+  .sheet .need { text-align: center; font-size: 13px; color: var(--c-text-light); margin-bottom: 6px; }
+  .sheet .need b { color: var(--c-danger); font-size: 19px; }
+  .preview { text-align: center; font-size: 14px; font-weight: 900; color: var(--c-primary-dark); margin-bottom: 16px; }
+  .preview.allin { color: var(--c-danger); }
+  .preview.allin::after { content: " · All in"; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
+  .grid button {
+    height: 56px; border: 2px solid var(--c-border); border-radius: 16px;
+    background: var(--c-card); font-weight: 900; font-size: 17px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    color: var(--c-text);
+  }
+  .grid button .x { font-size: 10px; font-weight: 700; color: var(--c-text-light); }
+  .grid button:active { transform: translateY(2px); }
+  .grid button.allin { border-color: var(--c-danger); color: var(--c-danger); }
+  .grid button.allin.hot { background: var(--c-danger); color: #fff; animation: blink 1s infinite; }
+  .grid button.allin.hot .x { color: rgba(255,255,255,.9); }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .7; } }
+  .row { display: flex; gap: 11px; margin-top: 16px; align-items: center; }
+  .row input {
+    flex: 1; height: 48px; border: 2px solid var(--c-border); border-radius: 14px;
+    padding: 0 14px; font-size: 17px; font-weight: 900; background: var(--c-card);
+    text-align: center; color: var(--c-text);
+  }
+  .row input.hot { border-color: var(--c-danger); color: var(--c-danger); }
+  .row .ok { height: 48px; padding: 0 26px; border: none; background: linear-gradient(180deg, var(--c-primary) 0%, var(--c-primary-dark) 100%); color: #fff; border-radius: 14px; font-weight: 800; font-size: 15px; cursor: pointer; box-shadow: 0 3px 0 #C77A00; }
+  .cancel { width: 100%; margin-top: 12px; height: 44px; border: none; background: none; color: var(--c-text-light); font-size: 14px; font-weight: 700; cursor: pointer; }
+
+  .demo { position: fixed; top: calc(var(--sat) + 8px); right: 12px; z-index: 40; display: flex; flex-direction: column; gap: 6px; }
+  .demo button { font-size: 11px; padding: 5px 9px; border: 1px solid var(--c-border); background: var(--c-card); border-radius: 8px; cursor: pointer; font-weight: 700; color: var(--c-text-light); }
+</style>
+</head>
+<body>
+<div id="app">
+<div class="page" id="page">
+
+  <div class="topbar">
+    <button class="back">←</button>
+    <div class="room-tag"><span class="no">460777</span><span class="host">房主</span></div>
+    <div class="spacer"></div>
+    <button class="iconbtn locked" id="lockBtn">🔒</button>
+    <button class="iconbtn qr">二维码</button>
+  </div>
+  <div class="roundbar" id="roundbar"></div>
+
+  <div class="pool" id="pool">
+    <div class="pool-head">
+      <span class="nut">🥜</span><span class="num" id="poolNum">300</span><span class="lbl">公共池</span>
+    </div>
+    <div class="peanuts" id="peanuts">
+      <i class="peanut on"></i><i class="peanut on"></i><i class="peanut on"></i>
+      <i class="peanut"></i><i class="peanut"></i>
+    </div>
+    <div class="bets" id="bets"></div>
+  </div>
+
+  <div class="table" id="table"></div>
+
+  <div class="actionbar">
+    <button class="collect" id="btnCollect">收</button>
+    <button class="mid" id="btnMid">跟 200</button>
+    <button class="raise" id="btnRaise">加倍</button>
+    <button class="fold" id="btnFold">弃牌</button>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="mask" id="mask">
+  <div class="sheet">
+    <h3 id="sheetTitle">加注</h3>
+    <div class="need" id="sheetNeed"></div>
+    <div class="preview" id="sheetPreview"></div>
+    <div class="grid" id="presetGrid"></div>
+    <div class="row">
+      <input id="customInput" type="number" placeholder="自定义追加" />
+      <button class="ok" id="customOk">确定</button>
+    </div>
+    <button class="cancel" id="cancelBtn">取消</button>
+  </div>
+</div>
+
+<div class="demo">
+  <button id="demoCount">4人 / 8人</button>
+  <button id="demoLock">开锁 / 关锁</button>
+  <button id="demoStage">换街</button>
+</div>
+
+<script>
+const state = {
+  locked: true, smallBlind: 100, bigBlind: 200,
+  mySeeds: 9900, myBet: 0, currentBet: 200, needCall: 200,
+  players: [], sbIndex: 1, stage: 'flop',
+}
+const NAMES = ['鼠怪','小数','小王','阿珍','老李','阿May','Tom','凯文']
+// 用项目里的仓鼠配色思路，本地生成几只不同花色的
+const PALETTE = [
+  { body:'#C68A4B', belly:'#F5D9A8', ear:'#A9713A' },
+  { body:'#E0A96D', belly:'#FBE7C6', ear:'#C48A4E' },
+  { body:'#9C7A5B', belly:'#E8D3B3', ear:'#7E6046' },
+  { body:'#D4805F', belly:'#FAD9BC', ear:'#B46248' },
+]
+function avatar(i) {
+  const c = PALETTE[i % PALETTE.length]
+  return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="50" cy="50" r="48" fill="${c.belly}"/>
+    <circle cx="27" cy="27" r="12" fill="${c.ear}"/>
+    <circle cx="73" cy="27" r="12" fill="${c.ear}"/>
+    <circle cx="27" cy="27" r="6" fill="${c.belly}" opacity=".55"/>
+    <circle cx="73" cy="27" r="6" fill="${c.belly}" opacity=".55"/>
+    <ellipse cx="50" cy="56" rx="27" ry="25" fill="${c.body}"/>
+    <ellipse cx="50" cy="62" rx="16" ry="14" fill="${c.belly}"/>
+    <circle cx="41" cy="50" r="3.4" fill="#3E2723"/>
+    <circle cx="59" cy="50" r="3.4" fill="#3E2723"/>
+    <ellipse cx="50" cy="57" rx="4" ry="3" fill="#EF5350"/>
+    <path d="M50 60 q0 5 -5 6 M50 60 q0 5 5 6" stroke="#3E2723" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  </svg>`
+}
+function uri(i) { return 'data:image/svg+xml;utf8,' + encodeURIComponent(avatar(i)) }
+
+function buildPlayers(n) {
+  state.players = Array.from({ length: n }, (_, i) => ({
+    uid: 'p' + i, name: NAMES[i], avatar: i,
+    seeds: i === 0 ? 9900 : (i === 1 ? 0 : 5000 + i * 640),
+    gold: i === 0 ? 2 : 0,
+    blind: null, folded: false, turn: i === 2,
+    isMe: i === 0, isHost: i === 0,
+  }))
+  state.sbIndex = 1
+  applyBlinds()
+}
+function applyBlinds() {
+  const n = state.players.length
+  state.players.forEach(p => p.blind = null)
+  if (n >= 2) {
+    state.players[state.sbIndex].blind = 'sb'
+    state.players[(state.sbIndex + 1) % n].blind = 'bb'
+  }
+}
+const $ = id => document.getElementById(id)
+const toCall = () => Math.max(0, state.needCall)
+const PEANUTS = { preflop: 0, flop: 3, turn: 4, river: 5 }
+
+function renderSeats() {
+  const t = $('table'); t.innerHTML = ''
+  state.players.forEach((p, i) => {
+    const d = document.createElement('div')
+    d.className = 'seat' + (p.isMe ? ' me' : '') + (p.turn ? ' turn' : '') + (p.folded ? ' folded' : '')
+    d.innerHTML =
+      `<div class="avatar"><img src="${uri(p.avatar)}" alt=""/></div>` +
+      (p.isMe ? '<span class="tag me">我</span>' : '') +
+      (p.isHost ? '<span class="tag host">👑</span>' : '') +
+      (p.blind === 'sb' ? '<span class="tag sb">小麦</span>' : '') +
+      (p.blind === 'bb' ? '<span class="tag bb">大麦</span>' : '') +
+      `<div class="seat-name">${p.name}</div>` +
+      `<div class="seat-nums"><span class="g"><i class="i gold"></i>${p.gold}</span>` +
+      `<span class="g"><i class="i seed"></i><span class="s">${p.seeds}</span></span></div>`
+    d.onclick = () => onSeatTap(i)
+    t.appendChild(d)
+  })
+  $('page').classList.toggle('locked', state.locked)
+}
+function renderBets() {
+  $('bets').innerHTML = state.players.slice(0, 8).map(p => {
+    const cls = 'bet-row' + (p.folded ? ' folded' : '')
+    const dot = p.blind === 'sb' ? 'sb' : (p.blind === 'bb' ? 'bb' : '')
+    const v = p.turn ? Math.round(state.currentBet / 2) : (p.blind ? state.smallBlind : 0)
+    return `<div class="${cls}"><i class="dot ${dot}"></i><span class="nm">${p.name}</span><span class="val">${v}</span></div>`
+  }).join('')
+}
+function renderPeanuts() {
+  const on = PEANUTS[state.stage] ?? 0
+  ;[...document.querySelectorAll('.peanut')].forEach((el, i) => el.classList.toggle('on', i < on))
+}
+function renderAll() {
+  renderSeats(); renderBets(); renderPeanuts()
+  $('btnMid').textContent = toCall() > 0 ? '跟 ' + toCall() : '过'
+  $('lockBtn').textContent = state.locked ? '🔒' : '🔓'
+  $('lockBtn').className = 'iconbtn ' + (state.locked ? 'locked' : 'unlocked')
+  $('roundbar').innerHTML = `第 1 局 · 小麦 <b>${state.smallBlind}</b> / 大麦 <b>${state.bigBlind}</b>`
+  $('poolNum').textContent = 300 + state.currentBet
+}
+function onSeatTap(i) {
+  if (!state.locked) { toast('先开锁才能设置小麦位'); return }
+  state.sbIndex = i; applyBlinds(); renderAll()
+  const sb = state.players[i], bb = state.players[(i + 1) % state.players.length]
+  toast(`${sb.name} 设为小麦 · ${bb.name} 自动大麦`)
+}
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1900) }
+
+// 加注
+const presets = () => { const sb = state.smallBlind; return [{x:1,v:sb},{x:2,v:sb*2},{x:5,v:sb*5},{x:10,v:sb*10},{x:20,v:sb*20}] }
+const maxRaise = () => Math.max(0, state.mySeeds - toCall())
+function updatePreview(extra, forced) {
+  const total = toCall() + extra
+  const allin = forced || extra >= maxRaise()
+  const el = $('sheetPreview')
+  el.textContent = '共下 ' + Math.min(total, state.mySeeds)
+  el.classList.toggle('allin', allin)
+  const b = [...$('presetGrid').querySelectorAll('button')].pop()
+  if (b) b.classList.toggle('hot', allin)
+  $('customInput').classList.toggle('hot', allin)
+}
+function openSheet() {
+  const c = toCall()
+  $('sheetTitle').textContent = c > 0 ? '跟注 + 加注' : '加注'
+  $('sheetNeed').innerHTML = c > 0 ? `需跟 <b>${c}</b>，再加注下列数额` : '当前已平注，直接加注'
+  const g = $('presetGrid'); g.innerHTML = ''
+  presets().forEach(p => { const b = document.createElement('button'); b.innerHTML = `${p.v}<span class="x">${p.x}倍</span>`; b.onclick = () => doRaise(p.v, p.x + '倍'); g.appendChild(b) })
+  const all = document.createElement('button'); all.className = 'allin'
+  all.innerHTML = `All in<span class="x">${maxRaise()}</span>`
+  all.onclick = () => doRaise(maxRaise(), 'All in'); g.appendChild(all)
+  $('customInput').value = ''; updatePreview(presets()[0].v); $('mask').classList.add('show')
+}
+$('customInput').oninput = e => {
+  const max = maxRaise()
+  const raw = Number(e.target.value)
+  let v = Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0
+  const clamped = v > max
+  if (clamped) { v = max; e.target.value = max }
+  updatePreview(v, clamped)
+}
+$('customOk').onclick = () => { const v = Number($('customInput').value); if (!Number.isFinite(v) || v <= 0) return toast('请输入有效数额'); doRaise(v, v >= maxRaise() ? 'All in' : '自定义') }
+function doRaise(extra, label) {
+  const c = toCall(); let e = Math.min(extra, maxRaise())
+  if (e <= 0) return toast('至少加 1 倍小麦')
+  const total = c + e
+  state.mySeeds -= total; state.myBet += total; state.currentBet = state.myBet; state.needCall = 0
+  closeSheet(); renderAll()
+  toast(`跟 ${c} + 加 ${e} = ${total}（${label}）`)
+}
+const closeSheet = () => $('mask').classList.remove('show')
+$('btnRaise').onclick = openSheet
+$('cancelBtn').onclick = closeSheet
+$('mask').onclick = e => { if (e.target === $('mask')) closeSheet() }
+$('btnMid').onclick = () => { const c = toCall(); if (c > 0) { state.mySeeds -= c; state.myBet += c; state.needCall = 0; renderAll(); toast('跟 ' + c) } else toast('过牌，轮到下一位') }
+$('btnCollect').onclick = () => toast('收池')
+$('btnFold').onclick = () => toast('弃牌')
+$('lockBtn').onclick = () => { state.locked = !state.locked; renderAll(); toast(state.locked ? '已开锁：点玩家设小麦位' : '已关锁：自动下大小麦开局') }
+$('pool').onclick = () => toast('下注流水（演示）')
+
+// 演示
+let cnt = 4, stageOrder = ['preflop','flop','turn','river']
+$('demoCount').onclick = () => { cnt = cnt === 4 ? 8 : 4; buildPlayers(cnt); renderAll() }
+$('demoLock').onclick = () => { state.locked = !state.locked; renderAll() }
+$('demoStage').onclick = () => { state.stage = stageOrder[(stageOrder.indexOf(state.stage) + 1) % 4]; renderPeanuts(); toast('阶段 ' + state.stage) }
+
+buildPlayers(4); renderAll()
+</script>
+</body>
+</html>

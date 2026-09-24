@@ -78,7 +78,7 @@ test('★ preflop 下家只有 加倍/弃，没有 check', () => {
   const st = start(4)   // u0 sb, u1 bb, u2 先动
   // u2 注额 0 < currentBet 20 → 不能过
   assert.equal(st.turnUid, 'u2')
-  assert.deepEqual(typesOf(st, 'u2'), ['call', 'raise', 'fold'])
+  assert.deepEqual(typesOf(st, 'u2'), ['collect', 'call', 'raise', 'fold'])
 })
 
 test('★ 满注后按钮变成 check/加倍/弃', () => {
@@ -93,13 +93,13 @@ test('★ 满注后按钮变成 check/加倍/弃', () => {
   st = act(st, 'call')
   assert.equal(st.turnUid, 'u0')
   assert.equal(toCall(st, 'u0'), 10)
-  assert.deepEqual(typesOf(st, 'u0'), ['call', 'raise', 'fold'])
+  assert.deepEqual(typesOf(st, 'u0'), ['collect', 'call', 'raise', 'fold'])
 
   // u0 补平 → 轮到 u1（大麦，已满注 20）
   st = act(st, 'call')
   assert.equal(st.turnUid, 'u1')
   assert.equal(toCall(st, 'u1'), 0)
-  assert.deepEqual(typesOf(st, 'u1'), ['check', 'raise', 'fold'],
+  assert.deepEqual(typesOf(st, 'u1'), ['collect', 'check', 'raise', 'fold'],
     '大盲位满注，这时才出现 check')
 })
 
@@ -167,7 +167,7 @@ test('★ 小麦 check 后有人加倍 → 又轮回他，按钮回到加倍/弃
   assert.equal(st.turnUid, 'u3')
   st = act(st, 'call')
   assert.equal(st.turnUid, 'u0', '轮完一圈又回到小麦位')
-  assert.deepEqual(typesOf(st, 'u0'), ['call', 'raise', 'fold'],
+  assert.deepEqual(typesOf(st, 'u0'), ['collect', 'call', 'raise', 'fold'],
     '面对未平注，check 消失，只能跟/加倍/弃')
   // u2/u3 各跟了 50，所以 u0 也要补 50 才平
   assert.equal(toCall(st, 'u0'), 50)

@@ -270,6 +270,10 @@ export function availableActions(state, uid) {
   const need = toCall(st, uid)          // 还需补多少才平注
   const out = []
 
+  // 「收」是独立中性键，不占回合决策位：桌面上的公共池谁都可以
+  // 顺手收走（输光的人、旁边看牌的人）。所以任何时候都给出。
+  out.push({ type: 'collect', label: '收', enabled: st.pot > 0 })
+
   if (need <= 0) {
     // 已平注 → 可以过牌
     out.push({ type: 'check', label: '过', enabled: true })
@@ -283,7 +287,7 @@ export function availableActions(state, uid) {
     })
   }
 
-  out.push({ type: 'raise', label: '加倍', enabled: me.seeds > 0 })
+  out.push({ type: 'raise', label: '加倍', enabled: me.seeds > need })
   out.push({ type: 'fold', label: '弃', enabled: true })
   return out
 }

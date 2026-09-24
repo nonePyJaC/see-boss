@@ -76,7 +76,7 @@ import {
   addHistory, listHistory,
   saveRoomSnapshot, loadRoomSnapshot, loadAllRoomSnapshots, deleteRoomSnapshot,
 } from './db.js'
-
+import { debugPage } from '../scripts/debug-room-page.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const PORT = Number(process.env.PORT) || 80
@@ -160,6 +160,8 @@ function publicState(room, viewerUid) {
   const seats = room.seats.map((s) => {
     // online 用引擎里的座位数据，offline 直接读 seats
     const ss = st?.seats?.find((x) => x.uid === s.uid)
+    // 金瓜子归属账号，uid 没绑账号就是 0
+    const acct = accountByUid(s.uid)
     return {
       uid: s.uid,
       nickname: s.nickname,
@@ -171,6 +173,8 @@ function publicState(room, viewerUid) {
       folded: ss?.folded ?? false,
       allIn: ss?.allIn ?? false,
       blind: ss?.blind ?? s.blind ?? null,
+      goldSeeds: acct?.goldenSeeds ?? 0,
+      account: acct?.account ?? null,
       isMe: s.uid === viewerUid,
       isHost: s.uid === room.hostUid,
     }
@@ -391,11 +395,10 @@ function handleAction(body, uid) {
 function offlineAction(room, body, uid) {
   const type = body.type
 
-  // 收池：谁都可以，不卡回合。收完判断要不要进结算
+  // 收池：谁都可以点，不卡回合（桌面上的公共池谁都能顺手收）。
+  // 收完 = 本手结束：有人归零 → 进结算；否则等房主开下一手。
   if (type === 'collect') {
     const r = applyOfflineAction(room.state, { uid, type })
-    // 「公共池是空的」这类正常拒绝不算 500
-    if (r.error && !/公共池是空的/.test(r.error)) return fail(r.error)
     if (r.error) return fail(r.error)
     room.state = r.state
     syncSeats(room)
@@ -404,7 +407,10 @@ function offlineAction(room, body, uid) {
     return ok(publicState(room, uid))
   }
 
-  if (type === 'fold' || type === 'call' || type === 'raise') {
+  // 下注类动作：过牌 / 跟注 / 加注 / 弃牌
+  // ⚠️ check 必须在列。漏了它，点「过」会掉到末尾的
+  //    「未知动作」，页面看着就是没反应 —— 实测踩过。
+  if (type === 'check' || type === 'fold' || type === 'call' || type === 'raise') {
     const r = applyOfflineAction(room.state, { uid, type, amount: body.amount })
     if (r.error) return fail(r.error)
     room.state = r.state
@@ -833,6 +839,13 @@ function serveStatic(url, res) {
   if (!full.startsWith(STATIC_DIR)) {
     res.writeHead(403); return res.end('Forbidden')
   }
+
+  // /room?uid=&room= → 调试页（room-repo 接上之前的真实数据预览）
+  if (p === '/room' || (p === '/index.html' && url.searchParams.has('room'))) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    return res.end(debugPage())
+  }
+
   fs.readFile(full, (err, buf) => {
     if (err) {
       // SPA 回退

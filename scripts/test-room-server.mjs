@@ -119,6 +119,30 @@ async function twoPlayerRoom(opts = {}) {
   return { no, h, g, state: s.data }
 }
 
+/** 4 人局：uid 各不相同，方便验「非回合者」「大麦位」这类场景 */
+async function fourPlayerRoom() {
+  const names = ['甲', '乙', '丙', '丁']
+  const uids = names.map((n) => uid(n))
+  for (let i = 0; i < uids.length; i++) {
+    const r = await api('/api/account/login', {
+      uid: uids[i], account: 'p' + Math.random().toString(36).slice(2, 6), nickname: names[i],
+    })
+    assert.equal(r.ok, true, r.error)
+  }
+  const c = await api('/api/room/create', {
+    uid: uids[0], me: me('甲'),
+    cfg: { mode: 'offline', initialSeeds: 1000, smallBlind: 100, bigBlind: 200 },
+  })
+  assert.equal(c.ok, true, c.error)
+  for (let i = 1; i < 4; i++) {
+    const j = await api('/api/room/join', { uid: uids[i], roomId: c.data.id, me: me(names[i]) })
+    assert.equal(j.ok, true, j.error)
+  }
+  const s = await api('/api/room/start', { uid: uids[0], roomId: c.data.id, sbIndex: 0 })
+  assert.equal(s.ok, true, s.error)
+  return { no: c.data.id, uids, state: s.data }
+}
+
 test('开局：两人各下大小麦，小盲先行动', async () => {
   const { state } = await twoPlayerRoom()
   assert.equal(state.pot, 30)
@@ -182,6 +206,51 @@ async function zeroedRoom() {
   const r = await api('/api/room/action', { uid: bbUid, roomId: no, type: 'collect' })
   return { no, h, g, sbUid, bbUid, state: r.data }
 }
+
+// ── 回归：check 必须在服务端动作白名单里 ──────────────────
+// 线上事故：大麦位（已满注）点「过」毫无反应。
+// 根因是 offlineAction 的 if 只列了 fold/call/raise，
+// check 掉到「未知动作」分支，前端又没显示错误，看着就像没反应。
+test('★ check 能过牌，且本街走完自动换街', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  const availOf = async (uid) =>
+    ((await api('/api/room/state', { uid, roomId: no })).data.avail ?? []).map((a) => a.type)
+
+  for (let i = 0; i < 3; i++) {
+    const d = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+    const who = d.turnUid
+    assert.ok(who, '该有人行动')
+    const acts = await availOf(who)
+    const type = acts.includes('check') ? 'check' : 'call'
+    const r = await api('/api/room/action', { uid: who, roomId: no, type })
+    assert.equal(r.ok, true, who + ' ' + type + ' 被拒：' + (r.error || ''))
+  }
+
+  const d = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+  const bb = d.turnUid
+  assert.ok(bb, '大麦位该行动')
+  const bbActs = await availOf(bb)
+  assert.ok(bbActs.includes('check'), '大麦位应有过牌，实际：' + bbActs.join(','))
+
+  const r = await api('/api/room/action', { uid: bb, roomId: no, type: 'check' })
+  assert.equal(r.ok, true, 'check 被拒：' + (r.error || ''))
+  assert.equal(r.data.stage, 'flop', 'preflop 走完应自动进 flop（花生 +3）')
+  assert.equal(r.data.currentBet, 0, '新街注额清零')
+  assert.equal(r.data.seats.every((x) => x.bet === 0), true, '每人 bet 清零')
+})
+
+test('★ 收池是独立键：非回合者也能收，本手随即结束', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  const d = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+  const other = uids.find((u) => u !== d.turnUid)
+  assert.ok(other, '应能找到非回合者')
+
+  const r = await api('/api/room/action', { uid: other, roomId: no, type: 'collect' })
+  assert.equal(r.ok, true, '非回合者收池不该被拒：' + (r.error || ''))
+  assert.equal(r.data.pot, 0, '公共池应被收空')
+  assert.equal(r.data.finished, true, '本手应结束')
+})
+
 
 test('结算：金瓜子由服务端写入账本', async () => {
   const { no, h, g, sbUid, bbUid } = await zeroedRoom()
