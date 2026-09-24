@@ -56,9 +56,14 @@ const bbMax = computed(() => Math.max(2, Math.floor(seeds.value / 10)))
 /** 小麦和大麦联动的快捷档：按入场数给几组现成搭配 */
 const BLIND_PRESETS = computed(() => {
   const bb = bbMax.value
-  // 取 1:2、1:4、1:10 三档，且都不超过上限
-  const ratios = [0.1, 0.25, 1].map((r) => Math.max(2, Math.floor(bb * r)))
-  return [...new Set(ratios)].map((b) => ({ sb: Math.max(1, b / 2), bb: b }))
+  // 取 1:2、1:4、1:10 三档，且都不超过上限。
+  // 全部往下取偶，避免出现 37.5 这种小数小麦。
+  const ratios = [0.1, 0.25, 1].map((r) => {
+    let b = Math.floor(bb * r)
+    if (b % 2 !== 0) b -= 1          // 保持偶数，小麦才是整数
+    return Math.max(2, b)
+  })
+  return [...new Set(ratios)].map((b) => ({ sb: b / 2, bb: b }))
 })
 
 const settingError = computed(() => {
@@ -213,7 +218,9 @@ async function join() {
       <button class="btn primary" :disabled="creating" @click="create">
         {{ creating ? '创建中…' : '创建并进入' }}
       </button>
-      <p v-if="createError" class="error">{{ createError }}</p>
+      <!-- 实时显示设置问题，别等点完才说 -->
+      <p v-if="settingError" class="error">{{ settingError }}</p>
+      <p v-else-if="createError" class="error">{{ createError }}</p>
     </div>
 
     <div class="divider">或者</div>
