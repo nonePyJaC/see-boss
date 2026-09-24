@@ -310,6 +310,53 @@ test('调整座位顺序：房主可拖，对局中不行', async () => {
   assert.equal(after.data.finished, false)
 })
 
+test('暂停 / 继续：对局中暂停保留回合，继续后原样恢复', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  const before = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+
+  // 对局中暂停
+  const p = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  assert.equal(p.ok, true, '暂停不该被拒：' + (p.error || ''))
+  assert.equal(p.data.paused, true)
+  // 暂停保留现场：回合、注额、池子都不动
+  assert.equal(p.data.turnUid, before.turnUid, '暂停不该丢掉回合')
+  assert.equal(p.data.currentBet, before.currentBet, '暂停不该清注额')
+  assert.equal(p.data.pot, before.pot, '暂停不该动池子')
+
+  // 非房主不能暂停
+  const notHost = await api('/api/room/pause', { uid: uids[1], roomId: no })
+  assert.equal(notHost.ok, false, '非房主不该能暂停')
+
+  // 暂停中不能下注（check/call/raise 都拒），但能收池和划拨
+  const bet = await api('/api/room/action', { uid: before.turnUid, roomId: no, type: 'call' })
+  assert.equal(bet.ok, false, '暂停中不该能下注')
+
+  // 继续
+  const r = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  assert.equal(r.ok, true, '继续不该被拒：' + (r.error || ''))
+  assert.equal(r.data.paused, false)
+  assert.equal(r.data.turnUid, before.turnUid, '继续后回合应还原')
+
+  // 继续后能正常下注
+  const after = await api('/api/room/action', { uid: before.turnUid, roomId: no, type: 'call' })
+  assert.equal(after.ok, true, '继续后应能下注：' + (after.error || ''))
+})
+
+test('暂停中房主可调整座位，继续后不能', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  await api('/api/room/pause', { uid: uids[0], roomId: no })
+
+  // 暂停中 → 允许换座
+  const ok = await api('/api/room/reorder', { uid: uids[0], roomId: no, order: [uids[1], uids[0], uids[2], uids[3]] })
+  assert.equal(ok.ok, true, '暂停中应允许调整座位：' + (ok.error || ''))
+  assert.equal(ok.data.seats[0].uid, uids[1], '第一个座位应变成 uids[1]')
+
+  // 继续 → 又不行了
+  await api('/api/room/pause', { uid: uids[0], roomId: no })
+  const busy = await api('/api/room/reorder', { uid: uids[0], roomId: no, order: [uids[0], uids[1], uids[2], uids[3]] })
+  assert.equal(busy.ok, false, '对局中不该允许调整座位')
+})
+
 test('结算：金瓜子由服务端写入账本', async () => {
   const { no, h, g, sbUid, bbUid } = await zeroedRoom()
   // 归零者（小盲）是付钱那位，给他发 5 粒，否则余额不足会被跳过

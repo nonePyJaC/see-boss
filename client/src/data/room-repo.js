@@ -63,6 +63,11 @@ export function reorderSeats(roomId, order) {
   return request('/api/room/reorder', { uid: getUid(), roomId, order })
 }
 
+/** 暂停 / 继续对局（房主）。同一接口切换：暂停态调用就是继续 */
+export function pauseRoom(roomId) {
+  return request('/api/room/pause', { uid: getUid(), roomId })
+}
+
 /** 结算。action: restart | disband | pause */
 export function settleRoom(roomId, action, uid = getUid()) {
   return request('/api/room/settle', { uid, roomId, action })
@@ -105,5 +110,5 @@ export function watchRoom(roomId, onState, onError) {
 export const roomRepo = {
   POLL_INTERVAL,
   createRoom, joinRoom, roomState, startRoom,
-  roomAction, roomStage, reorderSeats, settleRoom, leaveRoom, listRooms, watchRoom,
+  roomAction, roomStage, reorderSeats, pauseRoom, settleRoom, leaveRoom, listRooms, watchRoom,
 }

@@ -319,6 +319,13 @@ export function applyOfflineAction(state, action) {
   // collect 放行后自己报「公共池是空的」；give 内部自查 paused。
   if (st.finished && type !== 'collect' && type !== 'give') return { error: '本手已结束' }
 
+  // 暂停中：只有收池和划拨两种中性动作放行，下注类全拒。
+  // 之前只在前端把按钮藏了，API 还能直接打 —— 桌上有个人拿旧页面
+  // 或者手快连点，暂停就白停了。必须在引擎这层挡住。
+  if (st.paused && type !== 'collect' && type !== 'give') {
+    return { error: '已暂停，等房主继续' }
+  }
+
   // 弃牌者本回合不再操作，但「收」「暂停中划拨」是中性动作，放行。
   if (me.folded && type !== 'collect' && type !== 'give') return { error: '你已经弃牌' }
   // 全下不能再投注，但「收池」「划拨」放行 ——

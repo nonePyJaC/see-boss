@@ -339,8 +339,11 @@ function handleReorder(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在')
   if (room.hostUid !== uid) return fail('只有房主可以调整座位')
-  // 对局中不让改：座位顺序一变，currentBet / turnUid 这些按座位算的全乱
-  if (room.state && !room.state.finished) return fail('本手还没结束，不能调整座位')
+  // 对局中不让改：座位顺序一变，currentBet / turnUid 这些按座位算的全乱。
+  // 暂停中可以 —— 暂停就是给房主「停下来收拾一下」用的。
+  if (room.state && !room.state.finished && !room.state.paused) {
+    return fail('本手还没结束，不能调整座位')
+  }
 
   const order = Array.isArray(body?.order) ? body.order.map(String) : []
   if (order.length !== room.seats.length) return fail('座位数量对不上')
@@ -360,8 +363,11 @@ function handleStart(body, uid) {  const room = rooms.get(String(body?.roomId ??
   if (!room) return fail('房间不存在')
   if (room.hostUid !== uid) return fail('只有房主可以开局')
   if (room.seats.length < 2) return fail('至少需要 2 名玩家')
-  // 还在打的一手不能重开
-  if (room.state && !room.state.finished) return fail('本手还没结束')
+  // 还在打的一手不能重开。暂停中可以开局/重开 —— 暂停就是让房主
+  // 停下来改设置再开始的，卡在这里的话暂停态没有任何出路。
+  if (room.state && !room.state.finished && !room.state.paused) {
+    return fail('本手还没结束')
+  }
 
   try {
     if (isOnline(room)) {
@@ -710,6 +716,37 @@ function handleSettle(body, uid) {
   return ok({ paid, skipped, transfers: paid, roundNo: room.roundNo })
 }
 
+/**
+ * 暂停 / 继续（房主专用，对局中才可用）。
+ *
+ * 这是房主桌上那个按钮：对局中显示「暂停」，暂停态显示「继续」。
+ * 跟 settle 的 pause 不是一回事 —— settle/pause 是「结算流程里选暂停」，
+ * 留在一个归零待结算的状态；这里是对局中途临时停一下，
+ * 停完还能原样继续（currentBet / turnUid / actedUids 全部保留）。
+ *
+ * 为什么单独开接口而不复用 settle 的 pause：
+ *   settle/pause 要求 finished + 有人归零，对局中途根本进不去。
+ */
+function handlePause(body, uid) {
+  const room = rooms.get(String(body?.roomId ?? ''))
+  if (!room) return fail('房间不存在')
+  if (room.hostUid !== uid) return fail('只有房主可以暂停')
+  if (!room.state) return fail('本手还没开始')
+
+  // paused 已经是 true → 这次调用是「继续」
+  if (room.state.paused) {
+    room.state.paused = false
+    touch(room)
+    return ok(publicState(room, uid))
+  }
+
+  // 本手已结束（收完池了）没什么好暂停的
+  if (room.state.finished) return fail('本手已经结束')
+  room.state.paused = true
+  touch(room)
+  return ok(publicState(room, uid))
+}
+
 function handleLeave(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return ok({ left: true })
@@ -890,6 +927,7 @@ const ROUTES = {
   '/api/room/action': handleAction,
   '/api/room/stage': handleStage,
   '/api/room/reorder': handleReorder,
+  '/api/room/pause': handlePause,
   '/api/room/settle': handleSettle,
   '/api/room/leave': handleLeave,
 }

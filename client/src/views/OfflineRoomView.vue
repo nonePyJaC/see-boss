@@ -40,7 +40,7 @@ const roomId = () => ROOM.value
 // ── 状态 ──
 const snap = ref(null)          // 最近一次房间快照
 const me = ref(null)            // 账号（金瓜子等）
-const locked = ref(true)        // 锁定位：true=房主可点玩家设小麦位
+const adjustMode = ref(true)    // 调整模式：true=可设小麦位/拖拽（开锁），false=锁定准备开始
 const gate = ref('')            // 挡屏文案（连不上/未登录）
 const toastMsg = ref('')
 const showToast = ref(false)
@@ -164,63 +164,120 @@ function confirmFold() {
   })
 }
 
-/** 锁定位切换（房主）。
+/**
+ * 房主的桌上控制：锁 / 排序 / 开始|暂停|继续。
  *
- * 开锁 = 可调整：点玩家设小麦位 + 拖拽换座位，两件事都放开。
- * 关锁 = 准备开始：锁旁边出现「开始」按钮，点了就按当前小麦位开局。
+ * 状态机（2026-09-24 定稿）：
  *
- * 语义变化（2026-09-24 实测后改）：
- *   旧版开锁只能设小麦位，关锁就直接开局 —— 桌上人还没坐好就被开掉，
- *   而且座位顺序改不了。现在开锁只是进「调整模式」，不碰对局；
- *   把关锁和「开始」拆成两步，房主能看清小麦位再点开始。
+ *   未开局（建房后 / 结算重置后）
+ *     · 锁可点 → 开锁 → 设小麦位 + 拖拽排序 → 关锁 → 点「开始」
+ *     · 开始 = 按当前小麦位自动下大小麦，进入对局
+ *
+ *   对局中
+ *     · 锁不可点（正在打，改了顺序/小麦位回合就算乱了）
+ *     · 按钮变「暂停」→ 点它进暂停态
+ *
+ *   暂停中
+ *     · 锁又可点 → 开锁 → 改小麦位 / 排序 → 关锁 → 点「继续」
+ *     · 继续 = 原样恢复（currentBet / turnUid / 已表态 全部保留）
+ *
+ *   有人归零结算后 → 回到未开局态，按钮变回「开始」
+ *
+ * 开锁的前置条件 = 不在回合中（未开局 或 暂停）。
  */
+
+/** 能不能开锁：未开局，或暂停中。对局中不行 */
+const canLock = computed(() => {
+  if (!isHost.value || !d.value) return false
+  if (d.value.paused) return true
+  // 没有回合者 + 本手没结束 = 还没开局
+  return !d.value.turnUid && !d.value.finished
+})
+
+/** 房主主按钮：开始 / 暂停 / 继续 */
+const hostAction = computed(() => {
+  if (!d.value) return 'start'
+  if (d.value.paused) return 'resume'
+  if (d.value.finished) return 'start'
+  // 有回合者 = 正在打
+  if (d.value.turnUid) return 'pause'
+  return 'start'
+})
+
 function toggleLock() {
-  locked.value = !locked.value
-  if (locked.value) {
-    orderMode.value = false
-    toast('已开锁：可设小麦位、可拖动换座')
-  } else {
-    orderMode.value = false
-    toast('已关锁：点「开始」按当前小麦位开局')
+  if (!canLock.value) {
+    return toast('对局中不能改，先暂停')
   }
+  adjustMode.value = !adjustMode.value
+  orderMode.value = false
+  resetDrag()
+  toast(adjustMode.value ? '已开锁：可设小麦位、可拖动换座' : '已关锁：点「开始/继续」')
 }
 
 /** 拖拽换座模式开关（房主 + 开锁状态） */
 function toggleOrder() {
   if (!isHost.value) return toast('只有房主能调整座位')
-  if (!locked.value) return toast('先开锁才能调整座位')
+  if (!adjustMode.value) return toast('先开锁才能调整座位')
   orderMode.value = !orderMode.value
-  if (!orderMode.value) {
-    drag.uid = ''
-    drag.active = false
-    drag.target = ''
-  }
+  if (!orderMode.value) resetDrag()
 }
 
-/** 点玩家设小麦位（房主 + 开锁状态） */
+function resetDrag() {
+  drag.uid = ''
+  drag.active = false
+  drag.target = ''
+}
+
+/**
+ * 点玩家设小麦位（房主 + 开锁 + 未开局）。
+ *
+ * 未开局时 /start 就是「设小麦位并下盲注」，所以点完会直接进入对局 ——
+ * 这是预期行为：桌边人坐好了，房主点一个人当小麦，立刻开局。
+ * 暂停中不让点（盲注已下，改了下一个该谁动就乱了）。
+ */
 function tapSeat(seat) {
   if (!isHost.value) return toast('只有房主能设置')
-  if (!locked.value) return toast('先开锁才能设置小麦位')
+  if (!adjustMode.value) return toast('先开锁才能设置小麦位')
+  if (d.value?.paused) return toast('暂停中不能改小麦位')
   const i = seats.value.findIndex((s) => s.uid === seat.uid)
   roomRepo.startRoom(roomId(), i).then((x) => {
     if (x.ok) {
-      toast('小麦位已设置')
+      // 开局后自动关锁，锁图标变灰不可点，主按钮变「暂停」
+      adjustMode.value = false
+      orderMode.value = false
+      resetDrag()
+      toast('小麦位已设置，已开局')
       pull()
     } else {
-      // 已经开局了的房间再调 /start 会被拒（「本手还没结束」）——
-      // 这时候用户其实是想改座位顺序，提示切到拖拽模式。
       toast(x.error || '设置失败')
     }
   })
 }
 
-/** 关锁后点「开始」：按当前小麦位开局 */
-function startHand() {
-  if (!isHost.value) return toast('只有房主能开局')
-  const sb = seats.value.findIndex((s) => s.blind === 'sb')
-  roomRepo.startRoom(roomId(), sb >= 0 ? sb : 0).then((x) => {
+/** 房主主按钮：开始 / 暂停 / 继续 */
+function hostMainAction() {
+  const a = hostAction.value
+  if (a === 'start') {
+    if (!isHost.value) return toast('只有房主能开局')
+    if (adjustMode.value) return toast('先关锁再开始')
+    // 已经有人被点成小麦了就用他，否则默认第一个
+    const sb = seats.value.findIndex((s) => s.blind === 'sb')
+    roomRepo.startRoom(roomId(), sb >= 0 ? sb : 0).then((x) => {
+      if (x.ok) {
+        toast('已开局，小麦位自动下注')
+        pull()
+      } else {
+        toast(x.error)
+      }
+    })
+    return
+  }
+  // pause / resume 同一个接口，服务端按当前 paused 状态切换
+  roomRepo.pauseRoom(roomId()).then((x) => {
     if (x.ok) {
-      toast('已开局')
+      toast(a === 'pause' ? '已暂停' : '已继续')
+      // 恢复对局时自动关锁，免得房主忘了还停在调整模式
+      if (a === 'resume') { adjustMode.value = false; orderMode.value = false; resetDrag() }
       pull()
     } else {
       toast(x.error)
@@ -400,7 +457,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="d" class="page" :class="{ locked }">
+  <div v-if="d" class="page">
     <div class="topbar">
       <button class="back" @click="router.back()">←</button>
       <!-- 房间号可点 → 弹邀请二维码 -->
@@ -409,22 +466,28 @@ onUnmounted(() => {
         <span v-if="isHost" class="host">房主</span>
       </button>
       <div class="spacer"></div>
-      <!-- 房主：锁 + 排序 + 开始 -->
+      <!-- 房主：排序 + 锁 + 开始|暂停|继续
+           adjustMode=true（开锁）→ ⇅ 可点，锁图标显示 🔓
+           adjustMode=false（关锁）→ ⇅ 藏起来，锁图标显示 🔒       -->
       <template v-if="isHost">
-        <button v-if="locked" class="iconbtn" :class="orderMode ? 'on' : 'unlocked'" @click="toggleOrder">
+        <button v-if="adjustMode && canLock" class="iconbtn" :class="orderMode ? 'on' : 'unlocked'"
+                @click="toggleOrder">
           {{ orderMode ? '✓' : '⇅' }}
         </button>
-        <button class="iconbtn" :class="locked ? 'locked' : 'unlocked'" @click="toggleLock">
-          {{ locked ? '🔒' : '🔓' }}
+        <button class="iconbtn" :class="canLock ? (adjustMode ? 'unlocked' : 'locked') : 'disabled'"
+                @click="toggleLock">
+          {{ adjustMode ? '🔓' : '🔒' }}
         </button>
-        <!-- 关锁后才出现：按当前小麦位开局 -->
-        <button v-if="!locked" class="startbtn" @click="startHand">开始</button>
+        <button class="startbtn" :class="hostAction" @click="hostMainAction">
+          {{ hostAction === 'start' ? '开始' : hostAction === 'pause' ? '暂停' : '继续' }}
+        </button>
       </template>
     </div>
 
-    <div v-if="locked && isHost" class="lockbar">
+    <div v-if="isHost && adjustMode && canLock" class="lockbar">
       {{ orderMode ? '拖动卡片换座位，点 ✓ 完成' : '点玩家设小麦位，点 ⇅ 换座位' }}
     </div>
+    <div v-else-if="d.paused" class="lockbar paused-bar">已暂停 · 房主可开锁调整</div>
 
     <div class="roundbar">
       第 {{ d.roundNo }} 局 · 小麦 <b>{{ d.smallBlind }}</b> / 大麦 <b>{{ d.bigBlind }}</b>
@@ -611,20 +674,31 @@ onUnmounted(() => {
 .iconbtn.locked { color: var(--c-success); }
 .iconbtn.unlocked { color: var(--c-text-light); }
 .iconbtn.on { color: var(--c-primary-dark); background: #fff6e0; }
+.iconbtn.disabled { opacity: .35; cursor: not-allowed; }
 /* 关锁后出现的「开始」按钮 */
 .startbtn {
   height: 38px;
-  padding: 0 16px;
+  padding: 0 15px;
   border: none;
   border-radius: 19px;
-  background: linear-gradient(180deg, var(--c-primary) 0%, var(--c-primary-dark) 100%);
-  color: #fff;
   font-size: 14px;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: 0 3px 0 #c77a00;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, .18);
 }
 .startbtn:active { transform: translateY(2px); box-shadow: none; }
+.startbtn.start {
+  background: linear-gradient(180deg, var(--c-primary) 0%, var(--c-primary-dark) 100%);
+  color: #fff;
+}
+.startbtn.pause {
+  background: linear-gradient(180deg, #ffb74d 0%, #f57c00 100%);
+  color: #fff;
+}
+.startbtn.resume {
+  background: linear-gradient(180deg, #81c784 0%, #43a047 100%);
+  color: #fff;
+}
 /* 开锁时的一行提示 */
 .lockbar {
   text-align: center;
@@ -635,6 +709,10 @@ onUnmounted(() => {
   border-radius: 9px;
   margin: 0 14px 8px;
   padding: 5px 10px;
+}
+.lockbar.paused-bar {
+  color: #e65100;
+  background: #fff3e0;
 }
 .roundbar { text-align: center; font-size: 12px; color: var(--c-text-light); padding: 2px 0 8px; }
 .roundbar b { color: var(--c-text); }
