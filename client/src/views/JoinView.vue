@@ -2,31 +2,63 @@
 /**
  * 扫码加入页
  *
- * 从二维码落地：/#/join/<房间号>?mode=online|offline
+ * 从房间二维码落地：/#/join/<房间号>?mode=offline|online
  *
- * 二维码逻辑直接内联在这里，不拆成独立组件 —— 本项目依赖的
- * @vitejs/plugin-vue 在部分 SFC 结构下会丢失 script 块，内联最稳。
+ * 2026-09-24：原来这里只 push 一个 query 就完事，靠目标页自己去 join，
+ * 而目标页的旧实现读的是 CloudBase 的 room_members。现在改成在这里就
+ * 真调 /api/room/join 入座，成功再进房间页 —— 房间不存在/已满当场就能报。
  */
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { hamsterDataURI, getHamster } from '@shared/assets/hamsters.mjs'
 import { useUser } from '../stores/user.js'
+import { roomRepo } from '../data/room-repo.js'
 
 const route = useRoute()
 const router = useRouter()
-const { user } = useUser()
+const { user, refresh } = useUser()
 
-if (!user.value) {
-  router.replace({ path: '/register', query: { redirect: route.fullPath } })
-}
+// 直接打开这个 URL（扫码）时 user store 可能是空的，自己拉一次
+onMounted(async () => {
+  if (!user.value) await refresh()
+})
 
-const roomNo = computed(() => String(route.params.roomNo ?? ''))
+const roomNo = computed(() => String(route.params.roomNo ?? '').trim())
 const mode = computed(() => (route.query.mode === 'offline' ? 'offline' : 'online'))
 const valid = computed(() => /^\d{6}$/.test(roomNo.value))
 
 const avatarURI = computed(() => hamsterDataURI(getHamster(user.value?.avatar ?? 1), 72))
 
-// ── 二维码 ──
+// ── 加入 ──
+const joining = ref(false)
+const joinError = ref('')
+
+async function enter() {
+  if (!valid.value) return
+  joining.value = true
+  joinError.value = ''
+  try {
+    // 先确保拿的是当前 uid 的档案。store 是本地缓存，同会话里换过 uid
+    // （比如另一个人扫了码）时不刷新就会拿上一个身份去入座。
+    if (!user.value) await refresh()
+    const r = await roomRepo.joinRoom(roomNo.value, {
+      nickname: user.value?.nickname || user.value?.account || '匿名',
+      avatar: user.value?.avatar ?? 1,
+    })
+    if (!r.ok) {
+      joinError.value = r.error || '加入失败'
+      return
+    }
+    router.push({
+      path: mode.value === 'offline' ? '/room/offline' : '/room/online',
+      query: { room: roomNo.value },
+    })
+  } finally {
+    joining.value = false
+  }
+}
+
+// ── 二维码：把这个页自己的地址编出来，方便下一个人接着扫 ──
 const qrURI = ref('')
 const qrFailed = ref(false)
 
@@ -49,16 +81,6 @@ onMounted(async () => {
     qrFailed.value = true
   }
 })
-
-function enter() {
-  if (!valid.value) return
-  // 真实入座：joinRoom 会把本成员写进 room_members，
-  // 并把房间号通过 query 传给目标页（目标页据此拉取该房间快照）
-  router.push({
-    path: mode.value === 'offline' ? '/room/offline' : '/room/online',
-    query: { join: roomNo.value },
-  })
-}
 </script>
 
 <template>
@@ -88,7 +110,10 @@ function enter() {
         <p class="join-me">
           以 <b>{{ user.nickname }}</b> 的身份加入
         </p>
-        <button class="btn" @click="enter">进入房间</button>
+        <button class="btn" :disabled="joining" @click="enter">
+          {{ joining ? '加入中…' : '进入房间' }}
+        </button>
+        <p v-if="joinError" class="join-error">{{ joinError }}</p>
       </template>
 
       <template v-else>

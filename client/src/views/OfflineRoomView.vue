@@ -19,6 +19,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { roomRepo } from '../data/room-repo.js'
 import { accountRepo } from '../data/account-repo.js'
 import { useHamsters } from '../composables/useHamsters.js'
+import RoomQR from '../components/RoomQR.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -47,6 +48,7 @@ const showToast = ref(false)
 const sheetOpen = ref(false)    // 加注弹窗
 const settleOpen = ref(false)   // 结算弹窗
 const logOpen = ref(false)      // 下注流水弹窗
+const inviteOpen = ref(false)   // 邀请二维码弹窗
 const raisePreview = ref(0)
 const customInput = ref('')
 const inputClamped = ref(false)
@@ -87,6 +89,28 @@ function toast(m) {
   showToast.value = true
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { showToast.value = false }, 2200)
+}
+
+/** 邀请二维码的落地地址：/#/join/<房间号>?mode=offline。
+ *  JoinView 会真调 /api/room/join 入座，所以别人扫完直接进。 */
+function inviteURL() {
+  return location.origin + location.pathname + '#/join/' + roomId() + '?mode=offline'
+}
+
+function openInvite() {
+  if (!roomId()) return toast('房间号还没拿到')
+  inviteOpen.value = true
+}
+
+async function copyInvite() {
+  const url = inviteURL()
+  try {
+    await navigator.clipboard.writeText(url)
+    toast('链接已复制')
+  } catch {
+    // 微信里 clipboard API 常被禁，退回让用户手动选
+    toast('复制失败，请手动记下房间号 ' + roomId())
+  }
 }
 
 function avatarOf(seat) {
@@ -263,10 +287,11 @@ onUnmounted(() => {
   <div v-if="d" class="page" :class="{ locked }">
     <div class="topbar">
       <button class="back" @click="router.back()">←</button>
-      <div class="room-tag">
+      <!-- 房间号可点 → 弹邀请二维码（旧版线上房有，线下房一直没补） -->
+      <button class="room-tag" @click="openInvite">
         <span class="no">{{ d.id }}</span>
         <span v-if="isHost" class="host">房主</span>
-      </div>
+      </button>
       <div class="spacer"></div>
       <button v-if="isHost" class="iconbtn" :class="locked ? 'locked' : 'unlocked'" @click="toggleLock">
         {{ locked ? '🔒' : '🔓' }}
@@ -394,6 +419,18 @@ onUnmounted(() => {
     </div>
   </div>
 
+  <!-- 邀请二维码弹窗 -->
+  <div v-if="inviteOpen" class="mask" @click.self="inviteOpen = false">
+    <div class="sheet invite">
+      <h3>邀请加入</h3>
+      <p class="invite-tip">扫码或把房间号发给朋友</p>
+      <RoomQR :room-no="roomId()" :size="200" mode="offline" />
+      <div class="invite-no">{{ roomId() }}</div>
+      <button class="ok" @click="copyInvite">复制链接</button>
+      <button class="cancel" @click="inviteOpen = false">关闭</button>
+    </div>
+  </div>
+
   <div class="toast" :class="{ show: showToast }">{{ toastMsg }}</div>
 </template>
 
@@ -415,7 +452,17 @@ onUnmounted(() => {
   background: var(--c-card); font-size: 22px; line-height: 1; cursor: pointer;
   box-shadow: 0 2px 0 var(--c-border);
 }
-.room-tag { display: flex; align-items: center; gap: 6px; }
+.room-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.room-tag:active { background: rgba(255, 255, 255, .6); }
 .room-tag .no { font-size: 17px; font-weight: 900; }
 .room-tag .host {
   font-size: 10px; font-weight: 800; color: #fff; background: var(--c-primary);
@@ -618,4 +665,17 @@ onUnmounted(() => {
   z-index: 30; max-width: 78%;
 }
 .toast.show { opacity: 1; }
+
+/* 邀请弹窗 */
+.invite { text-align: center; }
+.invite-tip { margin: 0 0 14px; font-size: 13px; color: var(--c-text-light); }
+.invite-no {
+  margin: 14px 0 12px; font-size: 28px; font-weight: 900; letter-spacing: 6px;
+  color: var(--c-primary-dark);
+}
+.invite .ok {
+  width: 100%; height: 46px; border: none; border-radius: 14px;
+  background: var(--c-primary); color: #fff; font-weight: 800; font-size: 15px;
+  cursor: pointer;
+}
 </style>
