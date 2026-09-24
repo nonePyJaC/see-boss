@@ -396,6 +396,39 @@ test('暂停回滚：B 下错注后暂停，确认继续回到 B 决策、错注
   )
 })
 
+test('长按继续 = 重开本手：整手逆向回开局大小麦态', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  const st0 = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+  const pot0 = st0.pot                 // 盲注和 30
+  const turn0 = st0.turnUid            // 大麦下家
+  const total0 = st0.seats.reduce((n, s) => n + s.seeds, 0) + pot0
+
+  // 打乱这一手：跟、加、非回合弃
+  const a1 = await api('/api/room/action', { uid: turn0, roomId: no, type: 'call' })
+  assert.equal(a1.ok, true, a1.error)
+  const a2 = await api('/api/room/action', { uid: a1.data.turnUid, roomId: no, type: 'raise', amount: 100 })
+  assert.equal(a2.ok, true, a2.error)
+  const folder = uids.find((u) => u !== a2.data.turnUid && u !== turn0)
+  const f = await api('/api/room/action', { uid: folder, roomId: no, type: 'fold' })
+  assert.equal(f.ok, true, f.error)
+
+  // 暂停 → 长按继续（restartHand）
+  await api('/api/room/pause', { uid: uids[0], roomId: no })
+  const r = await api('/api/room/pause', { uid: uids[0], roomId: no, restartHand: true })
+  assert.equal(r.ok, true, r.error)
+  assert.equal(r.data.paused, false, '重开后应回到对局中')
+  assert.equal(r.data.stage, 'preflop', '花生应回到 0')
+  assert.equal(r.data.pot, pot0, '池子回到开局盲注和')
+  assert.equal(r.data.turnUid, turn0, '回合回到第一个行动者')
+  assert.equal(r.data.seats.every((s) => !s.folded && !s.allIn), true, '弃牌应全部清掉')
+  assert.equal(
+    r.data.seats.reduce((n, s) => n + s.seeds, 0) + r.data.pot, total0,
+    '瓜子总量守恒'
+  )
+  const sb = r.data.seats.find((s) => s.blind === 'sb')
+  assert.equal(sb.bet, 10, '小麦注还在（回到大小麦刚下完）')
+})
+
 test('暂停中房主可调整座位，继续后不能', async () => {
   const { no, uids } = await fourPlayerRoom()
   await api('/api/room/pause', { uid: uids[0], roomId: no })
@@ -685,6 +718,34 @@ test('房主离开 → 快照一并删除，重启不复活', async () => {
   assert.equal(snap, undefined, '房主离开必须删快照')
 })
 
+test('房主离开：快照 + 历史全清理，金瓜子账本保留', async () => {
+  const { no, h, sbUid } = await zeroedRoom()
+  seed(sbUid, 5)
+  const s = await api('/api/room/settle', { uid: h, roomId: no, action: 'restart' })
+  assert.equal(s.ok, true, s.error)
+  assert.equal(s.data.paid.length, 1, '应转 1 粒金瓜子')
+
+  const histBefore = rawDb().prepare('SELECT COUNT(*) n FROM history WHERE room_no = ?').get(no).n
+  assert.ok(histBefore >= 1, '结算会写历史（销毁时再清）')
+  const ledgerBefore = rawDb().prepare('SELECT COUNT(*) n FROM account_ledger').get().n
+  assert.ok(ledgerBefore >= 2, '金瓜子转账应写账本')
+
+  await api('/api/room/leave', { uid: h, roomId: no })
+
+  assert.equal(
+    rawDb().prepare('SELECT * FROM room_snapshots WHERE room_id = ?').get(no), undefined,
+    '快照应清理'
+  )
+  assert.equal(
+    rawDb().prepare('SELECT COUNT(*) n FROM history WHERE room_no = ?').get(no).n, 0,
+    '本房历史应全清（线下不留记录）'
+  )
+  assert.equal(
+    rawDb().prepare('SELECT COUNT(*) n FROM account_ledger').get().n, ledgerBefore,
+    '金瓜子账本必须保留'
+  )
+})
+
 test('轮询不涨 rev、不落库（读不该是写）', async () => {
   const { no, h } = await twoPlayerRoom()
   const s1 = (await api('/api/room/state', { uid: h, roomId: no })).data
@@ -811,12 +872,25 @@ test('★ 快照恢复：房间状态落库，重开进程后能回来', async (
   assert.ok(back.state.state, 'offline 的引擎状态要一起存')
 })
 
-test('房间解散后快照也删掉', async () => {
-  const { no, h } = await twoPlayerRoom()
-  await api('/api/room/leave', { uid: h, roomId: no })
-  const snap = rawDb().prepare('SELECT * FROM room_snapshots WHERE room_id = ?').get(no)
-  // leave 只删房间；解散才删快照（房主解散 = disband）
-  assert.ok(snap || !snap)
+test('结算并解散：快照 + 历史全清理，金瓜子账本保留', async () => {
+  const { no, h, sbUid } = await zeroedRoom()
+  seed(sbUid, 5)
+  const ledgerBefore = rawDb().prepare('SELECT COUNT(*) n FROM account_ledger').get().n
+  const d = await api('/api/room/settle', { uid: h, roomId: no, action: 'disband' })
+  assert.equal(d.ok, true, d.error)
+  assert.equal(d.data.disbanded, true)
+  assert.equal(
+    rawDb().prepare('SELECT * FROM room_snapshots WHERE room_id = ?').get(no), undefined,
+    '解散应删快照'
+  )
+  assert.equal(
+    rawDb().prepare('SELECT COUNT(*) n FROM history WHERE room_no = ?').get(no).n, 0,
+    '解散应清历史（含刚写的那条）'
+  )
+  assert.ok(
+    rawDb().prepare('SELECT COUNT(*) n FROM account_ledger').get().n > ledgerBefore,
+    '金瓜子账本照常写'
+  )
 })
 
 // ── 辅助（见顶部 seed / setSeeds / accountNameByUid）────────

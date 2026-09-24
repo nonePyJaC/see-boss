@@ -67,12 +67,14 @@ export function reorderSeats(roomId, order) {
 /** 暂停 / 继续（房主）。同一接口切换：暂停态调用就是继续。
  * 继续时按服务端回应带确认标记：
  *   · 池子为空 → 先回 needConfirmNextHand，确认后传 { confirmNextHand: true } 开新一轮
- *   · 池子有值 → 先回 needConfirmRollback，确认后传 { confirmRollback: true } 回滚到暂停前行动位 */
+ *   · 池子有值 → 先回 needConfirmRollback，确认后传 { confirmRollback: true } 回滚到暂停前行动位
+ *   · 长按继续 → { restartHand: true } 整手重开（回到本手开局大小麦刚下完的状态） */
 export function pauseRoom(roomId, confirm = {}) {
   return request('/api/room/pause', {
     uid: getUid(), roomId,
     confirmNextHand: confirm.confirmNextHand === true,
     confirmRollback: confirm.confirmRollback === true,
+    restartHand: confirm.restartHand === true,
   })
 }
 

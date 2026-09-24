@@ -72,7 +72,7 @@ import {
   loginAccount, accountByUid, updateMyAccount, logoutAccount,
   accountSeedTransfer, accountLedgerRows, clearAccountLedgerRow,
   bumpTotalGames, goldenSeedsOf,
-  addHistory, listHistory,
+  addHistory, listHistory, deleteRoomHistory,
   saveRoomSnapshot, loadRoomSnapshot, loadAllRoomSnapshots, deleteRoomSnapshot,
 } from './db.js'
 import { debugPage } from './debug-room-page.js'
@@ -437,6 +437,9 @@ function handleStart(body, uid) {  const room = rooms.get(String(body?.roomId ??
       room.state = state
       // 把引擎座位数据写回 seats，前端 state 轮询才一致
       syncSeats(room)
+      // 本手开局快照（大小麦刚下完）：房主长按「继续」→「重开本手」
+      // 就靠它整手逆向回起点
+      room.handStartState = JSON.parse(JSON.stringify(room.state))
     }
     // 新的一手：回滚快照跟着旧手一起作废
     room.prevState = null
@@ -582,6 +585,9 @@ function autoNextHand(room) {
     // 新的一手：回滚快照跟着旧手一起作废
     room.prevState = null
     room.pauseBackup = null
+    // 本手开局快照要在 finishIfNeeded 之前拍：那个函数会往 state 上
+    // 写 settlePending，重开本手要的是干干净净的开局态
+    room.handStartState = JSON.parse(JSON.stringify(room.state))
     syncSeats(room)
     // 下了盲注之后可能又有人归零 —— 那就该停在结算，而不是继续打
     finishIfNeeded(room)
@@ -766,7 +772,10 @@ function handleSettle(body, uid) {
 
   if (action === 'disband') {
     room.state.handDone = true
+    // 房间销毁 = 全部清理：快照 + 本房历史（上面刚写的那条也一并删掉）。
+    // 线下游玩不留记录，只有金瓜子账本保留（房主口径）。
     deleteRoomSnapshot(room.id)
+    deleteRoomHistory(room.id)
     rooms.delete(room.id)
     return ok({ paid, skipped, transfers: paid, disbanded: true })
   }
@@ -787,6 +796,7 @@ function handleSettle(body, uid) {
   room.state = null
   room.prevState = null
   room.pauseBackup = null
+  room.handStartState = null
   room.roundNo += 1
   touch(room)
   return ok({ paid, skipped, transfers: paid, roundNo: room.roundNo })
@@ -813,6 +823,10 @@ function handleSettle(body, uid) {
  *      确认（confirmRollback）才真回滚。
  *      快照 = pauseBackup（暂停时存的 prevState，即最后一次行动前）；
  *      没有备份（状态异常）就退回「解除暂停原样恢复」。
+ *
+ *   c. 长按继续（restartHand）→ 整手重开：逆向回本手开局
+ *      （大小麦刚下完）的状态，这一手的所有行动全部作废。
+ *      快照 = handStartState（开局时拍的）。
  */
 function handlePause(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
@@ -822,6 +836,17 @@ function handlePause(body, uid) {
 
   // paused 已经是 true → 这次调用是「继续」
   if (room.state.paused) {
+    // 长按继续 = 重开本手：整手回开局态（前端的确认弹窗已经问过）
+    if (body.restartHand === true) {
+      if (!room.handStartState) return fail('没有本手开局的记录，无法重开')
+      room.state = JSON.parse(JSON.stringify(room.handStartState))
+      room.state.paused = false
+      room.pauseBackup = null
+      room.prevState = null
+      syncSeats(room)
+      touch(room)
+      return ok(publicState(room, uid))
+    }
     if (body.confirmNextHand === true) {
       room.state.paused = false
       room.pauseBackup = null
@@ -880,8 +905,11 @@ function handleLeave(body, uid) {
 
   if (room.hostUid === uid) {
     // 房主退出：整房销毁，所有人一起弹回大厅。
-    // 快照必须一起删 —— 漏删的话重启后死房复活（僵尸房）。
+    // 快照 + 本房历史全部清理 —— 线下游玩不留任何记录
+    // （瓜子数、日志、快照都是冗余数据），金瓜子账本保留。
+    // 快照漏删的话重启后死房复活（僵尸房）。
     deleteRoomSnapshot(room.id)
+    deleteRoomHistory(room.id)
     rooms.delete(room.id)
     return ok({ roomClosed: true })
   }
@@ -1006,9 +1034,10 @@ function serializeRoom(room) {
     })),
     state: room.mode === 'offline' ? room.state : null,
     // 回滚快照也要落盘：服务器在暂停中重启，恢复后「继续→回滚」
-    // 还得能用。都是纯 JSON 对象，直接存。
+    // 和「重开本手」还得能用。都是纯 JSON 对象，直接存。
     prevState: room.prevState ?? null,
     pauseBackup: room.pauseBackup ?? null,
+    handStartState: room.handStartState ?? null,
     dealerUid: room.dealerUid,
     roundNo: room.roundNo,
     rev: room.rev ?? 0,
@@ -1032,6 +1061,7 @@ function restoreRoom(snap) {
     rev: snap.state?.rev ?? 0,
     prevState: snap.state?.prevState ?? null,
     pauseBackup: snap.state?.pauseBackup ?? null,
+    handStartState: snap.state?.handStartState ?? null,
     lastActive: Date.now(),
     restored: true,
   }
@@ -1202,6 +1232,7 @@ setInterval(() => {
     if (now - r.lastActive > ROOM_TTL) {
       rooms.delete(id)
       deleteRoomSnapshot(id)
+      deleteRoomHistory(id)   // 房间销毁 = 记录全清，只留金瓜子账本
     }
   }
 }, 5 * 60 * 1000).unref()
@@ -1216,6 +1247,7 @@ try {
   for (const snap of loadAllRoomSnapshots()) {
     if (Date.now() - Date.parse(snap.updatedAt) > SNAP_MAX_AGE) {
       deleteRoomSnapshot(snap.roomId)
+      deleteRoomHistory(snap.roomId)   // 陈旧房一并清历史，不留孤儿记录
       continue
     }
     if (restoreRoom(snap)) restoredCount++

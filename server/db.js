@@ -390,6 +390,16 @@ export function listHistory(limit = 50, account = null) {
 
 function safeJson(s) { try { return JSON.parse(s) } catch { return {} } }
 
+/**
+ * 删除某个房间的全部历史行。
+ *
+ * 线下游玩不留记录（房主口径）：房间销毁（房主离开 / 结算解散）时
+ * 连同快照一起清掉，只有金瓜子账本（account_ledger）保留。
+ */
+export function deleteRoomHistory(roomNo) {
+  getDb().prepare('DELETE FROM history WHERE room_no = ?').run(String(roomNo))
+}
+
 // ── 房间快照 ────────────────────────────────────────────
 
 export function saveRoomSnapshot(roomId, mode, state) {

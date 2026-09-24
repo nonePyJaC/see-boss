@@ -259,6 +259,50 @@ function tapSeat(seat) {
   })
 }
 
+/**
+ * 长按「继续」= 重开本手：整手逆向回开局（大小麦刚下完）的状态。
+ * 独立一套 timer，跟加注按钮的长按互不干扰。
+ * 只在按钮处于「继续」（暂停态）时生效。
+ */
+let resumePressTimer = null
+let resumeLongFired = false
+
+function onHostMainDown(e) {
+  if (hostAction.value !== 'resume') return
+  if (e?.currentTarget?.disabled) return
+  resumeLongFired = false
+  clearTimeout(resumePressTimer)
+  resumePressTimer = setTimeout(() => {
+    resumeLongFired = true
+    restartHandConfirm()
+  }, 500)
+}
+
+function onHostMainUp() { clearTimeout(resumePressTimer) }
+
+function onHostMainClick() {
+  if (resumeLongFired) { resumeLongFired = false; return }
+  hostMainAction()
+}
+
+function restartHandConfirm() {
+  askConfirm({
+    title: '重开本手',
+    msg: '是否重开？将回到本手开局（大小麦刚下完）的状态',
+    okText: '重开',
+  }).then((yes) => {
+    if (!yes) return
+    roomRepo.pauseRoom(roomId(), { restartHand: true }).then((x) => {
+      if (!x.ok) return toast(x.error)
+      adjustMode.value = false
+      orderMode.value = false
+      resetDrag()
+      toast('已重开本手')
+      pull()
+    })
+  })
+}
+
 /** 房主主按钮：开始 / 暂停 / 继续 */
 function hostMainAction() {
   const a = hostAction.value
@@ -555,7 +599,12 @@ onUnmounted(() => {
                 @click="toggleLock">
           {{ adjustMode ? '🔓' : '🔒' }}
         </button>
-        <button class="startbtn" :class="hostAction" @click="hostMainAction">
+        <button class="startbtn" :class="hostAction"
+                @click="onHostMainClick"
+                @pointerdown="onHostMainDown"
+                @pointerup="onHostMainUp"
+                @pointerleave="onHostMainUp"
+                @pointercancel="onHostMainUp">
           {{ hostAction === 'start' ? '开始' : hostAction === 'pause' ? '暂停' : '继续' }}
         </button>
       </template>
@@ -564,7 +613,7 @@ onUnmounted(() => {
     <div v-if="isHost && adjustMode && canLock" class="lockbar">
       {{ orderMode ? '拖动卡片换座位，点 ✓ 完成' : '点玩家设小麦位，点 ⇅ 换座位' }}
     </div>
-    <div v-else-if="d.paused" class="lockbar paused-bar">已暂停 · 房主可开锁调整</div>
+    <div v-else-if="d.paused" class="lockbar paused-bar">已暂停 · 房主可开锁调整 · 长按「继续」重开本手</div>
 
     <div class="roundbar">
       第 {{ d.roundNo }} 局 · 小麦 <b>{{ d.smallBlind }}</b> / 大麦 <b>{{ d.bigBlind }}</b>
