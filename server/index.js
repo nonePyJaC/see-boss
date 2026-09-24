@@ -130,6 +130,17 @@ function newRoom({ id, hostUid, host, cfg }) {
   if (room.bigBlind <= room.smallBlind) {
     throw new Error('大麦必须大于小麦')
   }
+  // 大麦必须是偶数 —— 小麦 = 大麦一半，奇数会算出小数盲注
+  if (room.bigBlind % 2 !== 0) {
+    throw new Error('大麦必须是偶数')
+  }
+  // 大麦上限 = 入场数 / 10（进场至少留 10 个大麦）。
+  // 不设上限实测踩过：每人 250、大麦 200，几乎每把都有人被打到 0，
+  // 房主得反复弹结算发筹码，牌打不下去。
+  const bbMax = Math.max(2, Math.floor(room.initialSeeds / 10))
+  if (room.bigBlind > bbMax) {
+    throw new Error(`大麦不能超过 ${bbMax}（入场 ${room.initialSeeds} ÷ 10）`)
+  }
   rooms.set(id, room)
   return room
 }
@@ -218,7 +229,10 @@ function publicState(room, viewerUid) {
     base.actionLog = st?.actionLog ?? []
     // 「跟」按钮要显示需跟数量
     base.toCall = viewerUid ? Math.max(0, (st?.currentBet ?? 0) - (st?.seats?.find((x) => x.uid === viewerUid)?.bet ?? 0)) : 0
-    if (st && !st.finished) base.avail = offlineActions(st, viewerUid)
+    // 暂停态即使 finished 也要给 avail —— 暂停中桌上只剩「收 / 出」
+    // 两个中性键，房主要靠它们分池。卡 finished 条件会让暂停态前端
+    // 拿到 undefined，操作栏直接崩（实测踩过）。
+    if (st && (!st.finished || st.paused)) base.avail = offlineActions(st, viewerUid)
     // 是否有人归零 —— 只在「本手已收掉」时为真。
     // all-in 中途也会出现 0 瓜子座位，不加 finished 门槛前端会提前弹窗。
     base.hasZeroSeat = !!st?.finished && (st?.seats ?? []).some((x) => x.seeds <= 0)

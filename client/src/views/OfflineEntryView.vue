@@ -10,7 +10,7 @@
  * 硬编码成 1000/100/200。旧版（7d97ba8 之前）是有的，
  * 这里按原样补回来。
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '../stores/user.js'
 import { roomRepo } from '../data/room-repo.js'
@@ -28,8 +28,9 @@ onMounted(async () => {
   if (!user.value) await refresh()
 })
 
-// ── 房间设置（旧版就有，重建时丢了，补回）──
-/** 初始瓜子快捷档。默认 3000，跟服务端 newRoom 的默认值保持一致 */
+// ── 房间设置 ──
+/**
+ * 初始瓜子快捷档。默认 3000，跟服务端 newRoom 的默认值保持一致 */
 const SEED_PRESETS = [3000, 5000, 10000]
 const initialSeeds = ref(3000)
 const customSeeds = ref('')
@@ -42,17 +43,55 @@ const seeds = computed(() => {
   return Number.isFinite(c) && c > 0 ? Math.floor(c) : initialSeeds.value
 })
 
+/**
+ * 大麦上限 = 入场数 / 10。
+ *
+ * 也就是「进场至少有 10 个大麦」—— 德州扑克的常规最低标准。
+ * 不设这个上限的后果实测踩过：每人 250、大麦 200，几乎每一把都有人
+ * 被打到 0，房主得反复弹结算、发筹码，牌根本打不下去。
+ * 有了上限，3000 入场最多大麦 300，正常能打几十手才见分晓。
+ */
+const bbMax = computed(() => Math.max(2, Math.floor(seeds.value / 10)))
+
+/** 小麦和大麦联动的快捷档：按入场数给几组现成搭配 */
+const BLIND_PRESETS = computed(() => {
+  const bb = bbMax.value
+  // 取 1:2、1:4、1:10 三档，且都不超过上限
+  const ratios = [0.1, 0.25, 1].map((r) => Math.max(2, Math.floor(bb * r)))
+  return [...new Set(ratios)].map((b) => ({ sb: Math.max(1, b / 2), bb: b }))
+})
+
 const settingError = computed(() => {
   if (!(seeds.value > 0)) return '初始瓜子要大于 0'
   if (!(smallBlind.value > 0)) return '小麦要大于 0'
+  // 大麦必须是偶数 —— 小麦 = 大麦一半，奇数会导致小数盲注
+  if (bigBlind.value % 2 !== 0) return '大麦必须是偶数（小麦 = 大麦 ÷ 2）'
   if (bigBlind.value <= smallBlind.value) return '大麦必须大于小麦'
+  if (bigBlind.value > bbMax.value) {
+    return `大麦不能超过 ${bbMax.value}（入场数 ÷ 10，至少留 10 个大麦）`
+  }
   return ''
 })
+
+/** 选一组现成盲注 */
+function pickBlinds(sb, bb) {
+  smallBlind.value = sb
+  bigBlind.value = bb
+}
 
 function pickSeeds(v) {
   initialSeeds.value = v
   customSeeds.value = ''
 }
+
+/** 换了入场数就自动挑一组合法盲注，别让房主自己撞上限 */
+watch(seeds, () => {
+  if (bigBlind.value > bbMax.value) {
+    const p = BLIND_PRESETS.value[BLIND_PRESETS.value.length - 1]
+    smallBlind.value = p.sb
+    bigBlind.value = p.bb
+  }
+})
 
 // ── 创建房间 ──
 const creating = ref(false)
@@ -149,6 +188,16 @@ async function join() {
       />
 
       <label class="field-label">盲注设置</label>
+      <div class="chip-row chip-row--blind">
+        <button
+          v-for="p in BLIND_PRESETS"
+          :key="p.bb"
+          :class="{ on: bigBlind === p.bb }"
+          @click="pickBlinds(p.sb, p.bb)"
+        >
+          {{ p.sb }}/{{ p.bb }}
+        </button>
+      </div>
       <div class="blind-row">
         <div class="blind-item">
           <span>小麦</span>
@@ -156,9 +205,10 @@ async function join() {
         </div>
         <div class="blind-item">
           <span>大麦</span>
-          <input v-model.number="bigBlind" class="input" type="number" min="1" />
+          <input v-model.number="bigBlind" class="input" type="number" min="1" step="2" />
         </div>
       </div>
+      <p class="hint">大麦须为偶数，上限 {{ bbMax }}（入场 ÷ 10）</p>
 
       <button class="btn primary" :disabled="creating" @click="create">
         {{ creating ? '创建中…' : '创建并进入' }}
@@ -271,6 +321,12 @@ async function join() {
   border-color: var(--c-primary);
   background: #fff6e0;
   color: var(--c-primary-dark);
+}
+
+/* 盲注档位按钮：显示成 小麦/大麦 */
+.chip-row--blind button {
+  height: 38px;
+  font-size: 14px;
 }
 
 .blind-row {

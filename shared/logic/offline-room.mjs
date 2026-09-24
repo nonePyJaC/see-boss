@@ -258,8 +258,6 @@ export function toCall(state, uid) {
  */
 export function availableActions(state, uid) {
   const st = normalize(state)
-  if (st.finished) return []
-
   const me = st.seats.find((s) => s.uid === uid)
   if (!me) return []
 
@@ -275,6 +273,8 @@ export function availableActions(state, uid) {
   //   · 出 = 把手上的瓜子拨给某人（balance 别人的筹码 / 补救下错注）
   // 没有回合概念，谁都能点。这是「 All-in 和牌后分池」「有人下错了
   // 给他补回去」这类特殊场景的唯一入口。
+  // ⚠️ 必须在 finished 判断之前 —— 分池场景下本手往往已经 finished，
+  //    先判 finished 会返回空数组，前端操作栏直接没有按钮（实测踩过）。
   if (st.paused) {
     const others = st.seats.filter((s) => s.uid !== uid)
     return [
@@ -282,6 +282,9 @@ export function availableActions(state, uid) {
       { type: 'give', label: '出', enabled: me.seeds > 0 && others.length > 0 },
     ]
   }
+
+  // 本手已收掉、也没在暂停 → 没什么可做的
+  if (st.finished) return []
 
   if (st.turnUid !== uid) return collect
   if (me.folded || me.allIn) return collect

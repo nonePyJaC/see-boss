@@ -131,7 +131,8 @@ async function fourPlayerRoom() {
   }
   const c = await api('/api/room/create', {
     uid: uids[0], me: me('甲'),
-    cfg: { mode: 'offline', initialSeeds: 1000, smallBlind: 100, bigBlind: 200 },
+    // 大麦上限 = 入场 ÷ 10，1000 入场最多 100
+    cfg: { mode: 'offline', initialSeeds: 1000, smallBlind: 10, bigBlind: 20 },
   })
   assert.equal(c.ok, true, c.error)
   for (let i = 1; i < 4; i++) {
@@ -216,16 +217,30 @@ test('列房间', async () => {
 
 async function zeroedRoom() {
   const h = await login('hostZ')
+  // 入场 200、大麦 20。小盲 call 20 后收池不会归零，
+  // 所以这里让双方都把种子押到见底：连 call 到 all-in 再收。
   const c = await api('/api/room/create', {
     uid: h, me: me('房主'),
-    cfg: { mode: 'offline', initialSeeds: 20, smallBlind: 10, bigBlind: 20 },
+    cfg: { mode: 'offline', initialSeeds: 200, smallBlind: 10, bigBlind: 20 },
   })
   const no = c.data.id
   const g = await login('guestZ')
   await api('/api/room/join', { uid: g, roomId: no, me: me('客人') })
   const s = await api('/api/room/start', { uid: h, roomId: no })
   const sbUid = s.data.seats.find((x) => x.blind === 'sb')?.uid
-  await api('/api/room/action', { uid: sbUid, roomId: no, type: 'call' })
+  // 一路 all-in 到归零：先 raise 到底，再让对方跟
+  for (let i = 0; i < 8; i++) {
+    const cur = (await api('/api/room/state', { uid: h, roomId: no })).data
+    if (cur.finished || cur.settlePending || !cur.turnUid) break
+    const seat = cur.seats.find((x) => x.uid === cur.turnUid)
+    const need = Math.max(0, cur.currentBet - seat.bet)
+    const r = await api('/api/room/action', {
+      uid: seat.uid, roomId: no,
+      type: seat.seeds > need ? 'raise' : 'call',
+      amount: seat.seeds - need,
+    })
+    if (!r.ok) break
+  }
   const bbUid = s.data.seats.find((x) => x.blind === 'bb')?.uid
   const r = await api('/api/room/action', { uid: bbUid, roomId: no, type: 'collect' })
   return { no, h, g, sbUid, bbUid, state: r.data }
@@ -518,7 +533,7 @@ test('结算后重置 + 局数 +1', async () => {
   setSeeds(g, 7)                       // 用绝对值，防止测试间累积
   await api('/api/room/settle', { uid: h, roomId: no, action: 'restart' })
   const st = await api('/api/room/state', { uid: h, roomId: no })
-  assert.equal(st.data.seats.every((s) => s.seeds === 20), true, '回初始值')
+  assert.equal(st.data.seats.every((s) => s.seeds === 200), true, '回初始值')
   assert.equal(st.data.roundNo, 2)
   const gm = await api('/api/account/me', { uid: g })
   assert.equal(gm.data.totalGames, 1, '局数入账')
@@ -643,13 +658,24 @@ test('未登录账号的玩家：跳过转账但不阻塞结算', async () => {
   const h = await login('hostN')
   const c = await api('/api/room/create', {
     uid: h, me: me('房主'),
-    cfg: { mode: 'offline', initialSeeds: 20, smallBlind: 10, bigBlind: 20 },
+    cfg: { mode: 'offline', initialSeeds: 200, smallBlind: 10, bigBlind: 20 },
   })
   const gNo = 'anon-' + Math.random().toString(36).slice(2, 6)   // 没走 login
   await api('/api/room/join', { uid: gNo, roomId: c.data.id, me: me('游客') })
   const s = await api('/api/room/start', { uid: h, roomId: c.data.id })
-  const sb = s.data.seats.find((x) => x.blind === 'sb')?.uid
-  await api('/api/room/action', { uid: sb, roomId: c.data.id, type: 'call' })
+  // 一路押到底，确保有人归零
+  for (let i = 0; i < 8; i++) {
+    const cur = (await api('/api/room/state', { uid: h, roomId: c.data.id })).data
+    if (cur.finished || cur.settlePending || !cur.turnUid) break
+    const seat = cur.seats.find((x) => x.uid === cur.turnUid)
+    const need = Math.max(0, cur.currentBet - seat.bet)
+    const rr = await api('/api/room/action', {
+      uid: seat.uid, roomId: c.data.id,
+      type: seat.seeds > need ? 'raise' : 'call',
+      amount: seat.seeds - need,
+    })
+    if (!rr.ok) break
+  }
   const bb = s.data.seats.find((x) => x.blind === 'bb')?.uid
   await api('/api/room/action', { uid: bb, roomId: c.data.id, type: 'collect' })
 
@@ -658,6 +684,34 @@ test('未登录账号的玩家：跳过转账但不阻塞结算', async () => {
   assert.equal(r.data.paid.length, 0, '没账号就不转')
   assert.equal(r.data.skipped.length, 1, '记录跳过原因')
   assert.match(r.data.skipped[0].reason, /未登录账号/)
+})
+
+// ── 盲注上限（2026-09-24 加）────────────────────────────
+
+test('大麦上限 = 入场 ÷ 10，超了必须拒', async () => {
+  const h = await login('hostBB')
+  // 入场 1000 → 上限 100，给 200 必须被拒
+  const c = await api('/api/room/create', {
+    uid: h, me: me('房主'),
+    cfg: { mode: 'offline', initialSeeds: 1000, smallBlind: 100, bigBlind: 200 },
+  })
+  assert.equal(c.ok, false, '超限大麦必须被拒')
+  assert.match(c.error, /不能超过/)
+
+  // 大麦是奇数也要拒（小麦 = 大麦一半，奇数会算出小数盲注）
+  const odd = await api('/api/room/create', {
+    uid: h, me: me('房主'),
+    cfg: { mode: 'offline', initialSeeds: 1000, smallBlind: 15, bigBlind: 31 },
+  })
+  assert.equal(odd.ok, false, '奇数大麦必须被拒')
+  assert.match(odd.error, /偶数/)
+
+  // 合规的能过
+  const ok = await api('/api/room/create', {
+    uid: h, me: me('房主'),
+    cfg: { mode: 'offline', initialSeeds: 3000, smallBlind: 10, bigBlind: 20 },
+  })
+  assert.equal(ok.ok, true, ok.error)
 })
 
 // ── 脏输入 ─────────────────────────────────────────────
