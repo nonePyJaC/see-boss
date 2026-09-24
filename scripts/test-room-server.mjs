@@ -399,6 +399,87 @@ test('暂停中拒绝下注类动作（引擎层）', async () => {
   }
 })
 
+test('收池后有人归零 → 必须停在结算，不能自动开局', async () => {
+  // 收池后若有人 seeds<=0，settlePending 必须为 true。
+  // 之前 finishIfNeeded 卡了 finished 条件，而自动开下一手会把它重置成
+  // false，于是归零信息被抹掉、牌桌带着 0 筹码的人继续打（实测踩过）。
+  const { no, uids } = await fourPlayerRoom()
+  // 一路平跟到底
+  for (let i = 0; i < 10; i++) {
+    const d = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+    if (d.finished || d.settlePending || !d.turnUid) break
+    const cur = d.seats.find((s) => s.uid === d.turnUid)
+    const need = Math.max(0, d.currentBet - cur.bet)
+    await api('/api/room/action', { uid: cur.uid, roomId: no, type: need === 0 ? 'check' : 'call' })
+  }
+  const c = await api('/api/room/action', { uid: uids[3], roomId: no, type: 'collect' })
+  assert.equal(c.ok, true, c.error)
+  const zeroed = c.data.seats.filter((s) => s.seeds <= 0)
+  if (zeroed.length > 0) {
+    assert.equal(c.data.settlePending, true, '有人归零就必须 settlePending')
+  }
+})
+
+test('暂停中收池不会自动开局（分池场景）', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  for (let i = 0; i < 10; i++) {
+    const d = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+    if (d.finished || d.settlePending || !d.turnUid) break
+    const cur = d.seats.find((s) => s.uid === d.turnUid)
+    const need = Math.max(0, d.currentBet - cur.bet)
+    await api('/api/room/action', { uid: cur.uid, roomId: no, type: need === 0 ? 'check' : 'call' })
+  }
+  // 先收一次触发归零 → 进结算
+  const c1 = await api('/api/room/action', { uid: uids[3], roomId: no, type: 'collect' })
+  assert.equal(c1.ok, true, c1.error)
+  if (!c1.data.settlePending) return   // 没归零就跳过
+  const roundBefore = c1.data.roundNo
+
+  // 房主选「暂停」进分池态
+  const p = await api('/api/room/settle', { uid: uids[0], roomId: no, action: 'pause' })
+  assert.equal(p.ok, true, '暂停不该被拒：' + (p.error || ''))
+  assert.equal(p.data.paused, true)
+  assert.ok((p.data.avail || []).some((a) => a.type === 'give'), '暂停中应有「出」')
+
+  // 暂停中再收池 → 绝不能自动开局
+  const c2 = await api('/api/room/action', { uid: uids[3], roomId: no, type: 'collect' })
+  assert.equal(c2.ok, true, c2.error)
+  assert.equal(c2.data.paused, true, '暂停态必须保留')
+  assert.equal(c2.data.roundNo, roundBefore, '暂停中收池不该推进局数')
+
+  // 分出瓜子
+  const st = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+  const rich = st.seats.find((s) => s.seeds > 100)
+  const zero = st.seats.find((s) => s.seeds <= 0)
+  if (rich && zero) {
+    const g = await api('/api/room/action', { uid: rich.uid, roomId: no, type: 'give', amount: 100, toUid: zero.uid })
+    assert.equal(g.ok, true, '分出瓜子不该被拒：' + (g.error || ''))
+  }
+
+  // 点继续 → 本手已收干净，应自动开下一手
+  const r = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  assert.equal(r.ok, true, '继续不该被拒：' + (r.error || ''))
+  assert.equal(r.data.paused, false)
+  assert.ok(r.data.roundNo > roundBefore, '继续后应进下一局')
+})
+
+test('继续的判据：本手还在打就原样恢复，不推进局数', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  const before = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+
+  // 对局中暂停（本手明显没打完）
+  const p = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  assert.equal(p.ok, true, p.error)
+  assert.equal(p.data.turnUid, before.turnUid, '暂停不该丢回合')
+
+  // 继续 → 原样恢复，局数不变、回合不变
+  const r = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  assert.equal(r.ok, true, r.error)
+  assert.equal(r.data.roundNo, before.roundNo, '本手没打完，继续不该推进局数')
+  assert.equal(r.data.turnUid, before.turnUid, '回合应还原')
+  assert.equal(r.data.pot, before.pot, '池子应还原')
+})
+
 test('结算：金瓜子由服务端写入账本', async () => {
   const { no, h, g, sbUid, bbUid } = await zeroedRoom()
   // 归零者（小盲）是付钱那位，给他发 5 粒，否则余额不足会被跳过

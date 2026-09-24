@@ -63,6 +63,7 @@ import {
   applyOfflineAction,
   availableActions as offlineActions,
   nextStage as offlineNextStage,
+  handResolved as offlineHandResolved,
 } from '../shared/logic/offline-room.mjs'
 
 import { buildSettlement, transfersAfterTiePick } from '../shared/logic/settlement.mjs'
@@ -450,6 +451,7 @@ function offlineAction(room, body, uid) {
 
   // 收池：谁都可以点，不卡回合（桌面上的公共池谁都能顺手收）。
   // 收完 = 本手结束：
+  //   · 暂停中收池 → 停在暂停态，让房主慢慢分瓜子，绝不自动开局
   //   · 有人归零 → 进结算，等房主决定（重置 / 解散 / 暂停）
   //   · 无人归零 → 直接开下一手，不用房主再点一次
   if (type === 'collect') {
@@ -457,10 +459,12 @@ function offlineAction(room, body, uid) {
     if (r.error) return fail(r.error)
     room.state = r.state
     syncSeats(room)
+    // 收池本身结束了本手（引擎置 finished=true），所以这里查归零是安全的
     const settled = finishIfNeeded(room)
-    // 没人归零 → 自动轮转下一手。之前收完就停住，必须房主手动
-    // 设小麦位再开局，桌面上每个人都得等 —— 实测提过这个问题。
-    if (!settled) autoNextHand(room)
+    // 暂停中是「房主手动分账」的状态：收完池子就停住，等 give 分完
+    // 再由房主点继续。这里自动开局会把池子清掉、局数 +1，
+    // 分账还没做就跳到下一局了（实测踩过）。
+    if (!room.state.paused && !settled) autoNextHand(room)
     touch(room)
     return ok(publicState(room, uid))
   }
@@ -476,10 +480,10 @@ function offlineAction(room, body, uid) {
     if (r.error) return fail(r.error)
     room.state = r.state
     syncSeats(room)
-    const settled = finishIfNeeded(room)
+    const settled = room.state.finished && finishIfNeeded(room)
     // 弃到只剩 1 人 → 引擎自动替他收池。同样没人归零就自动开下一手，
-    // 不然桌上所有人都得等房主手动开局。
-    if (!settled && r.autoCollected) autoNextHand(room)
+    // 不然桌上所有人都得等房主手动开局。暂停中不自动开局（同 collect）。
+    if (!room.state.paused && !settled && r.autoCollected) autoNextHand(room)
     touch(room)
     return ok(publicState(room, uid))
   }
@@ -488,13 +492,16 @@ function offlineAction(room, body, uid) {
 }
 
 /**
- * 收池 / 自动收池之后：
- *   · 有人归零 → settle-pending（只给房主弹结算窗，其他人蒙层等），返回 true
- *   · 无人归零 → 返回 false，由调用方决定是否自动开下一手
+ * 收池 / 自动收池 / 自动开下一手之后都要查：
+ *   · 有人归零（seeds <= 0）→ settle-pending（只给房主弹结算窗），返回 true
+ *   · 无人归零 → 返回 false
+ *
+ * 不要求 finished：自动开完下一手后本手刚开始（finished=false），
+ * 但盲注可能刚把上把剩得少的人打成 0 —— 这时候也该进结算。
+ * 之前卡了 finished 条件，漏掉了这条（实测踩过）。
  */
 function finishIfNeeded(room) {
-  if (!room.state?.finished) return false
-  const zeroed = room.state.seats.filter((s) => s.seeds <= 0)
+  const zeroed = (room.state?.seats ?? []).filter((s) => s.seeds <= 0)
   if (zeroed.length > 0) {
     room.state.settlePending = true
     return true
@@ -508,6 +515,10 @@ function finishIfNeeded(room) {
  * 小麦位往后挪一位 —— 跟房主手动开局时的轮转口径一致，
  * 不然每次自动开局都固定在同一个位置，坐那儿的人永远下小麦。
  * 房主之后仍可在锁定位状态下点某人改小麦位。
+ *
+ * ⚠️ 开完要再查一次归零：上把剩 50 的人这一把当大麦，
+ *    200 盲注直接把他打成 0 —— 这时候也该进结算，
+ *    不然牌桌会带着一个 0 筹码的人继续打（实测踩过）。
  */
 function autoNextHand(room) {
   try {
@@ -524,6 +535,8 @@ function autoNextHand(room) {
     })
     room.roundNo += 1
     syncSeats(room)
+    // 下了盲注之后可能又有人归零 —— 那就该停在结算，而不是继续打
+    finishIfNeeded(room)
   } catch (e) {
     // 自动开局失败不能把收池这个动作一起搞失败 —— 池子已经收完了。
     // 退回「等房主手动开局」，房主点一下就能继续。
@@ -607,11 +620,20 @@ function handleSettle(body, uid) {
   // 「结算前的 1」和「结算后的 2」永远不相等，重复请求直接漏过去
   // （实测第二次 settle 返回 transfers=[] 但 roundNo 又 +1）。
   const zeroed = (room.state.seats ?? []).filter((s) => s.seeds <= 0)
-  if (!room.state.finished) return fail('本手还没结束，不能结算')
-  if (zeroed.length === 0) return fail('没有人瓜子归零，不用结算')
+  // settlePending 是「该结算了」的唯一信号，比 finished 更可靠:
+  // 自动开下一手会把 finished 重置成 false，但 settlePending 保留着
+  // 「有人刚归零、还没结算」这件事。只判 finished 会把这条路径卡死
+  // （实测：收池后有人归零、自动开了下一手、点结算被拒"本手还没结束"）。
+  if (!room.state.settlePending) return fail('本手还没结束，不能结算')
+  // 只有「暂停」这个动作不需要有人归零 —— 房主可能只是想停下来
+  // 手动分池（两人 all-in 和牌、有人下错注），归零是结算的前置，
+  // 不是暂停的前置。之前一锅端拒掉，和牌分池的场景直接进不去。
+  const action = body.action ?? 'restart'   // restart | disband | pause
+  if (zeroed.length === 0 && action !== 'pause') {
+    return fail('没有人瓜子归零，不用结算')
+  }
 
   const st = buildSettlement(room.state.seats)
-  const action = body.action ?? 'restart'   // restart | disband | pause
 
   if (!['restart', 'disband', 'pause'].includes(action)) {
     return fail('未知结算动作：' + action)
@@ -619,7 +641,8 @@ function handleSettle(body, uid) {
 
   // 并列最高 → 让房主在前端点选（沿用现行交互）。
   // 这种情况不算结算完成，因为还不知道谁收。
-  if (st.tieUids?.length > 1 && !body.winnerUid) {
+  // 「暂停」不需要点选：停下来分池，谁该得多少房主手动给。
+  if (action !== 'pause' && st.tieUids?.length > 1 && !body.winnerUid) {
     room.state.settlePending = true
     touch(room)
     return ok({ needPick: true, tieUids: st.tieUids, zeroed: st.zeroed })
@@ -721,11 +744,19 @@ function handleSettle(body, uid) {
  *
  * 这是房主桌上那个按钮：对局中显示「暂停」，暂停态显示「继续」。
  * 跟 settle 的 pause 不是一回事 —— settle/pause 是「结算流程里选暂停」，
- * 留在一个归零待结算的状态；这里是对局中途临时停一下，
- * 停完还能原样继续（currentBet / turnUid / actedUids 全部保留）。
+ * 留在一个归零待结算的状态；这里是对局中途临时停一下。
  *
- * 为什么单独开接口而不复用 settle 的 pause：
- *   settle/pause 要求 finished + 有人归零，对局中途根本进不去。
+ * 继续时系统要判断该恢复本回合还是开下一手，判据是
+ * **本手是否还有未完成的下注轮**（handResolved）：
+ *
+ *   · 还有（有人在打、有人该动、注没平）→ 原样恢复，
+ *     currentBet / turnUid / actedUids 全部保留
+ *   · 没有（本手已收干净 / 所有人都已表态）→ 自动开下一手，
+ *     小麦位往后挪一位
+ *
+ * 只判 finished 不够 —— 实测踩过：暂停中收池分完瓜子，finished
+ * 已经true，直接恢复会卡在「本手已结束」，房主点继续反复被拒，
+ * 而桌面上每个人都等着开下一局。
  */
 function handlePause(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
@@ -736,6 +767,16 @@ function handlePause(body, uid) {
   // paused 已经是 true → 这次调用是「继续」
   if (room.state.paused) {
     room.state.paused = false
+
+    // 本手已经没有可打的内容了（收过池 / 所有人都表态完）→ 开下一手，
+    // 别把房主留在一个死掉的状态里。
+    // 本手还在打（有人该动、注没平）→ 原样恢复，一个字都不改。
+    if (room.state.finished || offlineHandResolved(room.state)) {
+      // autoNextHand 内部会查归零（含 give 分池后新造出的归零者），
+      // 有人归零就置 settlePending 停在那儿等房主结算。
+      autoNextHand(room)
+    }
+
     touch(room)
     return ok(publicState(room, uid))
   }
