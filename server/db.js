@@ -430,4 +430,60 @@ export function deleteRoomSnapshot(roomId) {
   getDb().prepare('DELETE FROM room_snapshots WHERE room_id = ?').run(String(roomId))
 }
 
+// ── 维护：清数据 ────────────────────────────────────────
+
+/**
+ * 清掉所有业务数据（表结构保留）。
+ *
+ * 实测一段时间会攒下一堆垃圾：临时账号、测试房间、历史战绩。
+ * 这是给人手动用的口子，不做定时 —— 误清是灾难级的，
+ * 必须由人显式触发。
+ *
+ * 按外键依赖顺序删：account_ledger 引用 accounts，
+ * 先删子表再删父表，否则 CASCADE 之外的残留会打架。
+ *
+ * @param {{accounts?:boolean, ledger?:boolean, history?:boolean, rooms?:boolean}} what
+ *        不给就全清。 rooms 还会顺带清掉内存里的 Map。
+ * @returns {object} 每张表删了几行
+ */
+export function wipeData(what = {}) {
+  const db = getDb()
+  const all = Object.keys(what).length === 0
+  const want = {
+    accounts: all || what.accounts === true,
+    ledger: all || what.ledger === true,
+    history: all || what.history === true,
+    rooms: all || what.rooms === true,
+  }
+  const out = {}
+
+  // 子表先删
+  if (want.ledger) out.ledger = db.prepare('DELETE FROM account_ledger').run().changes
+  if (want.history) out.history = db.prepare('DELETE FROM history').run().changes
+  // 清历史/账本时顺带把自增计数归零，否则删完 id 还是从几千开始跳
+  if (want.history) {
+    db.prepare("DELETE FROM sqlite_sequence WHERE name IN ('history','account_ledger')").run()
+  }
+  if (want.accounts) out.accounts = db.prepare('DELETE FROM accounts').run().changes
+  if (want.rooms) out.rooms = db.prepare('DELETE FROM room_snapshots').run().changes
+
+  // VACUUM 不能在有未结事务时跑；这里都没开事务，直接压
+  if (want.accounts || want.rooms || want.history) {
+    try { db.exec('VACUUM') } catch { /* 只影响体积，失败不阻塞清理 */ }
+  }
+  return out
+}
+
+/** 各表当前行数，给清理前确认用 */
+export function dataCounts() {
+  const db = getDb()
+  const one = (t) => db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n
+  return {
+    accounts: one('accounts'),
+    ledger: one('account_ledger'),
+    history: one('history'),
+    rooms: one('room_snapshots'),
+  }
+}
+
 export { DB_PATH }

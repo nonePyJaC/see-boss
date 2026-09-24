@@ -74,6 +74,7 @@ import {
   bumpTotalGames, goldenSeedsOf,
   addHistory, listHistory, deleteRoomHistory,
   saveRoomSnapshot, loadRoomSnapshot, loadAllRoomSnapshots, deleteRoomSnapshot,
+  wipeData, dataCounts,
 } from './db.js'
 import { debugPage } from './debug-room-page.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -950,6 +951,56 @@ function handleLeave(body, uid) {
   return ok({ left: true })
 }
 
+// ── 维护：清数据 ────────────────────────────────────────
+
+/**
+ * 清掉所有业务数据。实测一段时间会攒一堆垃圾（临时账号、测试房间、
+ * 历史战绩），这是手动清理口子。
+ *
+ * 鉴权：body.token 必须等于环境变量 HAMSTER_ADMIN_TOKEN。
+ *   不设 token 就拒绝 —— 绝不能做成一个谁都能调的 wipe 按钮。
+ *   密码只在服务端进程环境里，不进仓库、不进镜像层（见 ecosystem 配置注释）。
+ *
+ * body.what 可选：不给就全清。可单独给
+ *   { accounts, ledger, history, rooms } 只清某几类。
+ * rooms 会顺带清掉内存里的房间 Map —— 正在玩的人下一拉就掉出房间。
+ */
+function handleAdminWipe(body) {
+  const expect = process.env.HAMSTER_ADMIN_TOKEN
+  if (!expect) {
+    return fail('服务端未配置 HAMSTER_ADMIN_TOKEN，清理口子未启用')
+  }
+  // 用 timingSafeEqual 比 token，避免逐字符比对泄露长度信息
+  const got = String(body?.token ?? '')
+  const a = Buffer.from(got)
+  const b = Buffer.from(expect)
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return fail('token 不对')
+  }
+
+  const before = dataCounts()
+  const removed = wipeData(body?.what ?? {})
+
+  // 内存里的房间一起清，否则快照删了但内存还在，下一轮 persist 又写回去
+  const wipedRooms = (body?.what && body.what.rooms === false) ? 0 : rooms.size
+  rooms.clear()
+
+  return ok({ before, removed, wipedMemoryRooms: wipedRooms })
+}
+
+/** 只读：各表行数。同样要 token，免得把库规模暴露给外面 */
+function handleAdminStats(body) {
+  const expect = process.env.HAMSTER_ADMIN_TOKEN
+  if (!expect) return fail('服务端未配置 HAMSTER_ADMIN_TOKEN')
+  const got = String(body?.token ?? '')
+  const a = Buffer.from(got)
+  const b = Buffer.from(expect)
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return fail('token 不对')
+  }
+  return ok({ ...dataCounts(), memoryRooms: rooms.size })
+}
+
 // ── 工具 ───────────────────────────────────────────────
 
 function createShuffledDeckSafe(gameType) {
@@ -1098,6 +1149,8 @@ const ROUTES = {
   '/api/room/pause': handlePause,
   '/api/room/settle': handleSettle,
   '/api/room/leave': handleLeave,
+  '/api/admin/stats': handleAdminStats,
+  '/api/admin/wipe': handleAdminWipe,
 }
 
 function handleAccountAccountLogoutWrap(b) { return handleAccountLogout(b) }

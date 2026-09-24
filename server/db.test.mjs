@@ -19,6 +19,7 @@ import {
   bumpTotalGames, goldenSeedsOf,
   addHistory, listHistory,
   saveRoomSnapshot, loadRoomSnapshot, loadAllRoomSnapshots, deleteRoomSnapshot,
+  wipeData, dataCounts,
 } from './db.js'
 
 // 每个用例一个干净的库
@@ -254,3 +255,63 @@ test('快照删除', () => {
   deleteRoomSnapshot('222222')
   assert.equal(loadRoomSnapshot('222222'), null)
 })
+
+// ── 清数据 ────────────────────────────────────────────
+
+test('dataCounts 反映各表行数', () => {
+  fresh()
+  loginAccount('countA', 'u-a')
+  loginAccount('countB', 'u-b')
+  seedGolden('countA', 5)
+  accountSeedTransfer('countA', 'countB', 3)
+  addHistory({ roomNo: '111', mode: 'offline', roundNo: 1, payload: {}, createdBy: 'countA' })
+  const c = dataCounts()
+  assert.equal(c.accounts, 2)
+  assert.equal(c.ledger, 2, '双向记账两人份')
+  assert.equal(c.history, 1)
+  assert.equal(c.rooms, 0)
+})
+
+test('wipeData 全清：表结构保留，数据没了', () => {
+  fresh()
+  loginAccount('wipeA', 'u-a')
+  loginAccount('wipeB', 'u-b')
+  seedGolden('wipeA', 5)
+  accountSeedTransfer('wipeA', 'wipeB', 2)
+  addHistory({ roomNo: '111', mode: 'offline', roundNo: 1, payload: {}, createdBy: 'wipeA' })
+  saveRoomSnapshot('333333', 'offline', { pot: 5 })
+  assert.ok(dataCounts().accounts > 0)
+
+  const out = wipeData()
+  assert.ok(out.accounts >= 2, '应删掉账号')
+  assert.ok(out.ledger >= 1, '应删掉账本')
+  assert.ok(out.history >= 1, '应删掉历史')
+  assert.ok(out.rooms >= 1, '应删掉快照')
+
+  // 表还在，只是空的 —— 结构不能被清掉
+  const c = dataCounts()
+  assert.equal(c.accounts, 0)
+  assert.equal(c.ledger, 0)
+  assert.equal(c.history, 0)
+  assert.equal(c.rooms, 0)
+  // 还能继续用（不会因为表没了抛异常）
+  const r = loginAccount('afterWipe', 'u-c')
+  assert.equal(r.isNew, true)
+})
+
+test('wipeData 可按需只清一类', () => {
+  fresh()
+  loginAccount('keepA', 'u-a')
+  loginAccount('keepB', 'u-b')
+  seedGolden('keepA', 5)
+  accountSeedTransfer('keepA', 'keepB', 2)
+  addHistory({ roomNo: '111', mode: 'offline', roundNo: 1, payload: {}, createdBy: 'keepA' })
+
+  // 只清历史，账号和账本都留着
+  const out = wipeData({ history: true })
+  assert.ok(out.history >= 1)
+  assert.equal(dataCounts().history, 0)
+  assert.equal(dataCounts().accounts, 2, '账号不该被动')
+  assert.equal(dataCounts().ledger, 2, '账本不该被动')
+})
+

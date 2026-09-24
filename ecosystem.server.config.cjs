@@ -15,6 +15,11 @@ module.exports = {
         PORT: '80',
         LISTEN: '1',
         HAMSTER_STATIC_DIR: '/opt/cangshu/client/dist',
+        // 清理口子的口令。/api/admin/wipe 没有它就直接拒，
+        // 所以不设就等于关掉清理功能（安全默认）。
+        // ⚠️ 换密码时改这里 + pm2 delete/start 重启，git 里的这个值只是占位，
+        //    真实口令请用 `pm2 set` 或直接在服务器上改完再 pull。
+        HAMSTER_ADMIN_TOKEN: process.env.HAMSTER_ADMIN_TOKEN || '',
       },
       // 1C1G 小机器：内存超过 300MB 自动重启，防止把机器拖死
       max_memory_restart: '300M',
