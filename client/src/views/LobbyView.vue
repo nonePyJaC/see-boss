@@ -81,7 +81,7 @@ onActivated(async () => {
 
     <!-- 两种模式 -->
     <div class="mode-list">
-      <button class="mode-card card" @click="router.push('/room/offline')">
+      <button class="mode-card card" @click="router.push('/room/offline/entry')">
         <div class="mode-icon mode-icon--offline">
           <span>🃏</span>
         </div>

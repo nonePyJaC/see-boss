@@ -17,14 +17,15 @@ import { getUid } from './account-repo.js'
 
 export const POLL_INTERVAL = 2000
 
-/** 建房。cfg: { mode, initialSeeds, smallBlind, seats } */
-export function createRoom(cfg, uid = getUid()) {
-  return request('/api/room/create', { uid, ...cfg })
+/** 建房。cfg（房间配置）和 me（房主昵称头像）是两个独立字段，
+ *  服务端分别从 body.cfg 和 body.me 读，少哪个都被拒。 */
+export function createRoom(cfg = {}, me = {}) {
+  return request('/api/room/create', { uid: getUid(), cfg, me })
 }
 
-/** 进房 */
-export function joinRoom(roomId, uid = getUid()) {
-  return request('/api/room/join', { uid, roomId })
+/** 进房。me 带自己的昵称头像，服务端缺 nickname 会直接拒。 */
+export function joinRoom(roomId, me = {}) {
+  return request('/api/room/join', { uid: getUid(), roomId, me })
 }
 
 /** 拉全量状态。avail 是服务端算好的可用动作，前端照着渲染就行。 */

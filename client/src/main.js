@@ -20,6 +20,7 @@ const router = createRouter({
     { path: '/lobby', name: 'lobby', component: () => import('./views/LobbyView.vue') },
     { path: '/profile', name: 'profile', component: () => import('./views/ProfileView.vue') },
     { path: '/room/offline', name: 'offline-room', component: () => import('./views/OfflineRoomView.vue') },
+    { path: '/room/offline/entry', name: 'offline-entry', component: () => import('./views/OfflineEntryView.vue') },
     { path: '/room/online', name: 'online-room', component: () => import('./views/OnlineRoomView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/register' },
   ],
