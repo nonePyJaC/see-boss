@@ -990,13 +990,18 @@ try {
   console.error('[room] 快照恢复失败', e)
 }
 
-// 只有直接 `node server/index.js` 运行时才监听端口。
-// 被测试 import 时不 listen，测试自己控制端口。
-// ⚠️ 必须用 pathToFileURL 比 —— 手写 `file://${argv}` 在 Windows 下
-//     差一个斜杠（file:// vs file:///），isMain 恒 false；
-//     反过来靠 `|| LISTEN !== '0'` 兜底则 import 忘设 LISTEN 也会抢端口。
-const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
-if (isMain && process.env.LISTEN !== '0') {
+// 什么时候监听端口：
+//   1. 被测试 import 时不 listen（测试自己起服务占端口）→ LISTEN=0
+//   2. pm2 / node 直接跑 → LISTEN=1
+//
+// ⚠️ 不要用「import.meta.url === pathToFileURL(argv[1]).href」判断是不是主模块。
+//    pm2 的 fork 模式会把 argv[1] 设成 ProcessContainerFork.js，
+//    这个判断恒 false —— 进程显示 online、日志一片空白、端口从没监听，
+//    而且不报任何错（踩过，查了半天）。
+//    现在用 LISTEN 显式声明：测试设 0，其余设 1。
+const SHOULD_LISTEN = process.env.LISTEN !== '0'
+
+if (SHOULD_LISTEN) {
   server.listen(PORT, () => {
     console.log(`[room] listening on ${PORT}`)
     console.log(`[room] static: ${STATIC_DIR} ${fs.existsSync(STATIC_DIR) ? '' : '(未构建，仅 API 可用)'}`)
