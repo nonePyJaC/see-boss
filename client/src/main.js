@@ -2,14 +2,13 @@ import { createApp } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import App from './App.vue'
 import './styles/main.css'
-import { initData, repo, usingCloud } from './data/repo.js'
-import { userStore } from './stores/user.js'
-import { historyStore } from './stores/history.js'
+import { accountRepo } from './data/account-repo.js'
 
 /**
- * 用 hash 路由而不是 history 路由。
- * 原因：CloudBase 静态托管的 SPA 回退要靠「4xx 错误页面填 index.html」实现，
- * 而默认域名有时会走 CDN 缓存，history 路由刷新可能 404。hash 路由最稳。
+ * hash 路由。
+ * 原来是 CloudBase 静态托管的 SPA 回退问题才选的 hash；
+ * 现在 server/index.js 自己管静态页，history 路由也能回退，
+ * 但 hash 已经能让扫码链接稳定工作，没必要改。
  */
 const router = createRouter({
   history: createWebHashHistory(),
@@ -27,43 +26,18 @@ const router = createRouter({
 })
 
 /**
- * 启动流程：
- *   云端模式先完成匿名登录（拿到带真实 sub 的 token），
- *   否则后续所有 RLS 查询都会因缺 JWT 被拒。
- *   本地模式直接进，无网络依赖。
+ * 启动流程：查一下本机 uid 有没有绑账号。
+ * 没绑也不拦启动，注册页会引导登录/注册。
  */
 async function bootstrap() {
-  if (usingCloud) {
-    try {
-      const { uid } = await initData()
-      console.info(`[data] 云端模式，匿名 uid = ${uid}`)
-
-      // 拉账号档案（账号名即身份）。已登录则恢复昵称/头像/金瓜子，
-      // 没登录也不拦启动——注册页会引导登录或注册。
-      let accountProfile = null
-      try {
-        const me = await repo.myAccount()
-        if (me?.loggedIn) {
-          accountProfile = me
-          console.info(`[user] 已登录账号 ${me.account}，金瓜子 ${me.goldenSeeds}`)
-        }
-      } catch (e) {
-        console.warn('[user] 读取账号失败', e?.message ?? e)
-      }
-
-      // 账号档案优先，其次本地缓存的匿名档案
-      if (accountProfile) {
-        await userStore.adoptAccount(accountProfile)
-      } else {
-        await userStore.initFromCloud()
-      }
-      await historyStore.initFromCloud()
-    } catch (e) {
-      // 云端不可用不阻塞启动，降级到本地模式继续跑
-      console.error('[data] 云端初始化失败，降级为本地模式', e)
+  try {
+    const m = await accountRepo.me()
+    if (m.ok && m.data?.loggedIn) {
+      console.info(`[account] 已登录 ${m.data.account}，金瓜子 ${m.data.goldenSeeds}`)
     }
-  } else {
-    console.info('[data] 本地模式')
+  } catch (e) {
+    // 服务端没起不阻塞启动，页面会显示「连不上」
+    console.warn('[account] 读取身份失败', e?.message ?? e)
   }
 
   createApp(App).use(router).mount('#app')

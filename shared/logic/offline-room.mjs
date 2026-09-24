@@ -309,23 +309,44 @@ export function applyOfflineAction(state, action) {
   const me = st.seats.find((s) => s.uid === uid)
   if (!me) return { error: '你不在这个房间' }
 
-  // 本手已收掉之后，只剩「收空池」这一类无意义动作，
-  // 所以先放行 collect 让它自己报「公共池是空的」，
-  // 其余动作（call/raise/fold）一律拒绝。
-  if (st.finished && type !== 'collect') return { error: '本手已结束' }
+  // 本手已收掉之后，只剩「收空池」和「暂停中划拨」两类动作有意义：
+  // collect 放行后自己报「公共池是空的」；give 内部自查 paused。
+  if (st.finished && type !== 'collect' && type !== 'give') return { error: '本手已结束' }
 
-  if (me.folded) return { error: '你已经弃牌' }
-  // 全下不能再投注，但「收池」是中性动作，必须放行 ——
+  // 弃牌者本回合不再操作，但「收」「暂停中划拨」是中性动作，放行。
+  if (me.folded && type !== 'collect' && type !== 'give') return { error: '你已经弃牌' }
+  // 全下不能再投注，但「收池」「划拨」放行 ——
   // 线下常见「输光的人顺手把池子收了」，拦住了他就没法推进对局。
-  if (me.allIn && type !== 'collect') return { error: '你已经全下' }
+  if (me.allIn && type !== 'collect' && type !== 'give') return { error: '你已经全下' }
 
   switch (type) {
     case 'fold': {
-      if (st.turnUid !== uid) return { error: '还没到你的回合' }
+      // 弃牌不分是否轮到决策：离场 = 弃牌，随时可以。
       me.folded = true
       markActed(st, uid)
       st.actionLog.push({ uid, nickname: me.nickname, type: 'fold', amount: 0, stage: st.stage })
-      return afterMove(st, uid)
+      if (st.turnUid === uid) return afterMove(st, uid)
+      // 非本人回合：回合仍属当前行动者，只判「是否只剩 1 人存活」
+      return endIfLastAlive(st) ?? { state: st }
+    }
+
+    case 'give': {
+      // 暂停中手动划拨：「AB all-in 归零、A 收走后分一半给 B」的场景。
+      // 只在 paused 开放，正常对局里不允许（否则会绕过下注规则）。
+      if (!st.paused) return { error: '只有暂停中才能手动划拨瓜子' }
+      const to = st.seats.find((s) => s.uid === action.toUid)
+      if (!to) return { error: '找不到目标玩家' }
+      if (to.uid === uid) return { error: '不能拨给自己' }
+      const amt = Math.floor(Number(action.amount))
+      if (!Number.isFinite(amt) || amt <= 0) return { error: '划拨数量无效' }
+      if (amt > me.seeds) return { error: `瓜子不足（有 ${me.seeds}）` }
+      me.seeds -= amt
+      to.seeds += amt
+      st.actionLog.push({
+        uid, nickname: me.nickname, type: 'give',
+        toUid: to.uid, toName: to.nickname, amount: amt, stage: st.stage,
+      })
+      return { state: st }
     }
 
     case 'check': {
@@ -422,24 +443,32 @@ function moveIn(st, seat, amount) {
  *    花生永远停在 preflop。两者必须分开 —— 街结束只是换花生，
  *    手结束才涉及收池和结算。
  */
+/**
+ * 只剩 ≤1 人未弃牌时结束本手：最后存活者自动收池。
+ * 返回结果对象；没结束返回 null。
+ */
+function endIfLastAlive(st) {
+  const alive = st.seats.filter((s) => !s.folded)
+  if (alive.length > 1) return null
+  if (alive.length === 1 && st.pot > 0) {
+    const w = alive[0]
+    w.seeds += st.pot
+    st.actionLog.push({
+      uid: w.uid, nickname: w.nickname, type: 'collect',
+      amount: st.pot, auto: true, stage: st.stage,
+    })
+    st.pot = 0
+  }
+  st.finished = true
+  st.turnUid = null
+  for (const s of st.seats) { s.isTurn = false; s.bet = 0 }
+  return { state: st, autoCollected: alive[0] ? { uid: alive[0].uid } : null }
+}
+
 function afterMove(st, uid) {
   // ── 1. 只剩 1 人未弃牌 → 自动替他收池，本手结束 ──
-  const alive = st.seats.filter((s) => !s.folded)
-  if (alive.length <= 1) {
-    if (alive.length === 1 && st.pot > 0) {
-      const w = alive[0]
-      w.seeds += st.pot
-      st.actionLog.push({
-        uid: w.uid, nickname: w.nickname, type: 'collect',
-        amount: st.pot, auto: true, stage: st.stage,
-      })
-      st.pot = 0
-    }
-    st.finished = true
-    st.turnUid = null
-    for (const s of st.seats) { s.isTurn = false; s.bet = 0 }
-    return { state: st, autoCollected: alive[0] ? { uid: alive[0].uid } : null }
-  }
+  const end = endIfLastAlive(st)
+  if (end) return end
 
   // ── 2. 本街走完 → 换街 ──
   if (streetClosed(st)) {

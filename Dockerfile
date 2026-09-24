@@ -1,24 +1,34 @@
-# 仓鼠聚会 — 线上对局服务（云托管）
+# 仓鼠聚会 — 单容器部署（阿里云服务器）
 #
-# 全内存态：不连数据库、不写盘、退出即焚。
-# 云托管会注入 PORT（默认 80），代码已读 process.env.PORT。
+# 一个进程全包：静态站点（client/dist）+ 房间 API + SQLite（node:sqlite）。
+# node:sqlite 需要 Node ≥22.13；这里直接用 24（用户服务器已装 24，本地也是 v24.19）。
+# 数据落盘在 server/data/hamster.db —— 部署时挂个卷或留在容器层都行
+# （朋友局丢一次 db 最坏是重建账号，但建议挂卷）。
 
-FROM node:20-alpine
-
+# ── 阶段 1：构建前端 ────────────────────────────────
+FROM node:22-alpine AS client-build
 WORKDIR /app
 
-# 先拷依赖清单，利用 Docker 层缓存
-COPY server/package.json ./server/package.json
-COPY package.json ./package.json
+# 先拷依赖清单吃层缓存（client/package-lock.json 必须存在）
+COPY client/package.json client/package-lock.json ./client/
+RUN cd client && npm ci
 
-# 服务端零运行时依赖（只用 node 内置 http/crypto + shared/logic），
-# 所以没有 npm install 步骤。保留 package.json 仅为云托管识别 Node 项目。
+COPY client/ ./client/
+RUN cd client && npm run build
 
-# 应用代码
+# ── 阶段 2：运行时 ──────────────────────────────────
+FROM node:24-alpine
+WORKDIR /app
+
+# 服务端零 npm 依赖（node 内置 http/crypto/sqlite + shared/logic）
 COPY server/ ./server/
 COPY shared/ ./shared/
+COPY --from=client-build /app/client/dist ./client/dist
 
-# shared/logic 是 ESM，server 也是 ESM，直接跑
+ENV PORT=80
 EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+  CMD wget -qO- "http://127.0.0.1:${PORT}/health" || exit 1
 
 CMD ["node", "server/index.js"]

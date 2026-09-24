@@ -153,16 +153,57 @@ test('收空池被拒', () => {
   assert.match(r.error, /公共池是空的/)
 })
 
-test('不是自己的回合，任何下注动作都被拒', () => {
+test('不是自己的回合，下注动作被拒（跟/加），但收和弃例外', () => {
   const st = start()
   const other = ['u0', 'u1', 'u2'].find((u) => u !== st.turnUid)
-  for (const t of ['call', 'raise', 'fold']) {
-    const r = applyOfflineAction(st, { uid: other, type: t })
+  for (const t of ['call', 'raise']) {
+    const r = applyOfflineAction(st, { uid: other, type: t, amount: 10 })
     assert.match(r.error, /还没到你的回合/, t + ' 应被拒')
   }
-  // 但收池例外：谁都可以收
+  // 收池例外：谁都可以收
   const ok = applyOfflineAction(st, { uid: other, type: 'collect' })
   assert.ok(!ok.error, '收池不该被回合拦')
+})
+
+test('非回合弃牌：随时可弃，不抢当前行动者的回合', () => {
+  const st = start()              // u0 sb / u1 bb / u2 先动
+  const turnBefore = st.turnUid   // u2
+  const r = applyOfflineAction(st, { uid: 'u0', type: 'fold' })
+  assert.ok(!r.error, '非回合弃牌不该被拒：' + r.error)
+  assert.equal(r.state.seats[0].folded, true)
+  assert.equal(r.state.turnUid, turnBefore, '回合不该跳走')
+  // 当前行动者还能正常行动
+  const r2 = applyOfflineAction(r.state, { uid: turnBefore, type: 'call' })
+  assert.ok(!r2.error, r2.error)
+})
+
+test('非回合连续弃到只剩 1 人 → 自动收池', () => {
+  const st = start()
+  // u0 非回合弃 → u1 也非回合弃 → 只剩 u2 → u2 自动收池
+  const r1 = applyOfflineAction(st, { uid: 'u0', type: 'fold' })
+  assert.ok(!r1.error)
+  const r2 = applyOfflineAction(r1.state, { uid: 'u1', type: 'fold' })
+  assert.ok(!r2.error)
+  assert.equal(r2.state.finished, true, '只剩 1 人应直接结束')
+  assert.equal(r2.state.pot, 0, '池子被自动收掉')
+  assert.equal(r2.state.seats[2].seeds, 1000 + 30, 'u2 收走全部公共池')
+})
+
+test('暂停中 give 划拨：收池后手动分瓜子', () => {
+  // 造一个 paused 状态：paused 是服务端结算路径打的标，引擎只管识别
+  let st = start([1000, 1000, 1000])
+  st = { ...st, paused: true, finished: true }
+  const r = applyOfflineAction(st, {
+    uid: 'u0', type: 'give', toUid: 'u1', amount: 500,
+  })
+  assert.ok(!r.error, r.error)
+  assert.equal(r.state.seats[0].seeds, 1000 - 10 - 500, '拨出方扣款')
+  assert.equal(r.state.seats[1].seeds, 1000 - 20 + 500, '接收方入账')
+  // 非暂停状态拒绝
+  const live = applyOfflineAction(start(), {
+    uid: 'u0', type: 'give', toUid: 'u1', amount: 10,
+  })
+  assert.match(live.error, /暂停/)
 })
 
 test('结算判定：有人归零才该弹窗', () => {

@@ -182,8 +182,9 @@ export function loginAccount(name, uid, profile = {}) {
   }
 
   // 新账号：占一个 uid。若这个 uid 已绑过别的账号（本机注册过第二个），
-  // 先把旧绑定解掉，否则 UNIQUE(uid) 会冲突。
-  d.prepare('DELETE FROM accounts WHERE uid = ?').run(uid)
+  // 只解绑不删行 —— DELETE 会顺着 FK CASCADE 把对方账本里
+  // 所有引用这个账号的行一起抹掉（金瓜子 + 账本双蒸发）。
+  d.prepare(`UPDATE accounts SET uid = 'unbound:' || account WHERE uid = ?`).run(uid)
 
   d.prepare(
     `INSERT INTO accounts (account, uid, nickname, avatar)
@@ -222,10 +223,14 @@ export function updateMyAccount(uid, patch = {}) {
   return { ok: true, ...accountByUid(uid) }
 }
 
-/** 退出登录：解绑 uid，让别人可以在这台设备上用这个账号名 */
+/**
+ * 退出登录：解绑 uid（不是删号）。
+ * DELETE 会顺着 account_ledger 的 FK CASCADE 把双向账本行全抹掉 ——
+ * 这里只把 uid 换成 tombstone，账号数据原样保留，重新登录即可找回。
+ */
 export function logoutAccount(uid) {
   if (!uid) return { ok: true }
-  getDb().prepare('DELETE FROM accounts WHERE uid = ?').run(uid)
+  getDb().prepare(`UPDATE accounts SET uid = 'unbound:' || account WHERE uid = ?`).run(uid)
   return { ok: true }
 }
 
@@ -319,12 +324,13 @@ export function clearAccountLedgerRow(ownerAccount, peerAccount) {
 
   d.exec('BEGIN IMMEDIATE')
   try {
-    // 我方：放弃这笔净影响。delta>0 是对方欠我，冲销即减掉
-    d.prepare('UPDATE accounts SET golden_seeds = golden_seeds - ?, updated_at = datetime(\'now\') WHERE account = ?')
+    // 我方：冲销这笔净影响。delta>0 是对方欠我（我当时已收过），结清即退回；
+    // delta<0 是我欠对方，减负等于加钱。两边都按「golden_seeds - delta」统一。
+    // MAX(0,·) 防 CHECK 约束：赢来的金瓜子可能已花掉，结清不能扣成负数报错。
+    d.prepare(`UPDATE accounts SET golden_seeds = MAX(0, golden_seeds - ?), updated_at = datetime('now') WHERE account = ?`)
       .run(mine.delta, owner)
-    // 对方同理（theirs.delta 与 mine.delta 等值反号，同样用减号）
     if (theirs) {
-      d.prepare('UPDATE accounts SET golden_seeds = golden_seeds - ?, updated_at = datetime(\'now\') WHERE account = ?')
+      d.prepare(`UPDATE accounts SET golden_seeds = MAX(0, golden_seeds - ?), updated_at = datetime('now') WHERE account = ?`)
         .run(theirs.delta, peer)
     }
     d.prepare('DELETE FROM account_ledger WHERE (owner = ? AND peer = ?) OR (owner = ? AND peer = ?)')

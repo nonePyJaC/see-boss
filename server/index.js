@@ -45,13 +45,14 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import {
   PHASE,
   initHand,
   dealHoleCards,
   applyAction,
+  forfeit,
   availableActions,
   showdown,
 } from '../shared/logic/betting.mjs'
@@ -62,8 +63,6 @@ import {
   applyOfflineAction,
   availableActions as offlineActions,
   nextStage as offlineNextStage,
-  nextHand as offlineNextHand,
-  handResolved,
 } from '../shared/logic/offline-room.mjs'
 
 import { buildSettlement, transfersAfterTiePick } from '../shared/logic/settlement.mjs'
@@ -76,7 +75,7 @@ import {
   addHistory, listHistory,
   saveRoomSnapshot, loadRoomSnapshot, loadAllRoomSnapshots, deleteRoomSnapshot,
 } from './db.js'
-import { debugPage } from '../scripts/debug-room-page.js'
+import { debugPage } from './debug-room-page.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const PORT = Number(process.env.PORT) || 80
@@ -110,15 +109,15 @@ function newRoom({ id, hostUid, host, cfg }) {
     id,
     mode: cfg.mode === 'online' ? 'online' : 'offline',
     gameType: cfg.gameType ?? 'long',
-    smallBlind: num(cfg.smallBlind, 10),
-    bigBlind: num(cfg.bigBlind, 20),
-    initialSeeds: num(cfg.initialSeeds, 3000),
+    smallBlind: Math.max(1, num(cfg.smallBlind, 10)),
+    bigBlind: Math.max(1, num(cfg.bigBlind, 20)),
+    initialSeeds: Math.max(1, num(cfg.initialSeeds, 3000)),
     hostUid,
     seats: [{
       uid: hostUid,
       nickname: host.nickname ?? '匿名',
       avatar: num(host.avatar, 1),
-      seeds: num(cfg.initialSeeds, 3000),
+      seeds: Math.max(1, num(cfg.initialSeeds, 3000)),
     }],
     state: null,
     hands: {},
@@ -194,7 +193,11 @@ function publicState(room, viewerUid) {
     initialSeeds: room.initialSeeds,
     smallBlind: room.smallBlind,
     bigBlind: room.bigBlind,
-    // 轮询探针：有实质变化前端才拉全量（省 CloudBase 调用）
+    // 结算/暂停信号必须透出 —— 结算弹窗和暂停蒙层全靠它俩驱动。
+    // 只写进 state 不透出，前端永远看不到（踩过：调试页读了半天 undefined）。
+    settlePending: !!st?.settlePending,
+    paused: !!st?.paused,
+    // 轮询探针：有实质变化前端才拉全量（省流量）
     rev: room.rev ?? 0,
   }
 
@@ -215,8 +218,9 @@ function publicState(room, viewerUid) {
     // 「跟」按钮要显示需跟数量
     base.toCall = viewerUid ? Math.max(0, (st?.currentBet ?? 0) - (st?.seats?.find((x) => x.uid === viewerUid)?.bet ?? 0)) : 0
     if (st && !st.finished) base.avail = offlineActions(st, viewerUid)
-    // 是否有人归零 → 前端决定弹不弹结算窗（只给房主弹）
-    base.hasZeroSeat = (st?.seats ?? []).some((x) => x.seeds <= 0)
+    // 是否有人归零 —— 只在「本手已收掉」时为真。
+    // all-in 中途也会出现 0 瓜子座位，不加 finished 门槛前端会提前弹窗。
+    base.hasZeroSeat = !!st?.finished && (st?.seats ?? []).some((x) => x.seeds <= 0)
   }
 
   return base
@@ -236,6 +240,15 @@ function touch(room) {
   room.lastActive = Date.now()
   room.rev = (room.rev ?? 0) + 1
   persistRoom(room)
+}
+
+/**
+ * 只刷新活跃时间，不动 rev、不落库。
+ * 轮询/重连这类「读」操作走它 —— 否则每个玩家 2s 一次轮询
+ * 都会触发一次全量快照写盘 + rev 永远在变（探针失效）。
+ */
+function bumpActivity(room) {
+  room.lastActive = Date.now()
 }
 
 // ── 接口实现 ────────────────────────────────────────────
@@ -259,7 +272,8 @@ function handleJoin(body, uid) {
   const room = rooms.get(id)
   if (!room) return fail('房间不存在')
 
-  // 已在房里直接返回当前状态 —— 断线重连靠这个，不能先判「对局已开始」
+  // 已在房里直接返回当前状态 —— 断线重连靠这个，不能先判「对局已开始」。
+  // 重连是「读」，不 bump rev 不落库；只有真的加座才算变更。
   let me = room.seats.find((s) => s.uid === uid)
   if (!me) {
     if (room.seats.length >= MAX_SEATS) return fail('房间已满')
@@ -270,13 +284,16 @@ function handleJoin(body, uid) {
       seeds: room.initialSeeds,
     }
     room.seats.push(me)
+    touch(room)
+  } else {
+    bumpActivity(room)
   }
-  touch(room)
   return ok(publicState(room, uid))
 }
 
 function handleList(body, uid) {
-  // 只列能加入的：offline 模式、未开局、未满、30 分钟内有动静
+  // 列可加入的房：offline 模式、未满、有动静。
+  // 进行中的房也列（朋友局允许中途加入旁观，下一手入座），用 inProgress 标注。
   const now = Date.now()
   const list = []
   for (const r of rooms.values()) {
@@ -295,6 +312,7 @@ function handleList(body, uid) {
       bigBlind: r.bigBlind,
       initialSeeds: r.initialSeeds,
       roundNo: r.roundNo,
+      inProgress: !!(r.state && !r.state.finished),
       isMine: r.hostUid === uid,
       iAmIn: r.seats.some((s) => s.uid === uid),
     })
@@ -305,7 +323,8 @@ function handleList(body, uid) {
 function handleState(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在')
-  touch(room)
+  // 轮询只续命不写库：持久化收口在 touch()，只跟着「变更」走
+  bumpActivity(room)
   return ok(publicState(room, uid))
 }
 
@@ -338,7 +357,9 @@ function handleStart(body, uid) {
       room.dealerUid = state.dealerUid
       syncSeats(room)
     } else {
-      // 线下：只下大小麦，不碰牌
+      // 线下：只下大小麦，不碰牌。
+      // sbIndex 是房主指定的小麦位 —— 必须透传，之前漏了导致
+      // 调试页选位发到服务端被吞，小麦永远落在 seats[0]。
       const state = initOfflineHand({
         players: room.seats.map((s) => ({
           uid: s.uid, nickname: s.nickname, avatar: s.avatar, seeds: s.seeds,
@@ -346,7 +367,7 @@ function handleStart(body, uid) {
         smallBlind: room.smallBlind,
         bigBlind: room.bigBlind,
         roundNo: room.roundNo,
-        dealerUid: room.dealerUid,
+        sbIndex: body.sbIndex,
       })
       room.state = state
       // 把引擎座位数据写回 seats，前端 state 轮询才一致
@@ -407,11 +428,14 @@ function offlineAction(room, body, uid) {
     return ok(publicState(room, uid))
   }
 
-  // 下注类动作：过牌 / 跟注 / 加注 / 弃牌
+  // 下注类动作：过牌 / 跟注 / 加注 / 弃牌 / 暂停划拨
   // ⚠️ check 必须在列。漏了它，点「过」会掉到末尾的
   //    「未知动作」，页面看着就是没反应 —— 实测踩过。
-  if (type === 'check' || type === 'fold' || type === 'call' || type === 'raise') {
-    const r = applyOfflineAction(room.state, { uid, type, amount: body.amount })
+  // give 是暂停态手动划拨（all-in 归零后收池再平分的场景）。
+  if (['check', 'fold', 'call', 'raise', 'give'].includes(type)) {
+    const r = applyOfflineAction(room.state, {
+      uid, type, amount: body.amount, toUid: body.toUid,
+    })
     if (r.error) return fail(r.error)
     room.state = r.state
     syncSeats(room)
@@ -446,27 +470,33 @@ function onlineAction(room, body, uid) {
   if (!r.state) return fail('动作未被接受')
   room.state = r.state
   syncSeats(room)
-
-  if (room.state.finished && room.state.phase === PHASE.SHOWDOWN && !room.state.result) {
-    const res = showdown(room.state, room.hands)
-    // 隐私：弃牌者的底牌绝不外发
-    const safeHands = (res.hands ?? []).map((h) => ({
-      uid: h.uid, nickname: h.nickname, folded: h.folded,
-      hole: h.folded ? [] : (h.hole ?? []),
-      cards: h.folded ? [] : (h.cards ?? []),
-      hand: h.folded ? null : h.hand,
-      isWinner: h.isWinner,
-      won: h.won,
-    }))
-    room.state.result = { pot: res.pot, winnings: res.winnings ?? [], hands: safeHands }
-    for (const w of room.state.result.winnings) {
-      const ss = room.state.seats.find((s) => s.uid === w.uid)
-      if (ss) ss.seeds += w.amount
-    }
-    syncSeats(room)
-  }
+  resolveOnlineIfDone(room)
   touch(room)
   return ok(publicState(room, uid))
+}
+
+/**
+ * 线上手牌终局收口：摊牌 → 派彩 → 写 result。
+ * onlineAction 和 handleLeave（离场弃牌也可能终局）共用。
+ */
+function resolveOnlineIfDone(room) {
+  if (!(room.state?.finished && room.state.phase === PHASE.SHOWDOWN && !room.state.result)) return
+  const res = showdown(room.state, room.hands)
+  // 隐私：弃牌者的底牌绝不外发
+  const safeHands = (res.hands ?? []).map((h) => ({
+    uid: h.uid, nickname: h.nickname, folded: h.folded,
+    hole: h.folded ? [] : (h.hole ?? []),
+    cards: h.folded ? [] : (h.cards ?? []),
+    hand: h.folded ? null : h.hand,
+    isWinner: h.isWinner,
+    won: h.won,
+  }))
+  room.state.result = { pot: res.pot, winnings: res.winnings ?? [], hands: safeHands }
+  for (const w of room.state.result.winnings) {
+    const ss = room.state.seats.find((s) => s.uid === w.uid)
+    if (ss) ss.seeds += w.amount
+  }
+  syncSeats(room)
 }
 
 /** 换花生（offline 专用）：只推进视觉阶段，不发牌 */
@@ -596,30 +626,20 @@ function handleSettle(body, uid) {
     return ok({ paid, skipped, transfers: paid, disbanded: true })
   }
 
-  // 结算并重置：全员回初始值 + 清空大小麦麦位。
-  // handDone 钉在旧 state 上，重复请求会被幂等判据挡掉。
-  room.state.handDone = true
-  room.state.settlePending = false
-
-  const reset = offlineNextHand(room.state)
-  const byUid = new Map(reset.seats.map((s) => [s.uid, s]))
+  // 结算并重置：全员回初始值 + 清空大小麦麦位，state 置 null 等房主重新开局。
+  //
+  // ⚠️ 以前用 offlineNextHand 产出一个 finished=false、turnUid=null 的
+  //    「重置态」—— handleStart 的守卫看到 !finished 就拒开局，
+  //    于是结算完永远开不了下一手（死锁）。置 null 后：
+  //    /start 正常走 initOfflineHand 下大小麦，重复 settle 被
+  //    「本手还没开始」挡掉，幂等照样成立。
   for (const s of room.seats) {
     s.seeds = room.initialSeeds
     s.bet = 0
     s.totalBet = 0
     s.blind = null
-    const rs = byUid.get(s.uid)
-    if (rs) {
-      rs.seeds = room.initialSeeds
-      rs.bet = 0
-      rs.totalBet = 0
-      rs.blind = null
-    }
   }
-  reset.handDone = false       // 新的一手，可以再结算
-  reset.settlePending = false
-  reset.paused = false
-  room.state = reset
+  room.state = null
   room.roundNo += 1
   touch(room)
   return ok({ paid, skipped, transfers: paid, roundNo: room.roundNo })
@@ -630,33 +650,34 @@ function handleLeave(body, uid) {
   if (!room) return ok({ left: true })
 
   if (room.hostUid === uid) {
-    // 房主退出：整房销毁，所有人一起弹回大厅
+    // 房主退出：整房销毁，所有人一起弹回大厅。
+    // 快照必须一起删 —— 漏删的话重启后死房复活（僵尸房）。
+    deleteRoomSnapshot(room.id)
     rooms.delete(room.id)
     return ok({ roomClosed: true })
   }
 
   room.seats = room.seats.filter((s) => s.uid !== uid)
 
-  // 普通成员在对局中离场 = 弃牌。
+  // 普通成员在对局中离场 = 弃牌。弃牌不分是否轮到决策，随时可以：
+  // 不给非回合弃牌，轮到离场者时整手就卡死了。
   //
-  // ⚠️ 这里以前直接 room.state = applyAction(...).state，
-  //    而 applyAction 在「不是你的回合」时返回 { error } 且没有 state，
-  //    于是 room.state 被置成 undefined —— phase 变 IDLE、底池消失、
-  //    外人可以加入、还能重复开局。手机切后台必然踩到。
-  //
-  // 现在只在引擎真的接受了这个 fold 时才替换 state。
+  // ⚠️ 两个坑都踩过：
+  //    1. applyAction 非回合返回 {error} 没 state，直接赋值会毁掉整局
+  //    2. 从 state.seats 移除会让 sbIndex 索引漂移、玩家回合悬死 ——
+  //       所以走「标记 folded」，不从引擎座位里删人
   if (room.state && !room.state.finished) {
     try {
       if (isOnline(room)) {
-        const r = applyAction(room.state, { uid, type: 'fold' })
-        if (r.state) room.state = r.state
+        const r = forfeit(room.state, uid)
+        if (r.state) {
+          room.state = r.state
+          resolveOnlineIfDone(room)   // 弃到只剩一人也可能终局
+        }
       } else {
         const r = applyOfflineAction(room.state, { uid, type: 'fold' })
         if (r.state) room.state = r.state
-        else if (r.error) {
-          // 没到他回合：只从座位移除，不动引擎状态
-          room.state.seats = (room.state.seats ?? []).filter((s) => s.uid !== uid)
-        }
+        finishIfNeeded(room)
       }
       syncSeats(room)
     } catch {
@@ -834,15 +855,21 @@ const MIME = {
 function serveStatic(url, res) {
   let p = decodeURIComponent(url.pathname)
   if (p === '/') p = '/index.html'
-  // 防目录穿越
+  // 防目录穿越。必须带 path.sep 比 —— 裸 startsWith 会被
+  // `dist-evil/` 这种同前缀目录绕过去。
   const full = path.normalize(path.join(STATIC_DIR, p))
-  if (!full.startsWith(STATIC_DIR)) {
+  if (full !== STATIC_DIR && !full.startsWith(STATIC_DIR + path.sep)) {
     res.writeHead(403); return res.end('Forbidden')
   }
 
   // /room?uid=&room= → 调试页（room-repo 接上之前的真实数据预览）
+  // 带 no-cache：这是每次改都在动的开发页，不能让浏览器拿旧版本
+  // （踩过：页面 JS 报 AVATARS is not defined，其实是缓存了旧 HTML）
   if (p === '/room' || (p === '/index.html' && url.searchParams.has('room'))) {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+    })
     return res.end(debugPage())
   }
 
@@ -947,7 +974,13 @@ setInterval(() => {
 let restoredCount = 0
 openDb()
 try {
+  // 快照保鲜期 24h：一周前的死房不值得复活，直接清掉
+  const SNAP_MAX_AGE = 24 * 3600 * 1000
   for (const snap of loadAllRoomSnapshots()) {
+    if (Date.now() - Date.parse(snap.updatedAt) > SNAP_MAX_AGE) {
+      deleteRoomSnapshot(snap.roomId)
+      continue
+    }
     if (restoreRoom(snap)) restoredCount++
   }
   if (restoredCount > 0) {
@@ -959,8 +992,11 @@ try {
 
 // 只有直接 `node server/index.js` 运行时才监听端口。
 // 被测试 import 时不 listen，测试自己控制端口。
-const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}`
-if (isMain || process.env.LISTEN !== '0') {
+// ⚠️ 必须用 pathToFileURL 比 —— 手写 `file://${argv}` 在 Windows 下
+//     差一个斜杠（file:// vs file:///），isMain 恒 false；
+//     反过来靠 `|| LISTEN !== '0'` 兜底则 import 忘设 LISTEN 也会抢端口。
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
+if (isMain && process.env.LISTEN !== '0') {
   server.listen(PORT, () => {
     console.log(`[room] listening on ${PORT}`)
     console.log(`[room] static: ${STATIC_DIR} ${fs.existsSync(STATIC_DIR) ? '' : '(未构建，仅 API 可用)'}`)

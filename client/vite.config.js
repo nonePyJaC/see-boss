@@ -35,7 +35,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    // CloudBase 静态托管单文件上限 50MB，远高于此；设 1MB 提前发现异常
+    // 单 chunk 超过这个数就警告，提前发现误把大资源打进来
     chunkSizeWarningLimit: 1024,
   },
 })

@@ -323,6 +323,93 @@ test('归零者金瓜子不足：跳过但不阻塞结算，且不静默', async
   assert.match(r.data.skipped[0].reason, /金瓜子不足/)
 })
 
+test('结算并重置后可以正常开下一手（回归：重置态死锁）', async () => {
+  // 旧实现把 state 重置成 finished=false 的空转态，handleStart 的
+  // 「本手还没结束」守卫会永远拒开局。现在重置后 state=null。
+  const { no, h, sbUid } = await zeroedRoom()
+  seed(sbUid, 5)
+  const r = await api('/api/room/settle', { uid: h, roomId: no, action: 'restart' })
+  assert.equal(r.ok, true, r.error)
+  const s = await api('/api/room/start', { uid: h, roomId: no, sbIndex: 0 })
+  assert.equal(s.ok, true, '结算重置后必须能再开局：' + (s.error || ''))
+  assert.equal(s.data.seats[0].blind, 'sb')
+})
+
+test('小麦位由房主指定：sbIndex 必须透传（回归：曾被吞掉恒为 0）', async () => {
+  const h = await login('hostSB')
+  const c = await api('/api/room/create', { uid: h, me: me('房主'), cfg: { mode: 'offline' } })
+  const no = c.data.id
+  for (const n of ['s1', 's2']) {
+    const u = await login('g' + n)
+    await api('/api/room/join', { uid: u, roomId: no, me: me(n) })
+  }
+  const s = await api('/api/room/start', { uid: h, roomId: no, sbIndex: 1 })
+  assert.equal(s.ok, true, s.error)
+  assert.equal(s.data.seats[1].blind, 'sb', '小麦应在 1 号位')
+  assert.equal(s.data.seats[2].blind, 'bb', '大麦应在 2 号位')
+})
+
+test('settlePending / paused 必须透出到 publicState', async () => {
+  const { no, h } = await zeroedRoom()
+  const st = (await api('/api/room/state', { uid: h, roomId: no })).data
+  assert.equal(st.settlePending, true, '有人归零 + 已收池 → settlePending')
+  assert.equal(st.hasZeroSeat, true)
+  assert.equal(st.paused, false)
+})
+
+test('暂停透出 + 暂停中划拨瓜子 + 继续开下一手', async () => {
+  const { no, h, sbUid, bbUid } = await zeroedRoom()
+  const p = await api('/api/room/settle', { uid: h, roomId: no, action: 'pause' })
+  assert.equal(p.ok, true, p.error)
+  const st = (await api('/api/room/state', { uid: h, roomId: no })).data
+  assert.equal(st.paused, true, 'paused 必须透出，否则前端「暂停」文案不显示')
+
+  // A 收走后手动分一半给 B 的场景：bbUid 收了池，拨 20 给归零的 sbUid
+  const g = await api('/api/room/action', {
+    uid: bbUid, roomId: no, type: 'give', toUid: sbUid, amount: 20,
+  })
+  assert.equal(g.ok, true, '暂停中划拨不该被拒：' + (g.error || ''))
+  const after = (await api('/api/room/state', { uid: h, roomId: no })).data
+  assert.equal(after.seats.find((s) => s.uid === sbUid).seeds, 20)
+
+  // 「继续」= 开下一手：筹码沿用（不重置）
+  const s = await api('/api/room/start', { uid: h, roomId: no, sbIndex: 0 })
+  assert.equal(s.ok, true, s.error)
+  const sb = s.data.seats.find((x) => x.uid === sbUid)
+  assert.equal(sb.seeds, 10, '新一手下小麦 10，剩 10（划拨来的 20）')
+})
+
+test('非回合离场 = 弃牌：回合保留、房间不炸', async () => {
+  const { no, uids, state } = await fourPlayerRoom()
+  const turnUid = state.turnUid
+  // uids[0] 是房主，离场会销房 —— 挑「非房主且非回合」的人
+  const leaver = uids.slice(1).find((u) => u !== turnUid)
+  const r = await api('/api/room/leave', { uid: leaver, roomId: no })
+  assert.equal(r.ok, true, r.error)
+  const st = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+  assert.equal(st.turnUid, turnUid, '回合不该被离场者抢走或清空')
+  assert.equal(st.seats.length, 3, '公共视图剩 3 人')
+  // 当前行动者还能正常行动 —— 验证没卡死
+  const a = await api('/api/room/action', { uid: turnUid, roomId: no, type: 'call' })
+  assert.equal(a.ok, true, a.error)
+})
+
+test('房主离开 → 快照一并删除，重启不复活', async () => {
+  const { no, h } = await twoPlayerRoom()
+  await api('/api/room/leave', { uid: h, roomId: no })
+  const snap = rawDb().prepare('SELECT * FROM room_snapshots WHERE room_id = ?').get(no)
+  assert.equal(snap, undefined, '房主离开必须删快照')
+})
+
+test('轮询不涨 rev、不落库（读不该是写）', async () => {
+  const { no, h } = await twoPlayerRoom()
+  const s1 = (await api('/api/room/state', { uid: h, roomId: no })).data
+  const s2 = (await api('/api/room/state', { uid: h, roomId: no })).data
+  assert.equal(s2.rev, s1.rev, '纯读 rev 不变')
+  const act = await api('/api/room/action', { uid: s1.turnUid, roomId: no, type: 'call' })
+  assert.ok(act.data.rev > s1.rev, '真变更 rev 必须涨')
+})
+
 test('未登录账号的玩家：跳过转账但不阻塞结算', async () => {
   // 房主登录了，客人没登录
   const h = await login('hostN')

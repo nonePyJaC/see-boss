@@ -1,0 +1,16 @@
+# 构建上下文瘦身 + 防宿主 node_modules 覆盖镜像内 npm ci 产物
+.git/
+node_modules/
+client/node_modules/
+client/dist/
+server/data/
+*.log
+*.zip
+*.png
+docs/
+db/
+cloud-functions/
+scripts/
+mock.log
+test-out.txt
+*.md

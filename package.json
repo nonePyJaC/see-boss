@@ -13,6 +13,6 @@
     "test:logic": "node --test \"shared/logic/**/*.test.mjs\""
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.13"
   }
 }

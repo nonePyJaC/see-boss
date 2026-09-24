@@ -344,6 +344,54 @@ export function applyAction(state, { uid, type, amount }) {
 }
 
 /**
+ * 离场弃牌 —— 不等回合，随时可以。
+ *
+ * 与 applyAction 的 fold 不同：不校验 turnUid。
+ * 离场的人不可能再操作，如果不允许非回合弃牌，轮到离场者时
+ * 整手就卡死了（谁都替他动不了）。
+ *
+ * 语义：
+ *   · 轮到离场者 → 正常推进（等同回合内弃牌）
+ *   · 没轮到 → 回合仍属当前行动者，只判「是否只剩 1 人存活」
+ *   · 全下者离场也允许标记弃牌（视为放弃底池主张）
+ */
+export function forfeit(state, uid) {
+  state = plainClone(state)
+  const s = state.seats.find((x) => x.uid === uid)
+  if (!s) return { error: '玩家不在此房间' }
+  if (state.finished) return { error: '本局已结束' }
+  if (s.folded) return { error: '你已弃牌' }
+
+  s.folded = true
+  s.isTurn = false
+  state.actionLog.push({
+    uid,
+    nickname: s.nickname,
+    type: 'fold',
+    amount: 0,
+    betTotal: s.bet,
+    phase: state.phase,
+    at: state.actionLog.length,
+  })
+  if (!state.actedUids.includes(uid)) state.actedUids.push(uid)
+
+  const live = state.seats.filter((x) => !x.folded)
+  if (live.length === 1) {
+    // 与 advance() 的开头分支一致：只剩一人 → 直接结束
+    state.phase = PHASE.SHOWDOWN
+    state.turnUid = null
+    state.seats.forEach((x) => (x.isTurn = false))
+    state.finished = true
+    return { state }
+  }
+
+  // 只有「轮到离场者」才推进回合；否则回合位置原样保留，
+  // 否则会跳过当前行动者（实测：advance 会从 turnUid 找下家）。
+  if (state.turnUid === uid) advance(state)
+  return { state }
+}
+
+/**
  * 推进到下一状态：决定下一个行动者，或翻牌，或摊牌
  */
 function advance(state) {

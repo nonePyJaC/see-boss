@@ -1,14 +1,13 @@
 <script setup>
-import { computed, onActivated } from 'vue'
+import { computed, onActivated, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { hamsterDataURI, getHamster } from '@shared/assets/hamsters.mjs'
 import { goldenSeedSVG, svgToDataURI } from '@shared/assets/visuals.mjs'
 import { useUser } from '../stores/user.js'
-import { repo } from '../data/repo.js'
 import { clearIdentity } from '../data/identity.js'
 
 const router = useRouter()
-const { user, goldenSeeds, logout } = useUser()
+const { user, goldenSeeds, logout, refresh } = useUser()
 
 const avatarURI = computed(() => hamsterDataURI(getHamster(user.value?.avatar ?? 1), 80))
 const goldURI = svgToDataURI(goldenSeedSVG(18))
@@ -20,17 +19,20 @@ const accountLabel = computed(() => user.value?.account || '游客')
 async function onLogout() {
   if (!confirm('退出后可用账号名重新登录，金瓜子不会丢。确定退出？')) return
   try {
-    await repo.logoutAccount()
+    await logout()
   } catch (e) {
     console.warn('[logout] 服务端解绑失败', e)
   }
-  logout()
   clearIdentity()
   router.replace('/register')
 }
 
-// 未注册则回注册页
-if (!user.value) router.replace('/register')
+// 未登录则回注册页。user 由 useUser() 持有，进页面先拉一次服务端口径
+// （改成服务端唯一数据源后，localStorage 里没有 user 了，不能再拿它判断）。
+onMounted(async () => {
+  await refresh()
+  if (!user.value) router.replace('/register')
+})
 
 /**
  * 被 KeepAlive 恢复时也要校验登录态。
@@ -39,7 +41,8 @@ if (!user.value) router.replace('/register')
  * 不重跑 setup —— 上面那行守卫就不会执行，
  * 表现为「点了退出但页面像没动」。这里补上。
  */
-onActivated(() => {
+onActivated(async () => {
+  await refresh()
   if (!user.value) router.replace('/register')
 })
 </script>

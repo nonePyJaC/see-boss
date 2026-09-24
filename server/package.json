@@ -6,6 +6,6 @@
   "description": "仓鼠聚会线上对局服务 — 全内存态，退出即焚",
   "main": "index.js",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.13"
   }
 }
