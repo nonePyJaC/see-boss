@@ -953,51 +953,75 @@ function handleLeave(body, uid) {
 
 // ── 维护：清数据 ────────────────────────────────────────
 
-/**
- * 清掉所有业务数据。实测一段时间会攒一堆垃圾（临时账号、测试房间、
- * 历史战绩），这是手动清理口子。
- *
- * 鉴权：body.token 必须等于环境变量 HAMSTER_ADMIN_TOKEN。
- *   不设 token 就拒绝 —— 绝不能做成一个谁都能调的 wipe 按钮。
- *   密码只在服务端进程环境里，不进仓库、不进镜像层（见 ecosystem 配置注释）。
- *
- * body.what 可选：不给就全清。可单独给
- *   { accounts, ledger, history, rooms } 只清某几类。
- * rooms 会顺带清掉内存里的房间 Map —— 正在玩的人下一拉就掉出房间。
- */
-function handleAdminWipe(body) {
+/** token 校验。抽出来避免 stats / wipe 各写一遍还写歪 */
+function adminAuthed(body) {
   const expect = process.env.HAMSTER_ADMIN_TOKEN
-  if (!expect) {
-    return fail('服务端未配置 HAMSTER_ADMIN_TOKEN，清理口子未启用')
-  }
-  // 用 timingSafeEqual 比 token，避免逐字符比对泄露长度信息
+  if (!expect) return { err: '服务端未配置 HAMSTER_ADMIN_TOKEN，清理口子未启用' }
   const got = String(body?.token ?? '')
   const a = Buffer.from(got)
   const b = Buffer.from(expect)
+  // 长度不等时不能进 timingSafeEqual（它要求等长），先比长度
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    return fail('token 不对')
+    return { err: 'token 不对' }
+  }
+  return { ok: true }
+}
+
+/**
+ * 清理模式（就暴露这两种语义化动作）：
+ *
+ *   clear-all     连账号一起清。所有人重新注册，金瓜子归零。
+ *   clear-others  只清账号以外的：账本、历史战绩、房间（含内存）。
+ *                 账号和登录态保留，金瓜子数字也保留。
+ *
+ * 不给「自定义清某几类」的公开路径 —— 清理这种事选项越少越安全。
+ */
+function resolveWipeScope(body) {
+  const mode = String(body?.mode ?? '')
+  if (mode === 'clear-all') return { what: {}, label: '连账号一起清' }
+  if (mode === 'clear-others') {
+    return { what: { accounts: false }, label: '保留账号，清其他' }
+  }
+  return null
+}
+
+/**
+ * 清数据。实测一段时间会攒一堆垃圾（临时账号、测试房间、历史战绩）。
+ *
+ * 鉴权：body.token 必须等于环境变量 HAMSTER_ADMIN_TOKEN。
+ *   不设 token 就拒绝 —— 绝不能做成一个谁都能调的 wipe 按钮。
+ *   真实口令只在服务器进程环境里，仓库里 ecosystem 那个是占位空串。
+ *
+ * 内存里的房间一并清：快照删了内存还在的话，下一轮 touch() 又把
+ * 死房间写回快照表，白清。
+ */
+function handleAdminWipe(body) {
+  const auth = adminAuthed(body)
+  if (!auth.ok) return fail(auth.err)
+
+  const scope = resolveWipeScope(body)
+  if (!scope) {
+    return fail('需要 mode：clear-all（连账号）或 clear-others（保留账号）')
   }
 
   const before = dataCounts()
-  const removed = wipeData(body?.what ?? {})
-
-  // 内存里的房间一起清，否则快照删了但内存还在，下一轮 persist 又写回去
-  const wipedRooms = (body?.what && body.what.rooms === false) ? 0 : rooms.size
+  const removed = wipeData(scope.what)
+  const wipedMemoryRooms = rooms.size
   rooms.clear()
 
-  return ok({ before, removed, wipedMemoryRooms: wipedRooms })
+  return ok({
+    mode: String(body?.mode ?? ''),
+    label: scope.label,
+    before,
+    removed,
+    wipedMemoryRooms,
+  })
 }
 
 /** 只读：各表行数。同样要 token，免得把库规模暴露给外面 */
 function handleAdminStats(body) {
-  const expect = process.env.HAMSTER_ADMIN_TOKEN
-  if (!expect) return fail('服务端未配置 HAMSTER_ADMIN_TOKEN')
-  const got = String(body?.token ?? '')
-  const a = Buffer.from(got)
-  const b = Buffer.from(expect)
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    return fail('token 不对')
-  }
+  const auth = adminAuthed(body)
+  if (!auth.ok) return fail(auth.err)
   return ok({ ...dataCounts(), memoryRooms: rooms.size })
 }
 
