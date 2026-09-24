@@ -14,12 +14,13 @@
  *   - 数字只有数字，不带「瓜子」后缀
  */
 
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, reactive, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { roomRepo } from '../data/room-repo.js'
 import { accountRepo } from '../data/account-repo.js'
 import { useHamsters } from '../composables/useHamsters.js'
 import RoomQR from '../components/RoomQR.vue'
+import { askConfirm } from '../composables/useConfirm.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -49,6 +50,7 @@ const sheetOpen = ref(false)    // 加注弹窗
 const settleOpen = ref(false)   // 结算弹窗
 const logOpen = ref(false)      // 下注流水弹窗
 const inviteOpen = ref(false)   // 邀请二维码弹窗
+const orderMode = ref(false)    // 拖拽换座模式（房主 + 开锁）
 const raisePreview = ref(0)
 const customInput = ref('')
 const inputClamped = ref(false)
@@ -139,37 +141,151 @@ function act(type, amount) {
   return roomRepo.roomAction(roomId(), type, amount).then(pull)
 }
 
-/** 收池：二次确认。收回不可逆，必须先问。 */
+/** 收池：二次确认。收回不可逆，必须先问。
+ *  用页面内的确认框而不是 window.confirm —— 部分手机浏览器
+ *  （iOS 微信 WebView 等）会把原生 confirm 渲染成带「确定/离开页面」
+ *  的系统弹窗，看着像要跳出应用，容易误点。 */
 function confirmCollect() {
   const pot = d.value?.pot ?? 0
   let msg = '收走公共池 ' + pot + '？收掉后本手结束'
   if (zeroedNames.value.length) {
     msg += '，并触发结算（' + zeroedNames.value.join('、') + ' 已归零）'
   }
-  if (!confirm(msg)) return
-  act('collect').then((x) => { if (!x.ok) toast(x.error) })
+  askConfirm({ title: '收池', msg, okText: '收' }).then((yes) => {
+    if (!yes) return
+    act('collect').then((x) => { if (!x.ok) toast(x.error) })
+  })
 }
 
 function confirmFold() {
-  if (!confirm('确定弃牌？')) return
-  act('fold')
+  askConfirm({ title: '弃牌', msg: '确定弃牌？本手不再参与', okText: '弃牌' }).then((yes) => {
+    if (!yes) return
+    act('fold')
+  })
 }
 
-/** 锁定位切换（房主） */
+/** 锁定位切换（房主）。
+ *
+ * 开锁 = 可调整：点玩家设小麦位 + 拖拽换座位，两件事都放开。
+ * 关锁 = 准备开始：锁旁边出现「开始」按钮，点了就按当前小麦位开局。
+ *
+ * 语义变化（2026-09-24 实测后改）：
+ *   旧版开锁只能设小麦位，关锁就直接开局 —— 桌上人还没坐好就被开掉，
+ *   而且座位顺序改不了。现在开锁只是进「调整模式」，不碰对局；
+ *   把关锁和「开始」拆成两步，房主能看清小麦位再点开始。
+ */
 function toggleLock() {
   locked.value = !locked.value
-  toast(locked.value ? '已开锁：点玩家设小麦位' : '已关锁')
+  if (locked.value) {
+    orderMode.value = false
+    toast('已开锁：可设小麦位、可拖动换座')
+  } else {
+    orderMode.value = false
+    toast('已关锁：点「开始」按当前小麦位开局')
+  }
 }
 
-/** 点玩家设小麦位（房主 + 锁定位） */
+/** 拖拽换座模式开关（房主 + 开锁状态） */
+function toggleOrder() {
+  if (!isHost.value) return toast('只有房主能调整座位')
+  if (!locked.value) return toast('先开锁才能调整座位')
+  orderMode.value = !orderMode.value
+  if (!orderMode.value) {
+    drag.uid = ''
+    drag.active = false
+    drag.target = ''
+  }
+}
+
+/** 点玩家设小麦位（房主 + 开锁状态） */
 function tapSeat(seat) {
-  if (!locked.value) return toast('先开锁才能设置小麦位')
   if (!isHost.value) return toast('只有房主能设置')
+  if (!locked.value) return toast('先开锁才能设置小麦位')
   const i = seats.value.findIndex((s) => s.uid === seat.uid)
   roomRepo.startRoom(roomId(), i).then((x) => {
-    toast(x.ok ? '小麦位已设置' : x.error)
-    if (x.ok) pull()
+    if (x.ok) {
+      toast('小麦位已设置')
+      pull()
+    } else {
+      // 已经开局了的房间再调 /start 会被拒（「本手还没结束」）——
+      // 这时候用户其实是想改座位顺序，提示切到拖拽模式。
+      toast(x.error || '设置失败')
+    }
   })
+}
+
+/** 关锁后点「开始」：按当前小麦位开局 */
+function startHand() {
+  if (!isHost.value) return toast('只有房主能开局')
+  const sb = seats.value.findIndex((s) => s.blind === 'sb')
+  roomRepo.startRoom(roomId(), sb >= 0 ? sb : 0).then((x) => {
+    if (x.ok) {
+      toast('已开局')
+      pull()
+    } else {
+      toast(x.error)
+    }
+  })
+}
+
+// ── 拖拽换座 ──
+// 用 Pointer Events 而不是 HTML5 drag&drop：后者在 iOS Safari /
+// 微信 WebView 上根本不触发，Pointer Events 一套 API 同时覆盖
+// 鼠标、手指、触控笔。
+const drag = reactive({ uid: '', active: false, target: '', x: 0, y: 0 })
+const DRAG_THRESHOLD = 8 // px，超过才算「真拖动」，否则算点击
+
+function onSeatPointerDown(e, seat) {
+  if (!orderMode.value || !isHost.value) return
+  drag.uid = seat.uid
+  drag.x = e.clientX
+  drag.y = e.clientY
+  drag.active = false
+  drag.target = ''
+  // 让后续 move/up 都发到这张卡上，手指移出卡片也不丢事件
+  e.currentTarget?.setPointerCapture?.(e.pointerId)
+}
+
+function onSeatPointerMove(e) {
+  if (!drag.uid) return
+  if (!drag.active) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < DRAG_THRESHOLD) return
+    drag.active = true
+  }
+  // 找出手指下方的卡片
+  const el = document.elementFromPoint(e.clientX, e.clientY)
+  const card = el?.closest?.('.seat')
+  drag.target = card?.dataset?.uid && card.dataset.uid !== drag.uid ? card.dataset.uid : ''
+}
+
+async function onSeatPointerUp() {
+  if (!drag.uid) return
+  const from = drag.uid
+  const to = drag.target
+  drag.uid = ''
+  drag.active = false
+  drag.target = ''
+  if (!to || to === from) return
+
+  const order = seats.value.map((s) => s.uid)
+  const i = order.indexOf(from)
+  const j = order.indexOf(to)
+  if (i < 0 || j < 0) return
+  order.splice(i, 1)
+  order.splice(j, 0, from)
+  const r = await roomRepo.reorderSeats(roomId(), order)
+  if (r.ok) {
+    toast('座位已调整')
+    pull()
+  } else {
+    toast(r.error || '调整座位失败')
+  }
+}
+
+function onSeatPointerCancel() {
+  drag.uid = ''
+  drag.active = false
+  drag.target = ''
 }
 
 // ── 加注弹窗 ──
@@ -287,15 +403,27 @@ onUnmounted(() => {
   <div v-if="d" class="page" :class="{ locked }">
     <div class="topbar">
       <button class="back" @click="router.back()">←</button>
-      <!-- 房间号可点 → 弹邀请二维码（旧版线上房有，线下房一直没补） -->
+      <!-- 房间号可点 → 弹邀请二维码 -->
       <button class="room-tag" @click="openInvite">
         <span class="no">{{ d.id }}</span>
         <span v-if="isHost" class="host">房主</span>
       </button>
       <div class="spacer"></div>
-      <button v-if="isHost" class="iconbtn" :class="locked ? 'locked' : 'unlocked'" @click="toggleLock">
-        {{ locked ? '🔒' : '🔓' }}
-      </button>
+      <!-- 房主：锁 + 排序 + 开始 -->
+      <template v-if="isHost">
+        <button v-if="locked" class="iconbtn" :class="orderMode ? 'on' : 'unlocked'" @click="toggleOrder">
+          {{ orderMode ? '✓' : '⇅' }}
+        </button>
+        <button class="iconbtn" :class="locked ? 'locked' : 'unlocked'" @click="toggleLock">
+          {{ locked ? '🔒' : '🔓' }}
+        </button>
+        <!-- 关锁后才出现：按当前小麦位开局 -->
+        <button v-if="!locked" class="startbtn" @click="startHand">开始</button>
+      </template>
+    </div>
+
+    <div v-if="locked && isHost" class="lockbar">
+      {{ orderMode ? '拖动卡片换座位，点 ✓ 完成' : '点玩家设小麦位，点 ⇅ 换座位' }}
     </div>
 
     <div class="roundbar">
@@ -324,10 +452,17 @@ onUnmounted(() => {
     </div>
 
     <!-- 四列座位，8 人不滚动 -->
-    <div class="table">
+    <div class="table" :class="{ ordering: orderMode }">
       <div v-for="s in seats" :key="s.uid" class="seat"
-           :class="{ me: s.uid === uid, turn: s.uid === d.turnUid, folded: s.folded }"
-           @click="tapSeat(s)">
+           :class="{ me: s.uid === uid, turn: s.uid === d.turnUid, folded: s.folded,
+                     dragging: orderMode && drag.uid === s.uid && drag.active,
+                     over: orderMode && drag.target === s.uid }"
+           :data-uid="s.uid"
+           @click="tapSeat(s)"
+           @pointerdown="onSeatPointerDown($event, s)"
+           @pointermove="onSeatPointerMove"
+           @pointerup="onSeatPointerUp"
+           @pointercancel="onSeatPointerCancel">
         <div class="avatar"><img :src="avatarOf(s)" alt="" /></div>
         <span v-if="s.uid === uid" class="tag me">我</span>
         <span v-if="s.isHost" class="tag host">👑</span>
@@ -475,6 +610,32 @@ onUnmounted(() => {
 }
 .iconbtn.locked { color: var(--c-success); }
 .iconbtn.unlocked { color: var(--c-text-light); }
+.iconbtn.on { color: var(--c-primary-dark); background: #fff6e0; }
+/* 关锁后出现的「开始」按钮 */
+.startbtn {
+  height: 38px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 19px;
+  background: linear-gradient(180deg, var(--c-primary) 0%, var(--c-primary-dark) 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #c77a00;
+}
+.startbtn:active { transform: translateY(2px); box-shadow: none; }
+/* 开锁时的一行提示 */
+.lockbar {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-primary-dark);
+  background: #fff6e0;
+  border-radius: 9px;
+  margin: 0 14px 8px;
+  padding: 5px 10px;
+}
 .roundbar { text-align: center; font-size: 12px; color: var(--c-text-light); padding: 2px 0 8px; }
 .roundbar b { color: var(--c-text); }
 
@@ -527,6 +688,11 @@ onUnmounted(() => {
   50% { transform: scale(1.07); box-shadow: 0 0 0 9px rgba(239, 83, 80, 0); }
 }
 .seat.folded .avatar { opacity: .45; filter: grayscale(1); }
+/* 拖拽换座 */
+.table.ordering .seat { cursor: grab; }
+.seat.dragging { opacity: .4; }
+.seat.dragging .avatar { transform: scale(1.1); }
+.seat.over .avatar { border-color: var(--c-primary); box-shadow: 0 0 0 4px rgba(246, 166, 35, .3); }
 .seat-name {
   font-size: 12px; font-weight: 700; max-width: 76px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; text-align: center;

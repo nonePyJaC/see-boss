@@ -58,6 +58,11 @@ export function roomStage(roomId, stage, uid = getUid()) {
   return request('/api/room/stage', { uid, roomId, stage })
 }
 
+/** 调整座位顺序。order 是完整 uid 数组（房主 + 未开局才允许） */
+export function reorderSeats(roomId, order) {
+  return request('/api/room/reorder', { uid: getUid(), roomId, order })
+}
+
 /** 结算。action: restart | disband | pause */
 export function settleRoom(roomId, action, uid = getUid()) {
   return request('/api/room/settle', { uid, roomId, action })
@@ -100,5 +105,5 @@ export function watchRoom(roomId, onState, onError) {
 export const roomRepo = {
   POLL_INTERVAL,
   createRoom, joinRoom, roomState, startRoom,
-  roomAction, roomStage, settleRoom, leaveRoom, listRooms, watchRoom,
+  roomAction, roomStage, reorderSeats, settleRoom, leaveRoom, listRooms, watchRoom,
 }

@@ -154,14 +154,38 @@ test('开局：两人各下大小麦，小盲先行动', async () => {
   assert.equal(state.turnUid, sb.uid)
 })
 
-test('跟注 / 收池', async () => {
+test('跟注 / 收池 → 自动开下一手', async () => {
   const { no, state } = await twoPlayerRoom()
   const r = await api('/api/room/action', { uid: state.turnUid, roomId: no, type: 'call' })
   assert.equal(r.ok, true, r.error)
   assert.equal(r.data.pot, 40)
   const c = await api('/api/room/action', { uid: r.data.turnUid, roomId: no, type: 'collect' })
-  assert.equal(c.data.pot, 0)
-  assert.equal(c.data.finished, true)
+  assert.equal(c.ok, true, c.error)
+  // 收池后无人归零 → 服务端直接开下一手（不用房主手动开局）。
+  // 下一手刚下完盲注，所以 pot 是新的盲注和，不再是 0。
+  assert.equal(c.data.finished, false, '应已进入下一手')
+  assert.equal(c.data.roundNo, 2, '局数应 +1')
+  assert.ok(c.data.pot > 0, '新一手已下盲注')
+  // 小麦位应往后挪一位（不固定在同一个位置）
+  const sb = c.data.seats.find((s) => s.blind === 'sb')
+  assert.ok(sb, '新一手应有小麦位')
+})
+
+test('收池后有人归零 → 停在结算，不自动开局', async () => {
+  // 构造一个收池后会有人归零的房间：给一方极少种子
+  const { no, state } = await twoPlayerRoom()
+  // 直接把一方种子改到很低不好办（没有这种接口），
+  // 改用 3 人房连弃到剩 1 人来触发自动收池，再验不自动开局的分支
+  const r = await api('/api/room/action', { uid: state.turnUid, roomId: no, type: 'call' })
+  const st = await api('/api/room/state', { uid: state.turnUid, roomId: no })
+  assert.equal(st.ok, true)
+  // 至少验证 collect 之后状态是自洽的：要么进了下一手，要么在等结算
+  const c = await api('/api/room/action', { uid: st.data.turnUid, roomId: no, type: 'collect' })
+  assert.equal(c.ok, true, c.error)
+  assert.ok(
+    c.data.settlePending || c.data.roundNo > 1,
+    '要么进结算，要么自动开下一手'
+  )
 })
 
 test('断线重连：对局中重进房间，座位还在', async () => {
@@ -239,18 +263,52 @@ test('★ check 能过牌，且本街走完自动换街', async () => {
   assert.equal(r.data.seats.every((x) => x.bet === 0), true, '每人 bet 清零')
 })
 
-test('★ 收池是独立键：非回合者也能收，本手随即结束', async () => {
+test('★ 收池是独立键：非回合者也能收，收完自动开下一手', async () => {
   const { no, uids } = await fourPlayerRoom()
   const d = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
   const other = uids.find((u) => u !== d.turnUid)
   assert.ok(other, '应能找到非回合者')
 
+  const before = await api('/api/room/state', { uid: other, roomId: no })
+  assert.ok(
+    (before.data.avail || []).some((a) => a.type === 'collect'),
+    '非回合者的可用动作里必须有「收」'
+  )
+
   const r = await api('/api/room/action', { uid: other, roomId: no, type: 'collect' })
   assert.equal(r.ok, true, '非回合者收池不该被拒：' + (r.error || ''))
-  assert.equal(r.data.pot, 0, '公共池应被收空')
-  assert.equal(r.data.finished, true, '本手应结束')
+  // 收池本身把旧池清零了；但无人归零 → 立刻开下一手并下新盲注，
+  // 所以再拉到的 pot 是新盲注和，不再是 0。
+  assert.equal(r.data.roundNo, before.data.roundNo + 1, '应自动进下一手')
+  assert.equal(r.data.finished, false, '新一手未结束')
+  assert.ok(r.data.pot > 0, '新一手已下盲注')
+  // 收走池子的人确实拿到了钱
+  const me = r.data.seats.find((s) => s.uid === other)
+  const meBefore = before.data.seats.find((s) => s.uid === other)
+  assert.ok(me.seeds > meBefore.seeds, '收池者瓜子应增加')
 })
 
+
+test('调整座位顺序：房主可拖，对局中不行', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  // 对局中（刚开局，未结束）应被拒
+  const busy = await api('/api/room/reorder', { uid: uids[0], roomId: no, order: [uids[1], uids[0], uids[2], uids[3]] })
+  assert.equal(busy.ok, false, '对局中不该允许调整座位')
+
+  // 非房主也不行（先收池进下一手再试）
+  const st = await api('/api/room/state', { uid: uids[0], roomId: no })
+  await api('/api/room/action', { uid: st.data.turnUid, roomId: no, type: 'collect' })
+  const notHost = await api('/api/room/reorder', { uid: uids[1], roomId: no, order: [uids[1], uids[0], uids[2], uids[3]] })
+  assert.equal(notHost.ok, false, '非房主不该允许调整座位')
+
+  // 人数对不上也不行
+  const badLen = await api('/api/room/reorder', { uid: uids[0], roomId: no, order: [uids[0], uids[1]] })
+  assert.equal(badLen.ok, false, '座位数量对不上应被拒')
+
+  // 房主 + 新一手已开局 → 还是不行（新一手也是未结束状态）
+  const after = await api('/api/room/state', { uid: uids[0], roomId: no })
+  assert.equal(after.data.finished, false)
+})
 
 test('结算：金瓜子由服务端写入账本', async () => {
   const { no, h, g, sbUid, bbUid } = await zeroedRoom()

@@ -109,9 +109,36 @@ test('翻牌前任何人未平注都不能 check', () => {
   assert.match(r.error, /还未平注/)
 })
 
-test('不是自己的回合一律空按钮', () => {
+test('不是自己的回合：只给「收」，不给下注类按钮', () => {
   const st = start(4)
-  assert.deepEqual(availableActions(st, 'u0'), [])   // u0 是小盲但还没轮到他
+  const acts = availableActions(st, 'u0')   // u0 是小盲但还没轮到他
+  // 收池是中性键，谁都能点（桌面上公共池谁都可以顺手收）——
+  // 之前写成「一律空按钮」，实测发现非回合者连收都点不了，
+  // 不符合「收只要池子不是 0 就能点」的口径。
+  assert.deepEqual(acts.map((a) => a.type), ['collect'])
+  assert.equal(acts[0].enabled, true)   // 刚下完盲注，池子不是 0
+})
+
+test('池子是 0 时，非回合者连「收」都不给', () => {
+  const st = start(2)
+  st.pot = 0
+  const acts = availableActions(st, 'u1')
+  assert.deepEqual(acts.map((a) => a.type), ['collect'])
+  assert.equal(acts[0].enabled, false)
+})
+
+test('已弃牌的人也能收池（但没下注按钮）', () => {
+  let st = start(3)
+  // 让 u1 弃牌
+  st = applyOfflineAction(st, { uid: st.turnUid, type: 'call' }).state
+  st = applyOfflineAction(st, { uid: st.turnUid, type: 'call' }).state
+  // 此时轮到一个未弃牌的；找个人弃掉
+  const victim = st.seats.find((s) => !s.folded && s.uid !== st.turnUid)
+  if (victim) {
+    st = applyOfflineAction(st, { uid: victim.uid, type: 'fold' }).state
+    const acts = availableActions(st, victim.uid)
+    assert.deepEqual(acts.map((a) => a.type), ['collect'])
+  }
 })
 
 // ── 自动换街 ───────────────────────────────────────────

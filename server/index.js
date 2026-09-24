@@ -328,9 +328,35 @@ function handleState(body, uid) {
   return ok(publicState(room, uid))
 }
 
-/** 开局 / 重开一手 */
-function handleStart(body, uid) {
+/**
+ * 调整座位顺序（房主 + 未开局）。
+ *
+ * order 是完整的 uid 数组，按目标顺序排列。
+ * 重新排列 room.seats —— 小麦位 sbIndex 是按座位下标算的，
+ * 所以顺序一变，上一手的小麦也跟着换位置，这正是拖拽想要的效果。
+ */
+function handleReorder(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
+  if (!room) return fail('房间不存在')
+  if (room.hostUid !== uid) return fail('只有房主可以调整座位')
+  // 对局中不让改：座位顺序一变，currentBet / turnUid 这些按座位算的全乱
+  if (room.state && !room.state.finished) return fail('本手还没结束，不能调整座位')
+
+  const order = Array.isArray(body?.order) ? body.order.map(String) : []
+  if (order.length !== room.seats.length) return fail('座位数量对不上')
+  // 必须是同一批人，不能借调换顺序把别人塞进来
+  const cur = new Set(room.seats.map((s) => s.uid))
+  if (order.some((u) => !cur.has(u)) || new Set(order).size !== order.length) {
+    return fail('座位名单对不上')
+  }
+
+  room.seats.sort((a, b) => order.indexOf(a.uid) - order.indexOf(b.uid))
+  touch(room)
+  return ok(publicState(room, uid))
+}
+
+/** 开局 / 重开一手 */
+function handleStart(body, uid) {  const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在')
   if (room.hostUid !== uid) return fail('只有房主可以开局')
   if (room.seats.length < 2) return fail('至少需要 2 名玩家')
@@ -417,13 +443,18 @@ function offlineAction(room, body, uid) {
   const type = body.type
 
   // 收池：谁都可以点，不卡回合（桌面上的公共池谁都能顺手收）。
-  // 收完 = 本手结束：有人归零 → 进结算；否则等房主开下一手。
+  // 收完 = 本手结束：
+  //   · 有人归零 → 进结算，等房主决定（重置 / 解散 / 暂停）
+  //   · 无人归零 → 直接开下一手，不用房主再点一次
   if (type === 'collect') {
     const r = applyOfflineAction(room.state, { uid, type })
     if (r.error) return fail(r.error)
     room.state = r.state
     syncSeats(room)
-    finishIfNeeded(room)
+    const settled = finishIfNeeded(room)
+    // 没人归零 → 自动轮转下一手。之前收完就停住，必须房主手动
+    // 设小麦位再开局，桌面上每个人都得等 —— 实测提过这个问题。
+    if (!settled) autoNextHand(room)
     touch(room)
     return ok(publicState(room, uid))
   }
@@ -439,7 +470,10 @@ function offlineAction(room, body, uid) {
     if (r.error) return fail(r.error)
     room.state = r.state
     syncSeats(room)
-    finishIfNeeded(room)
+    const settled = finishIfNeeded(room)
+    // 弃到只剩 1 人 → 引擎自动替他收池。同样没人归零就自动开下一手，
+    // 不然桌上所有人都得等房主手动开局。
+    if (!settled && r.autoCollected) autoNextHand(room)
     touch(room)
     return ok(publicState(room, uid))
   }
@@ -449,14 +483,45 @@ function offlineAction(room, body, uid) {
 
 /**
  * 收池 / 自动收池之后：
- *   有人归零 → settle-pending（只给房主弹结算窗，其他人蒙层等）
- *   无人归零 → 保持 playing，正常走下一手
+ *   · 有人归零 → settle-pending（只给房主弹结算窗，其他人蒙层等），返回 true
+ *   · 无人归零 → 返回 false，由调用方决定是否自动开下一手
  */
 function finishIfNeeded(room) {
-  if (!room.state?.finished) return
+  if (!room.state?.finished) return false
   const zeroed = room.state.seats.filter((s) => s.seeds <= 0)
   if (zeroed.length > 0) {
     room.state.settlePending = true
+    return true
+  }
+  return false
+}
+
+/**
+ * 自动开下一手（收池后无人归零时调）。
+ *
+ * 小麦位往后挪一位 —— 跟房主手动开局时的轮转口径一致，
+ * 不然每次自动开局都固定在同一个位置，坐那儿的人永远下小麦。
+ * 房主之后仍可在锁定位状态下点某人改小麦位。
+ */
+function autoNextHand(room) {
+  try {
+    // 找上一手的小麦位，从它后面一位开始
+    const prevSb = room.state?.seats.findIndex((s) => s.blind === 'sb')
+    room.state = initOfflineHand({
+      players: room.seats.map((s) => ({
+        uid: s.uid, nickname: s.nickname, avatar: s.avatar, seeds: s.seeds,
+      })),
+      smallBlind: room.smallBlind,
+      bigBlind: room.bigBlind,
+      roundNo: room.roundNo,
+      sbIndex: prevSb >= 0 ? (prevSb + 1) % room.seats.length : undefined,
+    })
+    room.roundNo += 1
+    syncSeats(room)
+  } catch (e) {
+    // 自动开局失败不能把收池这个动作一起搞失败 —— 池子已经收完了。
+    // 退回「等房主手动开局」，房主点一下就能继续。
+    console.error('[room] 自动开下一手失败:', e?.message ?? e)
   }
 }
 
@@ -824,6 +889,7 @@ const ROUTES = {
   '/api/room/start': handleStart,
   '/api/room/action': handleAction,
   '/api/room/stage': handleStage,
+  '/api/room/reorder': handleReorder,
   '/api/room/settle': handleSettle,
   '/api/room/leave': handleLeave,
 }

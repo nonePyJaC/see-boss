@@ -1,5 +1,6 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 
 const router = useRouter()
 </script>
@@ -14,4 +15,8 @@ const router = useRouter()
       <component :is="Component" />
     </keep-alive>
   </router-view>
+
+  <!-- 全局确认框：取代 window.confirm（手机上会渲染成系统弹窗，
+       按钮是「确定 / 离开页面」，容易误点） -->
+  <ConfirmDialog />
 </template>

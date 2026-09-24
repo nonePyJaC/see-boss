@@ -259,20 +259,26 @@ export function toCall(state, uid) {
 export function availableActions(state, uid) {
   const st = normalize(state)
   if (st.finished) return []
-  if (st.turnUid !== uid) return []
-  const me = st.seats.find((s) => s.uid === uid)
-  if (!me || me.folded || me.allIn) return []
-  // 只剩自己没弃牌 → 不给操作，服务端会自动收池
-  if (activePlayers(st.seats).length <= 1) return []
-  // 暂停中：手动模式，出/收自由，不构成回合
-  if (st.paused) return []
 
-  const need = toCall(st, uid)          // 还需补多少才平注
-  const out = []
+  const me = st.seats.find((s) => s.uid === uid)
+  if (!me) return []
 
   // 「收」是独立中性键，不占回合决策位：桌面上的公共池谁都可以
-  // 顺手收走（输光的人、旁边看牌的人）。所以任何时候都给出。
-  out.push({ type: 'collect', label: '收', enabled: st.pot > 0 })
+  // 顺手收走（输光的人、旁边看牌的人、还没轮到的）。
+  // 所以 collect 必须在 turnUid 判断之前就给，否则非回合者拿到空数组、
+  // 按钮全灰，桌上只有轮到的那一个人能收池。
+  // 唯一条件：池子不是 0。
+  const collect = [{ type: 'collect', label: '收', enabled: st.pot > 0 }]
+
+  if (st.turnUid !== uid) return collect
+  if (me.folded || me.allIn) return collect
+  // 只剩自己没弃牌 → 不给下注操作，服务端会自动收池
+  if (activePlayers(st.seats).length <= 1) return collect
+  // 暂停中：手动模式，出/收自由，不构成回合
+  if (st.paused) return collect
+
+  const need = toCall(st, uid)          // 还需补多少才平注
+  const out = [...collect]
 
   if (need <= 0) {
     // 已平注 → 可以过牌
