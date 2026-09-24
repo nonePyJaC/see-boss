@@ -279,13 +279,28 @@ function render(r) {
   document.querySelectorAll('.actionbar button').forEach(b => {
     b.onclick = () => {
       const act = b.dataset.act
+      // 加倍：单击/长按都开弹窗。不提供「直接下 1 倍小麦」的
+      // 快捷，避免误触（用户明确要求两种手势都给弹窗）。
       if (act === 'raise') return openSheet(r)
-      if (act === 'collect') return api('/api/room/action', { roomId: ROOM, type: 'collect' }).then(pull)
+      // 收池：二次确认防误触。收掉本手就结束，不可撤回。
+      if (act === 'collect') return confirmCollect(r)
       if (act === 'check') { toast('过牌'); return api('/api/room/action', { roomId: ROOM, type: 'check' }).then(pull) }
       if (act === 'call') return api('/api/room/action', { roomId: ROOM, type: 'call' }).then(pull)
       if (act === 'fold') { if (confirm('确定弃牌？')) api('/api/room/action', { roomId: ROOM, type: 'fold' }).then(pull) }
     }
   })
+}
+
+/** 收池二次确认。桌上常见「手滑点到」，收回不可逆，必须先问。 */
+function confirmCollect(r) {
+  const d = r.data
+  const zeroed = d.seats.filter(s => s.seeds <= 0).map(s => s.nickname)
+  let msg = '收走公共池 ' + d.pot + ' 瓜子？\n收掉后本手结束'
+  if (zeroed.length) msg += '，并触发结算（' + zeroed.join('、') + ' 已归零）'
+  if (!confirm(msg)) return
+  api('/api/room/action', { roomId: ROOM, type: 'collect' })
+    .then((x) => { toast(x.ok ? '已收 ' + d.pot + ' 瓜子' : x.error) })
+    .then(pull)
 }
 
 function showLogSheet(r) {
