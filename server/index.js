@@ -806,10 +806,13 @@ function handleSettle(body, uid) {
  *      不直接开局：先回 needConfirmNextHand 让前端问房主
  *      「池子为空，是否开启新一轮」，确认（confirmNextHand）才真开。
  *
- *   b. 池子有值 → 本手还要打。回滚到「暂停前最后一次行动之前」：
+ *   b. 池子有值 → 本手还要打，回滚到「暂停前最后一次行动之前」：
  *      B 下错注、轮转到 C、房主暂停分账、点继续 → 还原成 B 决策。
- *      快照 = pauseBackup（暂停时存的 prevState，即最后一次行动前）。
- *      拿不到备份（重启丢快照等）就退回「解除暂停原样恢复」。
+ *      同样不直接动手：先回 needConfirmRollback + 池子数 + 回滚目标人，
+ *      让前端弹「池子有 xxx 瓜子，即将回到 X 的行动位」，
+ *      确认（confirmRollback）才真回滚。
+ *      快照 = pauseBackup（暂停时存的 prevState，即最后一次行动前）；
+ *      没有备份（状态异常）就退回「解除暂停原样恢复」。
  */
 function handlePause(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
@@ -827,22 +830,37 @@ function handlePause(body, uid) {
       touch(room)
       return ok(publicState(room, uid))
     }
+    if (body.confirmRollback === true) {
+      // 房主确认回滚：还原到暂停前最后一次行动之前
+      if (room.pauseBackup) {
+        room.state = JSON.parse(JSON.stringify(room.pauseBackup))
+      } else {
+        room.state.paused = false
+      }
+      room.pauseBackup = null
+      room.prevState = null
+      syncSeats(room)
+      touch(room)
+      return ok(publicState(room, uid))
+    }
     if ((room.state.pot ?? 0) <= 0) {
       // 池子分空了 → 保持暂停，让前端弹「是否开新一轮」。
       // 房主确认后带 confirmNextHand=true 再调一次本接口。
       return ok({ ...publicState(room, uid), needConfirmNextHand: true })
     }
-    // 池子有值 → 回滚到最后一次行动之前（下错注的人重新决策）。
-    if (room.pauseBackup) {
-      room.state = JSON.parse(JSON.stringify(room.pauseBackup))
-    } else {
-      room.state.paused = false
-    }
-    room.pauseBackup = null
-    room.prevState = null
-    syncSeats(room)
-    touch(room)
-    return ok(publicState(room, uid))
+    // 池子有值 → 保持暂停，让前端弹「回到 X 的行动位」。
+    // 房主确认后带 confirmRollback=true 再调一次本接口。
+    const backUid = room.pauseBackup?.turnUid ?? null
+    const backSeat = backUid
+      ? (room.pauseBackup.seats ?? []).find((s) => s.uid === backUid)
+      : null
+    return ok({
+      ...publicState(room, uid),
+      needConfirmRollback: true,
+      rollbackPot: room.state.pot,
+      rollbackTurnUid: backUid,
+      rollbackTurnName: backSeat?.nickname ?? null,
+    })
   }
 
   // 本手已结束（收完池了）没什么好暂停的
@@ -987,6 +1005,10 @@ function serializeRoom(room) {
       bet: s.bet, totalBet: s.totalBet, blind: s.blind,
     })),
     state: room.mode === 'offline' ? room.state : null,
+    // 回滚快照也要落盘：服务器在暂停中重启，恢复后「继续→回滚」
+    // 还得能用。都是纯 JSON 对象，直接存。
+    prevState: room.prevState ?? null,
+    pauseBackup: room.pauseBackup ?? null,
     dealerUid: room.dealerUid,
     roundNo: room.roundNo,
     rev: room.rev ?? 0,
@@ -1008,6 +1030,8 @@ function restoreRoom(snap) {
     dealerUid: snap.state?.dealerUid ?? null,
     roundNo: snap.state?.roundNo ?? 1,
     rev: snap.state?.rev ?? 0,
+    prevState: snap.state?.prevState ?? null,
+    pauseBackup: snap.state?.pauseBackup ?? null,
     lastActive: Date.now(),
     restored: true,
   }

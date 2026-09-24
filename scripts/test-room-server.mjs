@@ -346,15 +346,54 @@ test('暂停 / 继续：对局中暂停保留回合，继续后原样恢复', as
   const bet = await api('/api/room/action', { uid: before.turnUid, roomId: no, type: 'call' })
   assert.equal(bet.ok, false, '暂停中不该能下注')
 
-  // 继续
-  const r = await api('/api/room/pause', { uid: uids[0], roomId: no })
-  assert.equal(r.ok, true, '继续不该被拒：' + (r.error || ''))
+  // 继续：池子有值 → 先回 needConfirmRollback，不直接动手
+  const r1 = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  assert.equal(r1.ok, true, '继续不该被拒：' + (r1.error || ''))
+  assert.equal(r1.data.needConfirmRollback, true, '池子有值应先回确认回滚')
+  assert.equal(r1.data.paused, true, '确认前仍是暂停态')
+  assert.equal(r1.data.rollbackPot, before.pot, '应回传池子数')
+  assert.equal(r1.data.rollbackTurnUid, before.turnUid, '回滚目标应是暂停前行动位')
+
+  // 房主确认 → 真回滚恢复
+  const r = await api('/api/room/pause', { uid: uids[0], roomId: no, confirmRollback: true })
+  assert.equal(r.ok, true, '确认继续不该被拒：' + (r.error || ''))
   assert.equal(r.data.paused, false)
   assert.equal(r.data.turnUid, before.turnUid, '继续后回合应还原')
 
   // 继续后能正常下注
   const after = await api('/api/room/action', { uid: before.turnUid, roomId: no, type: 'call' })
   assert.equal(after.ok, true, '继续后应能下注：' + (after.error || ''))
+})
+
+test('暂停回滚：B 下错注后暂停，确认继续回到 B 决策、错注退回', async () => {
+  const { no, uids } = await fourPlayerRoom()
+  const before = (await api('/api/room/state', { uid: uids[0], roomId: no })).data
+  const bUid = before.turnUid
+  const bSeeds = before.seats.find((s) => s.uid === bUid).seeds
+
+  // B 行动（事后发现下错了），回合轮转给下家
+  const act = await api('/api/room/action', { uid: bUid, roomId: no, type: 'call' })
+  assert.equal(act.ok, true, act.error)
+  assert.notEqual(act.data.turnUid, bUid, 'B 行动后应轮到别人')
+
+  // 房主暂停分账 → 点继续：池子有值 → 先回确认，指明回滚目标
+  await api('/api/room/pause', { uid: uids[0], roomId: no })
+  const ask = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  assert.equal(ask.data.needConfirmRollback, true, '池子有值应先回确认')
+  assert.equal(ask.data.paused, true, '确认前仍是暂停态')
+  assert.equal(ask.data.rollbackTurnUid, bUid, '回滚目标应是 B')
+  assert.ok(ask.data.rollbackTurnName, '应回传回滚目标昵称')
+  assert.ok(ask.data.rollbackPot > 0, '应回传池子数')
+
+  // 房主确认 → 回滚到 B 行动前：B 重新决策，错注退回
+  const r = await api('/api/room/pause', { uid: uids[0], roomId: no, confirmRollback: true })
+  assert.equal(r.ok, true, r.error)
+  assert.equal(r.data.paused, false)
+  assert.equal(r.data.turnUid, bUid, '应回到 B 的决策位')
+  assert.equal(
+    r.data.seats.find((s) => s.uid === bUid).seeds, bSeeds,
+    'B 的错注应退回手上'
+  )
 })
 
 test('暂停中房主可调整座位，继续后不能', async () => {
@@ -366,8 +405,10 @@ test('暂停中房主可调整座位，继续后不能', async () => {
   assert.equal(ok.ok, true, '暂停中应允许调整座位：' + (ok.error || ''))
   assert.equal(ok.data.seats[0].uid, uids[1], '第一个座位应变成 uids[1]')
 
-  // 继续 → 又不行了
-  await api('/api/room/pause', { uid: uids[0], roomId: no })
+  // 继续（池子有值 → 需要确认回滚）→ 又不行了
+  const res = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  assert.equal(res.data.needConfirmRollback, true)
+  await api('/api/room/pause', { uid: uids[0], roomId: no, confirmRollback: true })
   const busy = await api('/api/room/reorder', { uid: uids[0], roomId: no, order: [uids[0], uids[1], uids[2], uids[3]] })
   assert.equal(busy.ok, false, '对局中不该允许调整座位')
 })
@@ -483,8 +524,10 @@ test('继续的判据：本手还在打就原样恢复，不推进局数', async
   assert.equal(p.ok, true, p.error)
   assert.equal(p.data.turnUid, before.turnUid, '暂停不该丢回合')
 
-  // 继续 → 原样恢复，局数不变、回合不变
-  const r = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  // 继续 → 池子有值先回确认，确认后回滚恢复：局数不变、回合还原
+  const ask = await api('/api/room/pause', { uid: uids[0], roomId: no })
+  assert.equal(ask.data.needConfirmRollback, true, '池子有值应先回确认')
+  const r = await api('/api/room/pause', { uid: uids[0], roomId: no, confirmRollback: true })
   assert.equal(r.ok, true, r.error)
   assert.equal(r.data.roundNo, before.roundNo, '本手没打完，继续不该推进局数')
   assert.equal(r.data.turnUid, before.turnUid, '回合应还原')

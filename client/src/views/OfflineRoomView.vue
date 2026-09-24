@@ -289,7 +289,29 @@ function hostMainAction() {
         okText: '开新一轮',
       }).then((yes) => {
         if (!yes) return pull()   // 取消 → 停在暂停态
-        roomRepo.pauseRoom(roomId(), true).then((y) => {
+        roomRepo.pauseRoom(roomId(), { confirmNextHand: true }).then((y) => {
+          if (y.ok) {
+            adjustMode.value = false; orderMode.value = false; resetDrag()
+            pull()
+          } else toast(y.error)
+        })
+      })
+      return
+    }
+    // 继续时池子有值 → 服务端不直接回滚，先回来问房主
+    // 「池子有 xxx 瓜子，即将回到 X 的行动位」。确认后带 confirmRollback 再调一次。
+    if (x.data?.needConfirmRollback) {
+      const pot = x.data.rollbackPot ?? 0
+      const who = x.data.rollbackTurnName
+      askConfirm({
+        title: '继续',
+        msg: who
+          ? `当前池子有 ${pot} 瓜子，即将回到 ${who} 的行动位`
+          : `当前池子有 ${pot} 瓜子，继续本局？`,
+        okText: who ? '回滚' : '继续',
+      }).then((yes) => {
+        if (!yes) return pull()   // 取消 → 停在暂停态
+        roomRepo.pauseRoom(roomId(), { confirmRollback: true }).then((y) => {
           if (y.ok) {
             adjustMode.value = false; orderMode.value = false; resetDrag()
             pull()
