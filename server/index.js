@@ -63,7 +63,6 @@ import {
   applyOfflineAction,
   availableActions as offlineActions,
   nextStage as offlineNextStage,
-  handResolved as offlineHandResolved,
 } from '../shared/logic/offline-room.mjs'
 
 import { buildSettlement, transfersAfterTiePick } from '../shared/logic/settlement.mjs'
@@ -110,8 +109,8 @@ function newRoom({ id, hostUid, host, cfg }) {
     id,
     mode: cfg.mode === 'online' ? 'online' : 'offline',
     gameType: cfg.gameType ?? 'long',
-    smallBlind: Math.max(1, num(cfg.smallBlind, 10)),
-    bigBlind: Math.max(1, num(cfg.bigBlind, 20)),
+    smallBlind: 0,
+    bigBlind: 0,
     initialSeeds: Math.max(1, num(cfg.initialSeeds, 3000)),
     hostUid,
     seats: [{
@@ -126,13 +125,32 @@ function newRoom({ id, hostUid, host, cfg }) {
     roundNo: 1,
     lastActive: Date.now(),
   }
+  // 大小麦：填一个就行，另一个按 ×2 自动算（实测口径：
+  // 「填一个另一个自动计算」）。只给小麦 → 大麦 = 小麦×2；
+  // 只给大麦 → 小麦 = 大麦÷2（大麦必须是偶数才除得尽）。
+  // 两个都给 → 保持原值，走下面的常规校验。
+  const sbIn = Number(cfg.smallBlind)
+  const bbIn = Number(cfg.bigBlind)
+  const sbOk = Number.isFinite(sbIn) && sbIn > 0
+  const bbOk = Number.isFinite(bbIn) && bbIn > 0
+  if (sbOk && !bbOk) {
+    room.smallBlind = Math.floor(sbIn)
+    room.bigBlind = room.smallBlind * 2
+  } else if (!sbOk && bbOk) {
+    if (bbIn % 2 !== 0) throw new Error('大麦必须是偶数（小麦 = 大麦 ÷ 2）')
+    room.bigBlind = Math.floor(bbIn)
+    room.smallBlind = room.bigBlind / 2
+  } else {
+    room.smallBlind = Math.max(1, Math.floor(num(cfg.smallBlind, 10)))
+    room.bigBlind = Math.max(1, Math.floor(num(cfg.bigBlind, room.smallBlind * 2)))
+  }
   // 大麦必须大于小麦，否则开局就乱
   if (room.bigBlind <= room.smallBlind) {
     throw new Error('大麦必须大于小麦')
   }
-  // 大麦必须是偶数 —— 小麦 = 大麦一半，奇数会算出小数盲注
+  // 大麦必须是偶数 —— 小麦永远是大麦的一半，奇数除不尽会出小数盲注
   if (room.bigBlind % 2 !== 0) {
-    throw new Error('大麦必须是偶数')
+    throw new Error('大麦必须是偶数（小麦 = 大麦 ÷ 2）')
   }
   // 大麦上限 = 入场数 / 10（进场至少留 10 个大麦）。
   // 不设上限实测踩过：每人 250、大麦 200，几乎每把都有人被打到 0，
@@ -420,6 +438,9 @@ function handleStart(body, uid) {  const room = rooms.get(String(body?.roomId ??
       // 把引擎座位数据写回 seats，前端 state 轮询才一致
       syncSeats(room)
     }
+    // 新的一手：回滚快照跟着旧手一起作废
+    room.prevState = null
+    room.pauseBackup = null
     touch(room)
     return ok(publicState(room, uid))
   } catch (e) {
@@ -486,8 +507,18 @@ function offlineAction(room, body, uid) {
   // 下注类动作：过牌 / 跟注 / 加注 / 弃牌 / 暂停划拨
   // ⚠️ check 必须在列。漏了它，点「过」会掉到末尾的
   //    「未知动作」，页面看着就是没反应 —— 实测踩过。
-  // give 是暂停态手动划拨（all-in 归零后收池再平分的场景）。
+  // give 是暂停态「出」（人→池，分池场景）。
   if (['check', 'fold', 'call', 'raise', 'give'].includes(type)) {
+    // 游戏动作前记一笔「行动前快照」—— 暂停→继续的
+    // 「回滚到上一次决策」（B 下错注、轮到 C 后房主暂停、
+    // 继续时还原成 B 决策）就靠它。
+    // 只记游戏动作：give/collect 是中性分账动作不记；
+    // 暂停中的动作也不记（那是房主在手动分账，不动回滚点）。
+    // 必须深拷贝：applyOfflineAction 内部 normalize 的
+    // actionLog/actedUids 与原对象共享数组，浅引用会被改脏。
+    if (!room.state.paused && type !== 'give') {
+      room.prevState = JSON.parse(JSON.stringify(room.state))
+    }
     const r = applyOfflineAction(room.state, {
       uid, type, amount: body.amount, toUid: body.toUid,
     })
@@ -548,6 +579,9 @@ function autoNextHand(room) {
       sbIndex: prevSb >= 0 ? (prevSb + 1) % room.seats.length : undefined,
     })
     room.roundNo += 1
+    // 新的一手：回滚快照跟着旧手一起作废
+    room.prevState = null
+    room.pauseBackup = null
     syncSeats(room)
     // 下了盲注之后可能又有人归零 —— 那就该停在结算，而不是继续打
     finishIfNeeded(room)
@@ -671,6 +705,9 @@ function handleSettle(body, uid) {
   // 归零后又平分继续）。必须排在入账之前 return，否则会把账也结了。
   if (action === 'pause') {
     room.state.settlePending = false
+    // 回滚点同样要在置 paused 之前记（结算路径的 paused 标在 state 上，
+    // 备份若先置标再克隆，恢复时会带回 paused=true）
+    room.pauseBackup = room.prevState ?? JSON.parse(JSON.stringify(room.state))
     room.state.paused = true
     room.state.handDone = true
     touch(room)          // touch 已含 persistRoom
@@ -748,6 +785,8 @@ function handleSettle(body, uid) {
     s.blind = null
   }
   room.state = null
+  room.prevState = null
+  room.pauseBackup = null
   room.roundNo += 1
   touch(room)
   return ok({ paid, skipped, transfers: paid, roundNo: room.roundNo })
@@ -760,17 +799,17 @@ function handleSettle(body, uid) {
  * 跟 settle 的 pause 不是一回事 —— settle/pause 是「结算流程里选暂停」，
  * 留在一个归零待结算的状态；这里是对局中途临时停一下。
  *
- * 继续时系统要判断该恢复本回合还是开下一手，判据是
- * **本手是否还有未完成的下注轮**（handResolved）：
+ * 暂停中的分账只有两键：收（池→人）、出（人→池），随便组合。
+ * 继续时按池子状态分流（2026-09-24 实测口径）：
  *
- *   · 还有（有人在打、有人该动、注没平）→ 原样恢复，
- *     currentBet / turnUid / actedUids 全部保留
- *   · 没有（本手已收干净 / 所有人都已表态）→ 自动开下一手，
- *     小麦位往后挪一位
+ *   a. 池子为空 → 瓜子已手动分完，本手事实上结束。
+ *      不直接开局：先回 needConfirmNextHand 让前端问房主
+ *      「池子为空，是否开启新一轮」，确认（confirmNextHand）才真开。
  *
- * 只判 finished 不够 —— 实测踩过：暂停中收池分完瓜子，finished
- * 已经true，直接恢复会卡在「本手已结束」，房主点继续反复被拒，
- * 而桌面上每个人都等着开下一局。
+ *   b. 池子有值 → 本手还要打。回滚到「暂停前最后一次行动之前」：
+ *      B 下错注、轮转到 C、房主暂停分账、点继续 → 还原成 B 决策。
+ *      快照 = pauseBackup（暂停时存的 prevState，即最后一次行动前）。
+ *      拿不到备份（重启丢快照等）就退回「解除暂停原样恢复」。
  */
 function handlePause(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
@@ -780,23 +819,38 @@ function handlePause(body, uid) {
 
   // paused 已经是 true → 这次调用是「继续」
   if (room.state.paused) {
-    room.state.paused = false
-
-    // 本手已经没有可打的内容了（收过池 / 所有人都表态完）→ 开下一手，
-    // 别把房主留在一个死掉的状态里。
-    // 本手还在打（有人该动、注没平）→ 原样恢复，一个字都不改。
-    if (room.state.finished || offlineHandResolved(room.state)) {
-      // autoNextHand 内部会查归零（含 give 分池后新造出的归零者），
-      // 有人归零就置 settlePending 停在那儿等房主结算。
+    if (body.confirmNextHand === true) {
+      room.state.paused = false
+      room.pauseBackup = null
+      room.prevState = null
       autoNextHand(room)
+      touch(room)
+      return ok(publicState(room, uid))
     }
-
+    if ((room.state.pot ?? 0) <= 0) {
+      // 池子分空了 → 保持暂停，让前端弹「是否开新一轮」。
+      // 房主确认后带 confirmNextHand=true 再调一次本接口。
+      return ok({ ...publicState(room, uid), needConfirmNextHand: true })
+    }
+    // 池子有值 → 回滚到最后一次行动之前（下错注的人重新决策）。
+    if (room.pauseBackup) {
+      room.state = JSON.parse(JSON.stringify(room.pauseBackup))
+    } else {
+      room.state.paused = false
+    }
+    room.pauseBackup = null
+    room.prevState = null
+    syncSeats(room)
     touch(room)
     return ok(publicState(room, uid))
   }
 
   // 本手已结束（收完池了）没什么好暂停的
   if (room.state.finished) return fail('本手已经结束')
+  // 回滚目标 = 最后一次行动之前的状态；还没人动过就存当前。
+  // ⚠️ 必须在置 paused 之前克隆 —— 不然备份里就带着 paused=true，
+  //    继续时回滚过去等于没恢复（实测踩过）。
+  room.pauseBackup = room.prevState ?? JSON.parse(JSON.stringify(room.state))
   room.state.paused = true
   touch(room)
   return ok(publicState(room, uid))

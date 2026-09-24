@@ -266,13 +266,18 @@ function render(r) {
           '</div>' +
         '</div>').join('') + '</div>' +
 
-      '<div class="actionbar">' +
-        '<button class="collect" data-act="collect"' + (has('collect') ? '' : ' disabled') + '>收</button>' +
-        '<button class="mid" data-act="' + (d.toCall > 0 ? 'call' : 'check') + '"' + (has(d.toCall > 0 ? 'call' : 'check') ? '' : ' disabled') + '>' +
-          (d.toCall > 0 ? '跟 ' + d.toCall : '过') + '</button>' +
-        '<button class="raise" data-act="raise" id="btnRaise"' + (has('raise') ? '' : ' disabled') + '>加倍</button>' +
-        '<button class="fold" data-act="fold"' + (has('fold') ? '' : ' disabled') + '>弃牌</button>' +
-      '</div>' +
+      (d.paused
+        ? '<div class="actionbar">' +
+          '<button class="collect" data-act="collect"' + (has('collect') ? '' : ' disabled') + '>收</button>' +
+          '<button class="mid" data-act="give"' + (has('give') ? '' : ' disabled') + '>出</button>' +
+          '</div>'
+        : '<div class="actionbar">' +
+          '<button class="collect" data-act="collect"' + (has('collect') ? '' : ' disabled') + '>收</button>' +
+          '<button class="mid" data-act="' + (d.toCall > 0 ? 'call' : 'check') + '"' + (has(d.toCall > 0 ? 'call' : 'check') ? '' : ' disabled') + '>' +
+            (d.toCall > 0 ? '跟 ' + d.toCall : '过') + '</button>' +
+          '<button class="raise" data-act="raise" id="btnRaise"' + (has('raise') ? '' : ' disabled') + '>加倍</button>' +
+          '<button class="fold" data-act="fold"' + (has('fold') ? '' : ' disabled') + '>弃牌</button>' +
+          '</div>') +
     '</div>'
 
   // 绑定
@@ -297,6 +302,14 @@ function render(r) {
       if (act === 'check') { toast('过牌'); return api('/api/room/action', { roomId: ROOM, type: 'check' }).then(pull) }
       if (act === 'call') return api('/api/room/action', { roomId: ROOM, type: 'call' }).then(pull)
       if (act === 'fold') { if (confirm('确定弃牌？')) api('/api/room/action', { roomId: ROOM, type: 'fold' }).then(pull) }
+      // 暂停中「出」：投进公共池，该补的人自己收走
+      if (act === 'give') {
+        const me2 = S.snap?.data?.seats?.find(s => s.uid === UID)
+        const v = Number(prompt('出多少进池子？（手上有 ' + (me2?.seeds ?? 0) + '）'))
+        if (Number.isFinite(v) && v > 0) {
+          api('/api/room/action', { roomId: ROOM, type: 'give', amount: Math.floor(v) }).then(pull)
+        }
+      }
     }
   })
 }
@@ -380,8 +393,12 @@ function openSheet() {
 }
 
 // ── 结算弹窗 ──
+// render() 每次重绘都会把 #st 擦掉，所以这里每次 pending 都重建；
+// settlePending 变 false 时 hideSettle 负责收尾（重置 flag）。
+// 之前 flag 只加不卸：房主结算完后，非房主的「等待房主结算」
+// 蒙层永远卡在那，整局动不了（实测踩过）。
 function showSettle(r) {
-  if (S.settleShown) return
+  const old = $('st'); if (old) old.remove()
   S.settleShown = true
   const isHost = r.data.hostUid === UID
   const zeroed = r.data.seats.filter(s => s.seeds <= 0).map(s => s.nickname).join('、')
@@ -402,6 +419,10 @@ function showSettle(r) {
     $('stPa').onclick = () => api('/api/room/settle', { roomId: ROOM, action: 'pause' }).then(rm).then(pull)
   }
 }
+function hideSettle() {
+  const el = $('st'); if (el) el.remove()
+  S.settleShown = false
+}
 
 // ── 轮询 ──
 async function pull() {
@@ -414,7 +435,7 @@ async function pull() {
     return
   }
   render(r)
-  if (r.data.settlePending) showSettle(r)
+  if (r.data.settlePending) showSettle(r); else hideSettle()
   S.lastRev = r.data.rev
 }
 

@@ -52,8 +52,7 @@ const logOpen = ref(false)      // 下注流水弹窗
 const inviteOpen = ref(false)   // 邀请二维码弹窗
 const orderMode = ref(false)    // 拖拽换座模式（房主 + 开锁）
 const giveOpen = ref(false)     // 暂停中「出瓜子」弹窗
-const giveTarget = ref('')      // 出给谁
-const giveAmount = ref('')      // 出多少
+const giveAmount = ref('')      // 出多少（进公共池）
 const raisePreview = ref(0)
 const customInput = ref('')
 const inputClamped = ref(false)
@@ -131,8 +130,11 @@ async function pull() {
   }
   gate.value = ''
   snap.value = r
-  // 结算弹窗只在有人归零、且本手已收掉时出现
-  if (r.data.settlePending) settleOpen.value = true
+  // 结算弹窗跟着 settlePending 双向同步：房主重置/解散后
+  // settlePending 变 false，非房主的「等待房主结算」蒙层必须
+  // 一起收掉。之前只置 true 不置 false，非房主蒙层卡死整局
+  // （实测踩过）。
+  settleOpen.value = !!r.data.settlePending
 }
 
 function onPollError(r) {
@@ -277,14 +279,29 @@ function hostMainAction() {
   }
   // pause / resume 同一个接口，服务端按当前 paused 状态切换
   roomRepo.pauseRoom(roomId()).then((x) => {
-    if (x.ok) {
-      toast(a === 'pause' ? '已暂停' : '已继续')
-      // 恢复对局时自动关锁，免得房主忘了还停在调整模式
-      if (a === 'resume') { adjustMode.value = false; orderMode.value = false; resetDrag() }
-      pull()
-    } else {
-      toast(x.error)
+    if (!x.ok) return toast(x.error)
+    // 继续时池子为空 → 服务端不直接开局，先回来问房主
+    // 「池子为空，是否开启新一轮」。确认后带 confirmNextHand 再调一次。
+    if (x.data?.needConfirmNextHand) {
+      askConfirm({
+        title: '继续',
+        msg: '当前池子为空，是否开启新的一轮？',
+        okText: '开新一轮',
+      }).then((yes) => {
+        if (!yes) return pull()   // 取消 → 停在暂停态
+        roomRepo.pauseRoom(roomId(), true).then((y) => {
+          if (y.ok) {
+            adjustMode.value = false; orderMode.value = false; resetDrag()
+            pull()
+          } else toast(y.error)
+        })
+      })
+      return
     }
+    toast(a === 'pause' ? '已暂停' : '已继续')
+    // 恢复对局时自动关锁，免得房主忘了还停在调整模式
+    if (a === 'resume') { adjustMode.value = false; orderMode.value = false; resetDrag() }
+    pull()
   })
 }
 
@@ -350,26 +367,24 @@ function onSeatPointerCancel() {
 
 // ── 暂停中「出瓜子」──
 // 暂停态所有人操作栏只有「收 / 出」两个中性键。出 = 把手上的瓜子
-// 拨给别人，用于「All-in 和牌后分池」「有人下错注给他补回去」。
-const giveTargets = computed(() => seats.value.filter((s) => s.uid !== uid))
+// 投进公共池（不指定接收人）。分池靠「收（池→人）+ 出（人→池）」
+// 自由组合：该给谁补多少，由被补的人自己点收拿走。
 const giveMax = computed(() => mySeeds.value)
 
 function openGive() {
   if (!d.value?.paused) return toast('只有暂停中才能出瓜子')
-  giveTarget.value = giveTargets.value[0]?.uid || ''
   giveAmount.value = ''
   giveOpen.value = true
 }
 
 function submitGive() {
   const amt = Math.floor(Number(giveAmount.value))
-  if (!giveTarget.value) return toast('选一个接收人')
   if (!Number.isFinite(amt) || amt <= 0) return toast('出多少要大于 0')
   if (amt > giveMax.value) return toast('手上只有 ' + giveMax.value)
-  roomRepo.roomAction(roomId(), 'give', amt, giveTarget.value).then((x) => {
+  roomRepo.roomAction(roomId(), 'give', amt).then((x) => {
     if (!x.ok) return toast(x.error)
     giveOpen.value = false
-    toast('已出 ' + amt)
+    toast('已出 ' + amt + ' 进池子')
     pull()
   })
 }
@@ -414,6 +429,16 @@ function submitCustom() {
 function allIn() { doRaise(raiseMax.value) }
 
 function doRaise(extra) {
+  // 手上瓜子不够平注时，「加注」唯一的可能就是全下 ——
+  // 直接当 call-allin 打出去，别让弹窗变成死路。
+  // 「all in 不需要做判断，手上有多少下多少」（实测口径）。
+  if (raiseMax.value <= 0) {
+    sheetOpen.value = false
+    return act('call').then((x) => {
+      if (x.ok) toast('全下 ' + mySeeds.value)
+      else toast(x.error)
+    })
+  }
   const e = Math.min(extra, raiseMax.value)
   if (e <= 0) return toast('至少加 1 倍小麦')
   sheetOpen.value = false
@@ -663,18 +688,11 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <!-- 暂停中「出瓜子」弹窗 -->
+  <!-- 暂停中「出瓜子」弹窗：投进公共池，谁该补谁自己收 -->
   <div v-if="giveOpen" class="mask" @click.self="giveOpen = false">
     <div class="sheet">
-      <h3>出瓜子</h3>
-      <p class="hint">我手上有 {{ giveMax }}，出给谁、出多少</p>
-      <div class="give-list">
-        <button v-for="t in giveTargets" :key="t.uid"
-                :class="{ on: giveTarget === t.uid }"
-                @click="giveTarget = t.uid">
-          {{ t.nickname }}<span class="x">{{ t.seeds }}</span>
-        </button>
-      </div>
+      <h3>出瓜子进池子</h3>
+      <p class="hint">我手上有 {{ giveMax }}，出到公共池；该补的人自己收走</p>
       <div class="row">
         <input v-model="giveAmount" type="number" min="1" :max="giveMax" placeholder="数量" />
         <button class="ok" @click="submitGive">确定</button>

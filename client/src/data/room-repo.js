@@ -64,9 +64,11 @@ export function reorderSeats(roomId, order) {
   return request('/api/room/reorder', { uid: getUid(), roomId, order })
 }
 
-/** 暂停 / 继续对局（房主）。同一接口切换：暂停态调用就是继续 */
-export function pauseRoom(roomId) {
-  return request('/api/room/pause', { uid: getUid(), roomId })
+/** 暂停 / 继续（房主）。同一接口切换：暂停态调用就是继续。
+ * 继续时传 confirmNextHand=true 表示房主已确认开新一轮
+ * （池子为空的服务端会先回 needConfirmNextHand，不直接开局）。 */
+export function pauseRoom(roomId, confirmNextHand = false) {
+  return request('/api/room/pause', { uid: getUid(), roomId, confirmNextHand })
 }
 
 /** 结算。action: restart | disband | pause */

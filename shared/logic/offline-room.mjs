@@ -299,15 +299,19 @@ export function availableActions(state, uid) {
     out.push({ type: 'check', label: '过', enabled: true })
   } else {
     // 未平注 → 只能跟/加注，不能过
+    // call 永远可点：不够平注就是全下（all-in 不需要判断，
+    // 手上有多少下多少 —— 实测反馈），别用 enabled 把路堵死。
     out.push({
       type: 'call', label: '跟', amount: need,
-      enabled: need <= me.seeds,
+      enabled: true,
       // 我的瓜子不够平注时，这一下实际上是全下
       allIn: need > me.seeds,
     })
   }
 
-  out.push({ type: 'raise', label: '加倍', enabled: me.seeds > need })
+  // 加注键同理：手上还有瓜子就能点 —— 不够平注时弹窗里的
+  // All in 就是唯一的加注选项（引擎会把超出部分钳成全下）。
+  out.push({ type: 'raise', label: '加倍', enabled: me.seeds > 0 })
   out.push({ type: 'fold', label: '弃', enabled: true })
   return out
 }
@@ -358,20 +362,20 @@ export function applyOfflineAction(state, action) {
     }
 
     case 'give': {
-      // 暂停中手动划拨：「AB all-in 归零、A 收走后分一半给 B」的场景。
-      // 只在 paused 开放，正常对局里不允许（否则会绕过下注规则）。
-      if (!st.paused) return { error: '只有暂停中才能手动划拨瓜子' }
-      const to = st.seats.find((s) => s.uid === action.toUid)
-      if (!to) return { error: '找不到目标玩家' }
-      if (to.uid === uid) return { error: '不能拨给自己' }
+      // 暂停中「出」：把手上的瓜子投进公共池，不指定接收人。
+      // 分池靠「收（池→人）+ 出（人→池）」自由组合 ——
+      // 该给谁补多少由被补的人自己点收拿走，不用限制死给谁发
+      // （实测口径：AB all-in 和牌后 A 先收池、再往池子里出，
+      //    分错了的人自己收走就行）。
+      if (!st.paused) return { error: '只有暂停中才能出瓜子' }
       const amt = Math.floor(Number(action.amount))
-      if (!Number.isFinite(amt) || amt <= 0) return { error: '划拨数量无效' }
+      if (!Number.isFinite(amt) || amt <= 0) return { error: '出的数量无效' }
       if (amt > me.seeds) return { error: `瓜子不足（有 ${me.seeds}）` }
       me.seeds -= amt
-      to.seeds += amt
+      st.pot += amt
       st.actionLog.push({
         uid, nickname: me.nickname, type: 'give',
-        toUid: to.uid, toName: to.nickname, amount: amt, stage: st.stage,
+        amount: amt, stage: st.stage,
       })
       return { state: st }
     }
@@ -405,21 +409,33 @@ export function applyOfflineAction(state, action) {
     case 'raise': {
       if (st.turnUid !== uid) return { error: '还没到你的回合' }
       const extra = Number(action.amount)
-      if (!Number.isFinite(extra) || extra <= 0) return { error: '加注数量无效' }
+      if (!Number.isFinite(extra)) return { error: '加注数量无效' }
       const need = toCall(st, uid)
-      // 语义：跟注 + 额外加注。上家下 100，我点加注 50 → 我这手共 150
+      // 语义：跟注 + 额外加注。上家下 100，我点加注 50 → 我这手共 150。
+      // all-in 友好：手上多少下多少，不校验够不够 ——
+      // B all-in 5000、C 后手只有 4000 时，C 全下 4000 照样成立，
+      // 差值记为欠注（bet < currentBet 但已 all-in），牌局不卡死。
       const want = need + extra
-      if (want > me.seeds) return { error: '超出我的瓜子，最多全下' }
-      moveIn(st, me, need)
-      moveIn(st, me, extra)
-      st.currentBet = me.bet
+      const pay = Math.min(want, me.seeds)
+      if (pay <= 0) return { error: '加注数量无效' }
+      const prevBet = st.currentBet
+      moveIn(st, me, pay)
+      // 实际下出的注额超过原最高注才算加注；没超过 = 短筹全下跟注，
+      // 不重置行动轮（扑克规则：短码 all-in 不重新开放下注）。
+      const isRaise = me.bet > prevBet
+      if (isRaise) {
+        st.lastAggressorUid = uid
+        markActed(st, uid, { reset: true })
+      } else {
+        markActed(st, uid)
+      }
       st.actionLog.push({
-        uid, nickname: me.nickname, type: 'raise', amount: want,
-        called: need, extra, stage: st.stage,
+        uid, nickname: me.nickname,
+        type: isRaise ? 'raise' : 'call',
+        amount: pay, called: Math.min(need, pay),
+        extra: Math.max(0, pay - need),
+        allIn: me.allIn, stage: st.stage,
       })
-      st.lastAggressorUid = uid
-      // 加注 = 行动轮重置：其他人要重新表态
-      markActed(st, uid, { reset: true })
       return afterMove(st, uid)
     }
 
@@ -499,12 +515,18 @@ function afterMove(st, uid) {
 
   // ── 2. 本街走完 → 换街 ──
   if (streetClosed(st)) {
-    const r = advanceStreet(st)
+    let r = advanceStreet(st)
+    // 新街若无人能行动（全员 all-in / 弃光），不能停在这条死街上：
+    // 全员 all-in 的牌要一口气亮到河牌，再等人收池。
+    // 之前只推进一格就 turnUid=null，牌局冻结在半路、只剩「收」能点
+    // （实测：4 人全下后花生停在 3 颗，谁也没法再动）。
+    while (r.advanced && !r.state.turnUid) r = advanceStreet(r.state)
     if (r.advanced) return { state: r.state, streetAdvanced: r.state.stage }
     // river 已换无可换：停在等人收池
-    st.turnUid = null
-    for (const s of st.seats) s.isTurn = false
-    return { state: st, needCollect: true }
+    const done = r.state
+    done.turnUid = null
+    for (const s of done.seats) s.isTurn = false
+    return { state: done, needCollect: true }
   }
 
   // ── 3. 还有人欠行动 → 交给他 ──

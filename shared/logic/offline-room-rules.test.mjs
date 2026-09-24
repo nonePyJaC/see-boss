@@ -253,7 +253,12 @@ test('收池后 nextHand 回到 preflop 且清干净', () => {
 
 test('加注上限 = 全下', () => {
   let st = start(4)
-  // u2 只有 1000，raise 要 need+extra，超出拒绝
+  // u2 只有 1000，raise 5000 不报错 —— 钳制为全下。
+  // （实测口径：all in 不需要判断，手上有多少下多少）
   const r = applyOfflineAction(st, { uid: 'u2', type: 'raise', amount: 5000 })
-  assert.match(r.error, /超出我的瓜子/)
+  assert.ok(!r.error, '超出瓜子的加注不该被拒：' + r.error)
+  const me = r.state.seats.find((s) => s.uid === 'u2')
+  assert.equal(me.seeds, 0, '应全下')
+  assert.equal(me.allIn, true)
+  assert.equal(me.bet, 1000, '下出全部 1000')
 })

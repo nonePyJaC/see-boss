@@ -77,14 +77,45 @@ test('加注 = 跟注 + 额外，currentBet 更新，行动轮重置', () => {
   assert.equal(st.turnUid, 'u0')
 })
 
-test('加注超出我的瓜子被拒，上限是全下', () => {
+test('加注超出我的瓜子 → 钳制为全下（all-in 不做判断）', () => {
+  // 实测口径：「all in 不需要做判断，手上有多少下多少」。
+  // B all-in 5000、C 后手只有 4000 时 C 不能被判死 —— 全下 4000 照样成立。
   let st = start([50, 1000, 1000])   // u0 只有 50，扣完小麦剩 40
   st = act(st, { type: 'call' })     // u2 跟 20
   st = act(st, { type: 'call' })     // u0（小盲）补 10 → 剩 30
-  // 现在 u0 手里只剩 30，要他加 999 必须被拒
+  // u1（大麦）加 999 > 手上的 980 → 钳成全下，不报错
   const cur = st.turnUid
   const r = applyOfflineAction(st, { uid: cur, type: 'raise', amount: 999 })
-  assert.match(r.error, /超出我的瓜子/)
+  assert.ok(!r.error, '全下不该被拒：' + r.error)
+  const me = r.state.seats.find((s) => s.uid === cur)
+  assert.equal(me.seeds, 0, '瓜子应全下')
+  assert.equal(me.allIn, true)
+  assert.equal(me.bet, 1000, '注额 = 大麦 20 + 全下 980')
+})
+
+test('短筹全下：加注额不够平注 = all-in 跟注，不重置行动轮', () => {
+  // B 全下 6000，C 只有 4000 后手：C 全下 4000 < currentBet，
+  // 是短码跟注不是加注 —— 不能把其他人的行动轮重置。
+  // 留 u3 还有筹码没动，街不关，才能看出行动轮没被重置。
+  let st = start([6000, 4000, 6000, 6000])
+  st = act(st, { type: 'raise', amount: 5980 })   // u2 all-in 6000
+  assert.equal(st.seats[2].allIn, true)
+  assert.equal(st.currentBet, 6000)
+  st = act(st, { uid: 'u3', type: 'call' })        // u3 先跟（还有行动义务排序）
+  st = act(st, { uid: 'u0', type: 'call' })        // u0 全下 5990
+  const r = applyOfflineAction(st, { uid: 'u1', type: 'raise', amount: 999999 })
+  assert.ok(!r.error, '短筹全下不该被拒：' + r.error)
+  const u1 = r.state.seats.find((s) => s.uid === 'u1')
+  assert.equal(u1.seeds, 0)
+  assert.equal(u1.allIn, true)
+  // 全员 all-in → 街一口气推进到河牌，bet 已清；看累计下注才知道
+  // 短筹只下到 4000（currentBet 6000 没被它抬动）。
+  assert.equal(u1.totalBet, 4000, '短筹只能下到 4000')
+  assert.equal(r.state.stage, 'river')
+  assert.equal(r.state.turnUid, null, '没人能行动，等收池')
+  // 短筹跟注不重置行动轮的证据：流水里记的是 call 不是 raise
+  const u1log = r.state.actionLog.filter((l) => l.uid === 'u1').pop()
+  assert.equal(u1log.type, 'call', '短筹 all-in 应按跟注记，不是加注')
 })
 
 test('全下：筹码不足时跟注只投入剩余全部', () => {
@@ -189,20 +220,18 @@ test('非回合连续弃到只剩 1 人 → 自动收池', () => {
   assert.equal(r2.state.seats[2].seeds, 1000 + 30, 'u2 收走全部公共池')
 })
 
-test('暂停中 give 划拨：收池后手动分瓜子', () => {
-  // 造一个 paused 状态：paused 是服务端结算路径打的标，引擎只管识别
+test('暂停中 give：瓜子投进公共池，不指定接收人', () => {
+  // 造一个 paused 状态：paused 是服务端结算路径打的标，引擎只管识别。
+  // 「出」= 人 → 池；该给谁补的由被补的人自己点收拿走（实测口径）。
   let st = start([1000, 1000, 1000])
   st = { ...st, paused: true, finished: true }
-  const r = applyOfflineAction(st, {
-    uid: 'u0', type: 'give', toUid: 'u1', amount: 500,
-  })
+  const potBefore = st.pot
+  const r = applyOfflineAction(st, { uid: 'u0', type: 'give', amount: 500 })
   assert.ok(!r.error, r.error)
-  assert.equal(r.state.seats[0].seeds, 1000 - 10 - 500, '拨出方扣款')
-  assert.equal(r.state.seats[1].seeds, 1000 - 20 + 500, '接收方入账')
+  assert.equal(r.state.seats[0].seeds, 1000 - 10 - 500, '出方扣款')
+  assert.equal(r.state.pot, potBefore + 500, '出的瓜子进公共池')
   // 非暂停状态拒绝
-  const live = applyOfflineAction(start(), {
-    uid: 'u0', type: 'give', toUid: 'u1', amount: 10,
-  })
+  const live = applyOfflineAction(start(), { uid: 'u0', type: 'give', amount: 10 })
   assert.match(live.error, /暂停/)
 })
 
@@ -228,6 +257,34 @@ test('花生节拍器：preflop 不亮，flop 三颗，turn 四颗，river 五�
   assert.equal(STAGE_PEANUTS[STAGE.FLOP], 3)
   assert.equal(STAGE_PEANUTS[STAGE.TURN], 4)
   assert.equal(STAGE_PEANUTS[STAGE.RIVER], 5)
+})
+
+test('全员 all-in → 死街自动亮到河牌再等收池', () => {
+  // 全员 all-in 后没人能行动，花生应一口气亮到 5（river），
+  // 而不是冻结在中途那条街（实测：4 人全下停在 flop，只剩「收」）。
+  let st = start([100, 100, 100])
+  st = act(st, { type: 'raise', amount: 9999 })   // u2 raise-allin
+  st = act(st, { type: 'call' })                   // u0 all-in call
+  st = act(st, { type: 'call' })                   // u1 all-in call
+  assert.equal(st.stage, STAGE.RIVER, '死街应连续推进到河牌')
+  assert.equal(st.turnUid, null, '全员 all-in 没有回合者')
+  assert.equal(st.finished, false, '还没收池，等手动收')
+  // 桌上确实没人还能行动了
+  assert.equal(st.seats.every((s) => s.allIn || s.folded), true)
+})
+
+test('部分 all-in → 能行动的人街照常开一轮', () => {
+  // u2 all-in 100，u0/u1 还有大把筹码 → 换街后 u0/u1 正常开一轮。
+  let st = start([1000, 1000, 100])
+  st = act(st, { type: 'raise', amount: 80 })     // u2 all-in 100
+  assert.equal(st.seats[2].allIn, true)
+  st = act(st, { type: 'call' })                   // u0 跟 90
+  st = act(st, { type: 'call' })                   // u1 跟 80
+  assert.equal(st.stage, STAGE.FLOP, '满注后应换街')
+  assert.ok(st.turnUid, '还有人能行动就该有回合者')
+  const av = availableActions(st, st.turnUid)
+  assert.ok(av.some((a) => a.type === 'check' || a.type === 'call'),
+    '能行动的人该有下注键，不该只剩收')
 })
 
 test('换街只推进花生，不发牌不清注', () => {

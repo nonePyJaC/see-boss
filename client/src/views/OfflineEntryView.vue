@@ -29,13 +29,14 @@ onMounted(async () => {
 })
 
 // ── 房间设置 ──
-/**
- * 初始瓜子快捷档。默认 3000，跟服务端 newRoom 的默认值保持一致 */
+/** 初始瓜子快捷档。默认 3000，跟服务端 newRoom 的默认值保持一致 */
 const SEED_PRESETS = [3000, 5000, 10000]
 const initialSeeds = ref(3000)
 const customSeeds = ref('')
 const smallBlind = ref(10)
 const bigBlind = ref(20)
+/** 最近改的是哪一个，另一个自动跟着算 */
+const lastBlind = ref('bb')
 
 /** 自定义瓜子填了就优先用它 */
 const seeds = computed(() => {
@@ -53,18 +54,20 @@ const seeds = computed(() => {
  */
 const bbMax = computed(() => Math.max(2, Math.floor(seeds.value / 10)))
 
-/** 小麦和大麦联动的快捷档：按入场数给几组现成搭配 */
-const BLIND_PRESETS = computed(() => {
-  const bb = bbMax.value
-  // 取 1:2、1:4、1:10 三档，且都不超过上限。
-  // 全部往下取偶，避免出现 37.5 这种小数小麦。
-  const ratios = [0.1, 0.25, 1].map((r) => {
-    let b = Math.floor(bb * r)
-    if (b % 2 !== 0) b -= 1          // 保持偶数，小麦才是整数
-    return Math.max(2, b)
-  })
-  return [...new Set(ratios)].map((b) => ({ sb: b / 2, bb: b }))
-})
+/**
+ * 改小麦 → 大麦 = 2 倍小麦；改大麦 → 小麦 = 大麦 ÷ 2。
+ * 只填一个就够，不用两个都管（实测反馈：不需要推荐档位）。
+ */
+function onBlindInput(which) {
+  lastBlind.value = which
+  if (which === 'sb') {
+    const sb = Math.floor(Number(smallBlind.value))
+    if (Number.isFinite(sb) && sb > 0) bigBlind.value = sb * 2
+  } else {
+    const bb = Math.floor(Number(bigBlind.value))
+    if (Number.isFinite(bb) && bb > 0) smallBlind.value = bb / 2
+  }
+}
 
 const settingError = computed(() => {
   if (!(seeds.value > 0)) return '初始瓜子要大于 0'
@@ -78,23 +81,18 @@ const settingError = computed(() => {
   return ''
 })
 
-/** 选一组现成盲注 */
-function pickBlinds(sb, bb) {
-  smallBlind.value = sb
-  bigBlind.value = bb
-}
-
 function pickSeeds(v) {
   initialSeeds.value = v
   customSeeds.value = ''
 }
 
-/** 换了入场数就自动挑一组合法盲注，别让房主自己撞上限 */
+/** 换了入场数就自动收敛到合法盲注，别让房主自己撞上限。
+ *  收敛规则：大麦 = 上限以下的最大偶数，小麦 = 大麦一半。 */
 watch(seeds, () => {
   if (bigBlind.value > bbMax.value) {
-    const p = BLIND_PRESETS.value[BLIND_PRESETS.value.length - 1]
-    smallBlind.value = p.sb
-    bigBlind.value = p.bb
+    const bb = Math.max(2, bbMax.value - (bbMax.value % 2))
+    bigBlind.value = bb
+    smallBlind.value = bb / 2
   }
 })
 
@@ -193,27 +191,19 @@ async function join() {
       />
 
       <label class="field-label">盲注设置</label>
-      <div class="chip-row chip-row--blind">
-        <button
-          v-for="p in BLIND_PRESETS"
-          :key="p.bb"
-          :class="{ on: bigBlind === p.bb }"
-          @click="pickBlinds(p.sb, p.bb)"
-        >
-          {{ p.sb }}/{{ p.bb }}
-        </button>
-      </div>
       <div class="blind-row">
         <div class="blind-item">
           <span>小麦</span>
-          <input v-model.number="smallBlind" class="input" type="number" min="1" />
+          <input v-model.number="smallBlind" class="input" type="number" min="1"
+                 @input="onBlindInput('sb')" />
         </div>
         <div class="blind-item">
           <span>大麦</span>
-          <input v-model.number="bigBlind" class="input" type="number" min="1" step="2" />
+          <input v-model.number="bigBlind" class="input" type="number" min="1" step="2"
+                 @input="onBlindInput('bb')" />
         </div>
       </div>
-      <p class="hint">大麦须为偶数，上限 {{ bbMax }}（入场 ÷ 10）</p>
+      <p class="hint">填一个即可，另一个自动算（大麦 = 小麦 × 2）。上限 {{ bbMax }}（入场 ÷ 10）</p>
 
       <button class="btn primary" :disabled="creating" @click="create">
         {{ creating ? '创建中…' : '创建并进入' }}
