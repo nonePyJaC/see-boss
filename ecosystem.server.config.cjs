@@ -11,7 +11,8 @@ module.exports = {
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        PORT: '8080',
+        // 80 端口：阿里云安全组默认放行 80，不用为朋友局专门开 8080
+        PORT: '80',
         LISTEN: '1',
         HAMSTER_STATIC_DIR: '/opt/cangshu/client/dist',
       },
