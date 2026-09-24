@@ -189,16 +189,25 @@ const log = (...a) => { const el = $('log'); el.style.display='block'; el.textCo
 const S = {
   me: null, room: null, locked: true, smallBlind: 100,
   timer: null, lastRev: 0, settleShown: false,
+  snap: null,          // 最近一次房间快照，按钮回调用它（别用闭包 r）
 }
 
 async function api(path, body = {}) {
-  const r = await fetch(API + path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uid: UID, ...body }),
-  })
-  const j = await r.json().catch(() => ({ ok: false, error: '响应不是 JSON' }))
-  if (!j.ok) log('API ' + path + ' -> ' + (j.error || 'fail'))
-  return j
+  // 必须包 try/catch：fetch 失败（服务端没起、连接被拒）会 throw，
+  // 不接的话整个轮询链断掉，页面停在最后一次渲染、按钮全死。
+  // 线上就因为这个：旧房间已消失 + 服务端重启 → Failed to fetch → 页面假死。
+  try {
+    const r = await fetch(API + path, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: UID, ...body }),
+    })
+    const j = await r.json().catch(() => ({ ok: false, error: '响应不是 JSON' }))
+    if (!j.ok) log('API ' + path + ' -> ' + (j.error || 'fail'))
+    return j
+  } catch (e) {
+    log('API ' + path + ' 网络失败: ' + (e?.message || e))
+    return { ok: false, error: '连不上服务器' }
+  }
 }
 
 function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1900) }
@@ -215,6 +224,7 @@ const PEANUTS = { preflop: 0, flop: 3, turn: 4, river: 5 }
 
 // ── 渲染 ──
 function render(r) {
+  S.snap = r            // 存一份最新的，弹窗/按钮回调都用它，不靠闭包传参
   const d = r.data
   const me = d.seats.find(s => s.uid === UID)
   const isHost = d.hostUid === UID
@@ -281,9 +291,9 @@ function render(r) {
       const act = b.dataset.act
       // 加倍：单击/长按都开弹窗。不提供「直接下 1 倍小麦」的
       // 快捷，避免误触（用户明确要求两种手势都给弹窗）。
-      if (act === 'raise') return openSheet(r)
+      if (act === 'raise') return openSheet()
       // 收池：二次确认防误触。收掉本手就结束，不可撤回。
-      if (act === 'collect') return confirmCollect(r)
+      if (act === 'collect') return confirmCollect()
       if (act === 'check') { toast('过牌'); return api('/api/room/action', { roomId: ROOM, type: 'check' }).then(pull) }
       if (act === 'call') return api('/api/room/action', { roomId: ROOM, type: 'call' }).then(pull)
       if (act === 'fold') { if (confirm('确定弃牌？')) api('/api/room/action', { roomId: ROOM, type: 'fold' }).then(pull) }
@@ -292,10 +302,12 @@ function render(r) {
 }
 
 /** 收池二次确认。桌上常见「手滑点到」，收回不可逆，必须先问。 */
-function confirmCollect(r) {
+function confirmCollect() {
+  const r = S.snap
+  if (!r?.data) { toast('房间状态还没加载'); return }
   const d = r.data
   const zeroed = d.seats.filter(s => s.seeds <= 0).map(s => s.nickname)
-  let msg = '收走公共池 ' + d.pot + ' 瓜子？\n收掉后本手结束'
+  let msg = '收走公共池 ' + d.pot + ' 瓜子？' + String.fromCharCode(10) + '收掉后本手结束'
   if (zeroed.length) msg += '，并触发结算（' + zeroed.join('、') + ' 已归零）'
   if (!confirm(msg)) return
   api('/api/room/action', { roomId: ROOM, type: 'collect' })
@@ -309,10 +321,14 @@ function showLogSheet(r) {
 }
 
 // ── 加注弹窗 ──
-function openSheet(r) {
+function openSheet() {
+  const r = S.snap
+  if (!r?.data) { toast('房间状态还没加载'); return }
   const d = r.data
   const sb = d.smallBlind
-  const max = (me ? me.seeds : 0) - d.toCall
+  const meSeat = d.seats.find(x => x.uid === UID)     // 别用 render 的局部 me
+  const mySeeds = meSeat ? meSeat.seeds : 0
+  const max = Math.max(0, mySeeds - d.toCall)
   const need = d.toCall
   const presets = [1, 2, 5, 10, 20].map(x => ({ x, v: sb * x }))
 
@@ -331,7 +347,7 @@ function openSheet(r) {
   const pv = $('pv')
   const upd = (extra, forced) => {
     const allin = forced || extra >= max
-    pv.textContent = '共下 ' + Math.min(need + extra, me ? me.seeds : 0)
+    pv.textContent = '共下 ' + Math.min(need + extra, mySeeds)
     pv.classList.toggle('allin', allin)
     $('btnAll').classList.toggle('hot', allin)
     $('ci').classList.toggle('hot', allin)
@@ -390,7 +406,13 @@ function showSettle(r) {
 // ── 轮询 ──
 async function pull() {
   const r = await api('/api/room/state', { roomId: ROOM })
-  if (!r.ok) { $('app').innerHTML = '<div class="gate"><h2>房间不在了</h2><p>' + r.error + '</p></div>'; return }
+  if (!r.ok) {
+    $('app').innerHTML =
+      '<div class="gate"><h2>连不上房间</h2><p>' + r.error + '</p>' +
+      '<p style="margin-top:12px">房间号 ' + ROOM + '</p>' +
+      '<button class="btn" style="margin-top:16px" onclick="location.reload()">重试</button></div>'
+    return
+  }
   render(r)
   if (r.data.settlePending) showSettle(r)
   S.lastRev = r.data.rev
