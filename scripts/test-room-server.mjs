@@ -599,7 +599,7 @@ test('结算幂等：连点不重复入账', async () => {
   assert.equal(ledger[0].count, 1)
 })
 
-test('结算后重置 + 局数 +1', async () => {
+test('结算后重置：线下不计局数、不写历史', async () => {
   const { no, h, g, sbUid } = await zeroedRoom()
   seed(sbUid, 5)
   setSeeds(g, 7)                       // 用绝对值，防止测试间累积
@@ -608,7 +608,11 @@ test('结算后重置 + 局数 +1', async () => {
   assert.equal(st.data.seats.every((s) => s.seeds === 200), true, '回初始值')
   assert.equal(st.data.roundNo, 2)
   const gm = await api('/api/account/me', { uid: g })
-  assert.equal(gm.data.totalGames, 1, '局数入账')
+  assert.equal(gm.data.totalGames, 0, '线下模式不计局数')
+  assert.equal(
+    rawDb().prepare('SELECT COUNT(*) n FROM history WHERE room_no = ?').get(no).n, 0,
+    '线下模式不写历史'
+  )
 })
 
 test('非房主不能结算', async () => {
@@ -718,15 +722,23 @@ test('房主离开 → 快照一并删除，重启不复活', async () => {
   assert.equal(snap, undefined, '房主离开必须删快照')
 })
 
-test('房主离开：快照 + 历史全清理，金瓜子账本保留', async () => {
+test('房主离开：快照 + 遗留历史全清理，金瓜子账本保留', async () => {
   const { no, h, sbUid } = await zeroedRoom()
   seed(sbUid, 5)
   const s = await api('/api/room/settle', { uid: h, roomId: no, action: 'restart' })
   assert.equal(s.ok, true, s.error)
   assert.equal(s.data.paid.length, 1, '应转 1 粒金瓜子')
+  assert.equal(
+    rawDb().prepare('SELECT COUNT(*) n FROM history WHERE room_no = ?').get(no).n, 0,
+    '线下结算不写历史'
+  )
 
-  const histBefore = rawDb().prepare('SELECT COUNT(*) n FROM history WHERE room_no = ?').get(no).n
-  assert.ok(histBefore >= 1, '结算会写历史（销毁时再清）')
+  // 模拟旧版本残留的历史行：销毁时也必须一并清掉
+  rawDb().prepare(
+    `INSERT INTO history (room_no, mode, round_no, payload, created_by)
+     VALUES (?, 'offline', 1, '{}', '')`
+  ).run(no)
+
   const ledgerBefore = rawDb().prepare('SELECT COUNT(*) n FROM account_ledger').get().n
   assert.ok(ledgerBefore >= 2, '金瓜子转账应写账本')
 
@@ -738,7 +750,7 @@ test('房主离开：快照 + 历史全清理，金瓜子账本保留', async ()
   )
   assert.equal(
     rawDb().prepare('SELECT COUNT(*) n FROM history WHERE room_no = ?').get(no).n, 0,
-    '本房历史应全清（线下不留记录）'
+    '本房历史应全清（含旧版残留）'
   )
   assert.equal(
     rawDb().prepare('SELECT COUNT(*) n FROM account_ledger').get().n, ledgerBefore,
@@ -875,6 +887,11 @@ test('★ 快照恢复：房间状态落库，重开进程后能回来', async (
 test('结算并解散：快照 + 历史全清理，金瓜子账本保留', async () => {
   const { no, h, sbUid } = await zeroedRoom()
   seed(sbUid, 5)
+  // 模拟旧版本残留的历史行：解散时也必须一并清掉
+  rawDb().prepare(
+    `INSERT INTO history (room_no, mode, round_no, payload, created_by)
+     VALUES (?, 'offline', 1, '{}', '')`
+  ).run(no)
   const ledgerBefore = rawDb().prepare('SELECT COUNT(*) n FROM account_ledger').get().n
   const d = await api('/api/room/settle', { uid: h, roomId: no, action: 'disband' })
   assert.equal(d.ok, true, d.error)

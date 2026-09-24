@@ -65,8 +65,8 @@ async function doClear(row) {
   }
 }
 
-function doResetAll() {
-  resetAll()
+async function doResetAll() {
+  await resetAll()
   router.replace('/register')
 }
 
@@ -125,7 +125,7 @@ if (!user.value) router.replace('/register')
       <div class="dialog">
         <h3 class="dlg-title">确认清空？</h3>
         <p class="text-sm text-light">
-          将删除昵称、头像和全部金瓜子记录，且无法恢复。
+          将退出登录并抹掉本机身份。金瓜子绑在账号名上，用同名账号还能登回来。
         </p>
         <div class="row" style="margin-top: 18px">
           <button class="btn btn--ghost grow" @click="confirmReset = false">取消</button>

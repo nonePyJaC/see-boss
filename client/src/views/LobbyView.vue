@@ -65,14 +65,10 @@ onActivated(async () => {
               <img :src="goldURI" class="inline-gold" alt="" />
               {{ goldenSeeds }}
             </span>
-            <span class="text-sm text-light">已玩 {{ user.totalGames }} 局</span>
           </div>
         </div>        <div class="row" style="gap: 6px">
           <button class="btn btn--ghost btn--sm" @click="router.push('/profile')">
             我的
-          </button>
-          <button class="btn btn--ghost btn--sm" @click="router.push('/history')">
-            历史
           </button>
           <button class="btn btn--ghost btn--sm" @click="onLogout">退出</button>
         </div>

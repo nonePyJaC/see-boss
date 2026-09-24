@@ -12,7 +12,7 @@
 
 import { ref, computed } from 'vue'
 import { accountRepo } from '../data/account-repo.js'
-import { readIdentity, writeIdentity } from '../data/identity.js'
+import { readIdentity, writeIdentity, clearIdentity } from '../data/identity.js'
 
 const user = ref(null)
 const ledger = ref([])
@@ -69,13 +69,45 @@ async function logout() {
   history.value = []
 }
 
+/**
+ * 账本行 → 档案页行。
+ * uid 位放的是对手「账号名」（peerAccount）—— 长按清行时原样传回服务端；
+ * 昵称/头像用转账时记下的快照，没有就退回账号名。
+ */
+const ledgerRows = computed(() => ledger.value.map((r) => ({
+  uid: r.peerAccount,
+  nickname: r.peerName ?? r.peerAccount,
+  avatar: r.peerAvatar ?? 1,
+  count: r.count,
+})))
+
+/** 长按清一行：服务端双向冲销（双方账本同时清），再刷新本页数据 */
+async function clearLedgerRow(peerAccount) {
+  const r = await accountRepo.clear(peerAccount)
+  if (!r.ok) throw new Error(r.error || '清空失败')
+  await refresh()
+  return r.data
+}
+
+/** 清空全部数据：退出登录 + 抹掉本机身份（uid / 昵称缓存），回到注册页。
+ *  金瓜子绑在账号名上，之后用同名账号还能登回来。 */
+async function resetAll() {
+  try { await accountRepo.logout() } catch {}
+  clearIdentity()
+  accountRepo.clearUid()
+  user.value = null
+  ledger.value = []
+  history.value = []
+}
+
 /** 兜底记忆（iOS 微信 WebView 清 localStorage 时至少不用重输昵称） */
 const cached = () => readIdentity()
 
 export function useUser() {
   return {
-    user, ledger, history, loading,
+    user, ledger, ledgerRows, history, loading,
     isRegistered, goldenSeeds, nickname, accountName,
-    refresh, signInWithAccount, updateProfile, logout, cached,
+    refresh, signInWithAccount, updateProfile, logout,
+    clearLedgerRow, resetAll, cached,
   }
 }

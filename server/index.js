@@ -747,27 +747,32 @@ function handleSettle(body, uid) {
   }
   }
 
-  // 局数 +1（在座且登录了账号的人）
-  const gamers = room.seats.map((s) => accountByUid(s.uid)?.account).filter(Boolean)
-  bumpTotalGames(gamers)
+  // 线下模式不留任何记录（房主口径 2026-09-24）：不写历史、不计局数，
+  // 只留金瓜子账本（account_ledger）。离开房间 = 游戏结束，
+  // 快照/日志/战绩全部随房间销毁清掉。线上模式照旧。
+  if (room.mode !== 'offline') {
+    // 局数 +1（在座且登录了账号的人）
+    const gamers = room.seats.map((s) => accountByUid(s.uid)?.account).filter(Boolean)
+    bumpTotalGames(gamers)
 
-  // 写历史
-  try {
-    addHistory({
-      roomNo: room.id,
-      mode: room.mode,
-      roundNo: room.roundNo,
-      payload: {
-        seats: room.state.seats.map((s) => ({
-          name: s.nickname,
-          delta: s.seeds - room.initialSeeds,
-        })),
-        transfers: paid,
-      },
-      createdBy: gamers[0] ?? '',
-    })
-  } catch (e) {
-    console.error('[room] 写历史失败', e)
+    // 写历史
+    try {
+      addHistory({
+        roomNo: room.id,
+        mode: room.mode,
+        roundNo: room.roundNo,
+        payload: {
+          seats: room.state.seats.map((s) => ({
+            name: s.nickname,
+            delta: s.seeds - room.initialSeeds,
+          })),
+          transfers: paid,
+        },
+        createdBy: gamers[0] ?? '',
+      })
+    } catch (e) {
+      console.error('[room] 写历史失败', e)
+    }
   }
 
   if (action === 'disband') {

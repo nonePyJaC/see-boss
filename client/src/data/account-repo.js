@@ -67,6 +67,17 @@ export function logout(uid = getUid()) {
   return request('/api/account/logout', { uid })
 }
 
+/** 与某人结清账本（双方同时冲销）—— 档案页长按某行触发。
+ *  peer 是对手账号名；服务端一次事务清两侧，避免「有数字没明细」的坏账。 */
+export function clear(peer, uid = getUid()) {
+  return request('/api/account/clear', { uid, peer })
+}
+
+/** 抹掉本机 uid（「清空全部数据」用；账号名还能登回来） */
+export function clearUid() {
+  try { localStorage.removeItem(UID_KEY) } catch {}
+}
+
 /** 与他人之间的账本往来 */
 export function ledger(uid = getUid()) {
   return request('/api/account/ledger', { uid })
@@ -87,5 +98,6 @@ export function cachedIdentity() {
 }
 
 export const accountRepo = {
-  login, me, updateProfile, logout, ledger, history, getUid, cachedIdentity,
+  login, me, updateProfile, logout, clear, clearUid,
+  ledger, history, getUid, cachedIdentity,
 }
