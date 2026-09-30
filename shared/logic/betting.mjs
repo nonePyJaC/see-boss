@@ -13,7 +13,7 @@
 
 import { parseCard } from './cards.mjs'
 import { evaluate, compareHands } from './hand-evaluator.mjs'
-import { distributePot } from './side-pot.mjs'
+import { distributePotDetailed } from './side-pot.mjs'
 
 export const PHASE = {
   IDLE: 'idle',
@@ -68,8 +68,12 @@ function isBettingRoundComplete(seats, currentBet, actedUids, startUid) {
   // 没人能行动（全弃或全下）→ 结束
   if (live.length === 0) return true
 
-  // 只剩一个能行动 → 结束（其他人全弃了）
-  if (live.length === 1) return true
+  // 注意：这里不能有「只剩一个能行动 → 结束」的短路！
+  // live 已排除全下者：只剩一个人能行动 = 其他人都全下，此时
+  // 这个人往往还欠一个跟/弃的决定（面对全下）。短路会让引擎提前
+  // 翻下一街并重置 currentBet，全下跟注变成免费过牌（踩过：
+  // 转牌被全下 → 河牌提前翻开 → 直接摊牌）。
+  // 真正「只剩一人」的收尾由 advance() 开头按未弃牌数处理。
 
   // 所有人都已行动且下注对齐
   const allActed = live.every((s) => actedUids.includes(s.uid))
@@ -126,6 +130,9 @@ export function initHand({ players, smallBlind, bigBlind, gameType, dealerUid, r
     smallBlind,
     bigBlind,
     dealerUid: seats[dealerIdx].uid,
+    // 盲注位透出（只读展示用：椭圆桌上的「庄/小/大」标记）
+    sbUid: seats[sbIdx].uid,
+    bbUid: seats[bbIdx].uid,
     seats,
     communityCards: [],
     pot: 0,
@@ -503,7 +510,7 @@ export function showdown(state, holeCards) {
     }
   }
 
-  const winnings = distributePot(
+  const { winnings, potLayers } = distributePotDetailed(
     contributors,
     (uid) => hands[uid],
     compareHands
@@ -514,10 +521,12 @@ export function showdown(state, holeCards) {
   return {
     pot: state.pot,
     winnings,
+    potLayers,
     hands: state.seats.map((s) => ({
       uid: s.uid,
       nickname: s.nickname,
       folded: s.folded,
+      totalBet: s.totalBet,
       hole: holeCards[s.uid] ?? [],
       hand: hands[s.uid] ?? null,
       cards: hands[s.uid]?.cards ?? [],
@@ -589,9 +598,9 @@ export function availableActions(state, uid) {
   } else if (toCall >= seat.seeds) {
     // 筹码不够全额跟注：仍要提供「跟注」入口（部分跟注 = all-in call），
     // 否则玩家只剩「弃牌」一个选择，不符合德州规则
-    actions.push({ type: 'call', label: `跟注 ${seat.seeds}` })
+    actions.push({ type: 'call', label: `跟注 ${seat.seeds}`, amount: seat.seeds })
   } else {
-    actions.push({ type: 'call', label: `跟注 ${toCall}` })
+    actions.push({ type: 'call', label: `跟注 ${toCall}`, amount: toCall })
   }
 
   // 加注：需要 当前注 + 最小加注 <= 自己全部筹码

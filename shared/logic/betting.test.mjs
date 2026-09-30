@@ -48,6 +48,30 @@ test('初始化：扣盲注并设定第一个行动者', () => {
   assert.equal(s.turnUid, 'a', '翻牌前从庄家左手第三个 = 庄家自己')
 })
 
+test('单挑短码全下：平局分主池，多投部分原额返还', () => {
+  const state = {
+    gameType: 'long',
+    pot: 3354,
+    communityCards: ['Kh', 'Kc', '3d', '3c', 'Ah'],
+    seats: [
+      { uid: 'short', nickname: '真人', totalBet: 177, folded: false },
+      { uid: 'deep', nickname: 'AI', totalBet: 3177, folded: false },
+    ],
+  }
+  const result = showdown(state, {
+    short: ['Qs', 'Jd'],
+    deep: ['Ts', '9h'],
+  })
+  assert.equal(result.hands[0].hand.name, '两对')
+  assert.equal(result.hands[1].hand.name, '两对')
+  assert.deepEqual(result.hands[0].hand.kickers, result.hands[1].hand.kickers)
+  assert.deepEqual(result.potLayers.map((layer) => layer.amount), [354, 3000])
+  assert.deepEqual(Object.fromEntries(result.winnings.map((w) => [w.uid, w.amount])), {
+    short: 177,
+    deep: 3177,
+  })
+})
+
 test('初始化：双人局庄家是小盲', () => {
   const s = newGame({
     players: PLAYERS.slice(0, 2),
@@ -593,6 +617,74 @@ test('弃牌者摊牌时标记 folded 且无牌型', () => {
   assert.equal(r.hands.find((h) => h.uid === 'c').won, 30)
 })
 
+test('三人共享公共牌时平分主池，并返回可审计的奖池层明细', () => {
+  const s = newGame()
+  const board = ['As', 'Ks', 'Qs', 'Js', 'Ts']
+  s.communityCards = board
+  s.pot = 300
+  s.seats = s.seats.map((seat) => ({ ...seat, bet: 100, totalBet: 100 }))
+
+  const r = showdown(s, {
+    a: ['2h', '3h'],
+    b: ['4c', '5c'],
+    c: ['4h', '5h'],
+  })
+
+  assert.deepEqual(r.potLayers, [{
+    index: 0,
+    amount: 300,
+    contributorUids: ['a', 'b', 'c'],
+    eligibleUids: ['a', 'b', 'c'],
+    awards: [{ uid: 'a', amount: 100 }, { uid: 'b', amount: 100 }, { uid: 'c', amount: 100 }],
+  }])
+  assert.deepEqual(r.winnings.map(({ uid, amount }) => ({ uid, amount })), [
+    { uid: 'a', amount: 100 }, { uid: 'b', amount: 100 }, { uid: 'c', amount: 100 },
+  ])
+  assert.ok(r.hands.every((hand) => hand.totalBet === 100))
+  assert.equal(r.hands.reduce((sum, hand) => sum + hand.won, 0), r.pot)
+})
+
+test('边池逐层记录出资人、可争夺玩家和各层派彩', () => {
+  const s = newGame()
+  const board = ['As', 'Ks', 'Qs', 'Js', 'Ts']
+  s.communityCards = board
+  s.pot = 550
+  s.seats = [
+    { ...s.seats[0], totalBet: 100, folded: false },
+    { ...s.seats[1], totalBet: 200, folded: false },
+    { ...s.seats[2], totalBet: 200, folded: false },
+    { uid: 'd', nickname: '弃牌者', totalBet: 50, folded: true },
+  ]
+
+  const r = showdown(s, {
+    a: ['2h', '3h'], b: ['4c', '5c'], c: ['4h', '5h'], d: ['6h', '7h'],
+  })
+
+  assert.deepEqual(r.potLayers, [
+    {
+      index: 0, amount: 200, contributorUids: ['a', 'b', 'c', 'd'],
+      eligibleUids: ['a', 'b', 'c'],
+      awards: [{ uid: 'a', amount: 67 }, { uid: 'b', amount: 67 }, { uid: 'c', amount: 66 }],
+    },
+    {
+      index: 1, amount: 150, contributorUids: ['a', 'b', 'c'],
+      eligibleUids: ['a', 'b', 'c'],
+      awards: [{ uid: 'a', amount: 50 }, { uid: 'b', amount: 50 }, { uid: 'c', amount: 50 }],
+    },
+    {
+      index: 2, amount: 200, contributorUids: ['b', 'c'],
+      eligibleUids: ['b', 'c'],
+      awards: [{ uid: 'b', amount: 100 }, { uid: 'c', amount: 100 }],
+    },
+  ])
+  assert.deepEqual(
+    Object.fromEntries(r.winnings.map(({ uid, amount }) => [uid, amount])),
+    { a: 117, b: 217, c: 216 },
+  )
+  assert.equal(r.potLayers.reduce((sum, layer) => sum + layer.awards.reduce((n, award) => n + award.amount, 0), 0), r.pot)
+  assert.equal(r.hands.find((hand) => hand.uid === 'd').totalBet, 50)
+})
+
 test('筹码守恒：任意操作序列后，池 + 各玩家筹码 === 初始总和', () => {
   let s = newGame()
   const initial = 3000
@@ -644,4 +736,59 @@ test('全下对局：筹码守恒（多人全下场景）', () => {
   const sum = s.pot + s.seats.reduce((acc, x) => acc + x.seeds, 0)
   assert.equal(sum, initial, `筹码应守恒：${sum} != ${initial}`)
   assert.equal(s.finished, true, '应走到终局')
+})
+
+// ── 回归：面对全下必须保留跟/弃决定，不能提前推进街道 ──
+// 踩过的坑：isBettingRoundComplete 里有个「只剩一个能行动 → 结束」的短路，
+// 而它统计的是「未弃牌且未全下」的人 —— 桌上只剩你、其他人都全下时，
+// 引擎误判下注轮结束：河牌在跟注决策前被翻开、currentBet 被重置，
+// 全下跟注变成免费过牌，随后直接摊牌。
+
+test('转牌被全下：必须保留跟注决策，河牌不得提前翻开', () => {
+  // 双人局：a=庄=小盲，b=大盲，翻前 a 先动
+  const s0 = newGame({ players: PLAYERS.slice(0, 2) })
+  let s = s0
+  const step = (uid, type, amount) => {
+    const r = applyAction(s, { uid, type, amount })
+    assert.equal(r.error, undefined, r.error)
+    s = r.state
+  }
+  step('a', 'call')            // a 补齐
+  step('b', 'check')           // b 过牌 → 翻牌
+  step('b', 'check')           // 翻牌
+  step('a', 'check')           // → 转牌
+  step('b', 'allin')           // 转牌 b 全下
+
+  // 关键断言：仍停在转牌、河牌未发、轮到 a 且欠跟注
+  assert.equal(s.phase, PHASE.TURN, '全下后应仍停在转牌，等对手决定')
+  assert.equal(s.communityCards.length, 4, '河牌不能在跟注决策前翻开')
+  assert.equal(s.finished, false, '不能直接结算')
+  assert.equal(s.turnUid, 'a', '应轮到 a 决定跟或弃')
+
+  const acts = availableActions(s, 'a')
+  const call = acts.find((x) => x.type === 'call')
+  assert.ok(call, 'a 必须能跟注')
+  assert.equal(call.amount, s.currentBet - s.seats.find((x) => x.uid === 'a').bet, '跟注额 = 需跟总数')
+
+  // a 跟注 → 此时才跑完河牌并摊牌
+  step('a', 'call')
+  assert.equal(s.communityCards.length, 5, '跟注后才补发河牌')
+  assert.equal(s.finished, true, '全下对局跟注后直接摊牌')
+  assert.equal(s.phase, PHASE.SHOWDOWN)
+})
+
+test('全下后对手弃牌：本手立即结束，不补牌', () => {
+  const s0 = newGame({ players: PLAYERS.slice(0, 2) })
+  let s = s0
+  const step = (uid, type, amount) => {
+    const r = applyAction(s, { uid, type, amount })
+    assert.equal(r.error, undefined, r.error)
+    s = r.state
+  }
+  step('a', 'call')
+  step('b', 'check')
+  step('b', 'allin')
+  step('a', 'fold')
+  assert.equal(s.finished, true)
+  assert.equal(s.communityCards.length, 3, '弃牌结束不补河牌')
 })

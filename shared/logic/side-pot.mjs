@@ -18,6 +18,7 @@
 /**
  * @typedef {Object} PotLayer
  * @property {number} amount 该层金额
+ * @property {string[]} contributorUids 对该层出资的玩家 uid（包含弃牌者）
  * @property {string[]} eligibleUids 有资格赢这层的玩家 uid（未弃牌）
  */
 
@@ -51,6 +52,7 @@ export function buildSidePots(contributors) {
 
     layers.push({
       amount: layerSize * payers.length,
+      contributorUids: payers.map((c) => c.uid),
       eligibleUids: eligible.map((c) => c.uid),
     })
 
@@ -88,8 +90,24 @@ export function verifyPots(contributors) {
  * @returns {{uid:string, amount:number, layerIndex:number}[]} 每个玩家赢得的金额（>0 才有）
  */
 export function distributePot(contributors, evaluateFor, compare) {
+  return distributePotDetailed(contributors, evaluateFor, compare).winnings
+}
+
+/**
+ * 按边池分配筹码，并保留每层可展示/核对的派彩明细。
+ * 原 distributePot API 继续只返回汇总 winnings，避免影响既有调用方。
+ */
+export function distributePotDetailed(contributors, evaluateFor, compare) {
   const layers = buildSidePots(contributors)
   const winnings = new Map()
+  const potLayers = layers.map((layer, index) => ({ ...layer, index, awards: [] }))
+
+  function award(layerIndex, uid, amount) {
+    const layer = potLayers[layerIndex]
+    layer.awards.push({ uid, amount })
+    const current = winnings.get(uid) ?? { uid, amount: 0, layerIndex }
+    winnings.set(uid, { uid, amount: current.amount + amount, layerIndex: current.layerIndex })
+  }
 
   layers.forEach((layer, layerIndex) => {
     if (layer.eligibleUids.length === 0) return
@@ -97,8 +115,7 @@ export function distributePot(contributors, evaluateFor, compare) {
     // 该层只有一个人有资格（其他人都弃牌了）→ 直接通吃，无需比牌
     if (layer.eligibleUids.length === 1) {
       const uid = layer.eligibleUids[0]
-      const current = winnings.get(uid) ?? { uid, amount: 0, layerIndex }
-      winnings.set(uid, { uid, amount: current.amount + layer.amount, layerIndex })
+      award(layerIndex, uid, layer.amount)
       return
     }
 
@@ -118,10 +135,12 @@ export function distributePot(contributors, evaluateFor, compare) {
     for (const { uid } of winnersSorted) {
       const extra = remainder > 0 ? 1 : 0
       remainder -= extra
-      const current = winnings.get(uid) ?? { uid, amount: 0, layerIndex }
-      winnings.set(uid, { uid, amount: current.amount + share + extra, layerIndex })
+      award(layerIndex, uid, share + extra)
     }
   })
 
-  return [...winnings.values()].filter((w) => w.amount > 0)
+  return {
+    winnings: [...winnings.values()].filter((w) => w.amount > 0),
+    potLayers,
+  }
 }

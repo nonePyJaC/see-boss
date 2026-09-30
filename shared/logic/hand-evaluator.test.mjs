@@ -97,6 +97,17 @@ test('同牌型比踢脚（同花比最大张）', () => {
   assert.equal(compareHands(a, b), 1, 'A 同花应大于 K 同花')
 })
 
+test('两对牌型相同也要比较踢脚，不能只看“两对”标签', () => {
+  const board = ['Ks', 'Kc', '3d', '3c', '2h']
+  const aceKicker = evaluate([...board, 'Ah', 'Qd'], 'long')
+  const jackKicker = evaluate([...board, 'Jh', 'Td'], 'long')
+  assert.equal(aceKicker.name, '两对')
+  assert.equal(jackKicker.name, '两对')
+  assert.deepEqual(aceKicker.kickers, [13, 3, 14])
+  assert.deepEqual(jackKicker.kickers, [13, 3, 11])
+  assert.equal(compareHands(aceKicker, jackKicker), 1)
+})
+
 test('完全平局', () => {
   const a = evaluate(['As', 'Ks', 'Qs', 'Js', '9s', 'Tc', '8c'], 'long')
   const b = evaluate(['As', 'Ks', 'Qs', 'Js', '9s', 'Th', '8h'], 'long')
@@ -107,4 +118,18 @@ test('6 张牌中选最优 5 张', () => {
   // 有对子 + 同花可能，应选同花
   const h = evaluate(['As', 'Ks', 'Qs', 'Js', '9s', 'Ac'], 'long')
   assert.equal(h.name, '同花')
+})
+
+test('A 当 1 的轮子顺：展示牌必须满 5 张（长牌 A2345）', () => {
+  const h = evaluate(['As', '2h', '3d', '4c', '5s', 'Kd', 'Qh'], 'long')
+  assert.equal(h.name, '顺子')
+  assert.equal(h.cards.length, 5, '顺子应展示 5 张，含作为 1 的 A')
+  assert.ok(h.cards.includes('As'), '展示牌里应有 A')
+})
+
+test('短牌 A 当 5：展示牌必须满 5 张（A-6-7-8-9）', () => {
+  const h = evaluate(['As', '6h', '7d', '8c', '9s', 'Kd'], 'short')
+  assert.equal(h.name, '顺子')
+  assert.equal(h.cards.length, 5, '顺子应展示 5 张，含作为 5 的 A')
+  assert.ok(h.cards.includes('As'), '展示牌里应有 A')
 })

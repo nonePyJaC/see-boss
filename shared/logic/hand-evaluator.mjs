@@ -323,10 +323,15 @@ export function evaluate(cards, gameType = 'long') {
 function takeCards(parsed, values, sameSuit) {
   const picked = []
   const used = new Set()
+  const suitOk = (p) => !sameSuit || !picked.length || p.suit === picked[0].suit
   for (const v of values) {
-    const found = parsed.find(
-      (p, idx) => !used.has(idx) && p.value === v && (!sameSuit || !picked.length || p.suit === picked[0].suit)
-    )
+    let found = parsed.find((p, idx) => !used.has(idx) && p.value === v && suitOk(p))
+    // A 低位身份：顺子窗口里的 1（长牌 A2345）或 5（短牌 A 当 5）没有
+    // 同点数实体牌，要回退到 A（点数 14）。不回退会静默少挑一张，
+    // 结算面板出现「顺子只展示 4 张牌」（踩过）。
+    if (!found && v <= 5) {
+      found = parsed.find((p, idx) => !used.has(idx) && p.value === 14 && suitOk(p))
+    }
     if (found) {
       used.add(parsed.indexOf(found))
       picked.push(found.code)

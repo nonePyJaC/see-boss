@@ -1,12 +1,14 @@
 // pm2 配置。用 ecosystem 文件而不是命令行 start，
 // 因为命令行 `PORT=8080 pm2 start ...` 的前缀赋值在部分 shell 下不会传进 pm2 子进程
 // （踩过：pm2 显示 online、进程也在跑，但 8080 从没监听，日志里连 listening 都没有）。
+const APP_DIR = process.env.HAMSTER_APP_DIR || '/opt/cangshu'
+
 module.exports = {
   apps: [
     {
       name: 'cangshu',
       script: 'server/index.js',
-      cwd: '/opt/cangshu',
+      cwd: APP_DIR,
       instances: 1,
       exec_mode: 'fork',
       env: {
@@ -14,7 +16,10 @@ module.exports = {
         // 80 端口：阿里云安全组默认放行 80，不用为朋友局专门开 8080
         PORT: '80',
         LISTEN: '1',
-        HAMSTER_STATIC_DIR: '/opt/cangshu/client/dist',
+        HAMSTER_STATIC_DIR: process.env.HAMSTER_STATIC_DIR || `${APP_DIR}/client/dist`,
+        HAMSTER_DATA_DIR: process.env.HAMSTER_DATA_DIR || `${APP_DIR}/server/data`,
+        // 真实创建码只从服务器环境注入，不写进仓库。
+        HAMSTER_ONLINE_CREATE_CODE: process.env.HAMSTER_ONLINE_CREATE_CODE || '',
         // 清理口子的口令。/api/admin/wipe 没有它就直接拒，
         // 所以不设就等于关掉清理功能（安全默认）。
         // ⚠️ 换密码时改这里 + pm2 delete/start 重启，git 里的这个值只是占位，

@@ -13,6 +13,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { hamsterDataURI, getHamster } from '@shared/assets/hamsters.mjs'
 import { useUser } from '../stores/user.js'
 import { roomRepo } from '../data/room-repo.js'
+import { saveSeatCred, loadSeatCred } from '../data/room-repo.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,7 +21,10 @@ const { user, refresh } = useUser()
 
 // 直接打开这个 URL（扫码）时 user store 可能是空的，自己拉一次
 onMounted(async () => {
-  await refresh()
+  const profile = await refresh()
+  if (mode.value === 'online' && !profile?.loggedIn) {
+    router.replace({ name: 'register', query: { redirect: route.fullPath } })
+  }
 })
 
 const roomNo = computed(() => String(route.params.roomNo ?? '').trim())
@@ -41,14 +45,24 @@ async function enter() {
     // 每次都刷一次，别用本地缓存的身份入座。
     // store 是本地缓存，同会话里换过 uid（另一个人扫了码）时
     // 缓存还是上一个身份 —— 表现为两个人进房却显示同一个昵称（踩过）。
-    await refresh()
-    const r = await roomRepo.joinRoom(roomNo.value, {
-      nickname: user.value?.nickname || user.value?.account || '匿名',
-      avatar: user.value?.avatar ?? 1,
-    })
-    if (!r.ok) {
-      joinError.value = r.error || '加入失败'
+    const profile = await refresh()
+    if (mode.value === 'online' && !profile?.loggedIn) {
+      router.replace({ name: 'register', query: { redirect: route.fullPath } })
       return
+    }
+    const r = await roomRepo.joinRoom(roomNo.value, {
+      nickname: user.value?.nickname || user.value?.account || (mode.value === 'offline' ? '匿名' : ''),
+      avatar: user.value?.avatar ?? 1,
+    }, mode.value === 'online' ? loadSeatCred(roomNo.value) : undefined)
+    if (!r.ok) {
+      // 本手进行中：线上仍可进房旁观，两手之间页面会自动补座
+      if (r.code !== 'HAND_IN_PROGRESS') {
+        joinError.value = r.error || '加入失败'
+        return
+      }
+    } else if (mode.value === 'online') {
+      // 线上座位凭证按房间号落本机，之后靠它重连/行动
+      saveSeatCred(roomNo.value, r.data)
     }
     router.push({
       path: mode.value === 'offline' ? '/room/offline' : '/room/online',

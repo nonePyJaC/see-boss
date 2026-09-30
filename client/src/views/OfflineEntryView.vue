@@ -14,6 +14,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '../stores/user.js'
 import { roomRepo } from '../data/room-repo.js'
+import JoinRoomPanel from '../components/JoinRoomPanel.vue'
 
 const router = useRouter()
 const { user, refresh } = useUser()
@@ -96,6 +97,9 @@ watch(seeds, () => {
   }
 })
 
+// ── 两个 tab：创建房间 / 加入房间 ──
+const tab = ref('create')
+
 // ── 创建房间 ──
 const creating = ref(false)
 const createError = ref('')
@@ -131,32 +135,7 @@ async function create() {
 }
 
 // ── 加入房间 ──
-const joining = ref(false)
-const joinNo = ref('')
-const joinError = ref('')
-
-async function join() {
-  const no = joinNo.value.trim()
-  if (!/^\d{6}$/.test(no)) {
-    joinError.value = '房间号是 6 位数字'
-    return
-  }
-  joining.value = true
-  joinError.value = ''
-  try {
-    const r = await roomRepo.joinRoom(no, {
-      nickname: user.value?.nickname || user.value?.account || '匿名',
-      avatar: user.value?.avatar ?? 1,
-    })
-    if (!r.ok) {
-      joinError.value = r.error || '加入失败'
-      return
-    }
-    router.push({ path: '/room/offline', query: { room: no } })
-  } finally {
-    joining.value = false
-  }
-}
+// （join-by-number 与房间列表统一收进 JoinRoomPanel 组件）
 </script>
 
 <template>
@@ -166,8 +145,14 @@ async function join() {
       <span class="title">线下计分</span>
     </div>
 
+    <!-- 两个 tab：创建 / 加入 -->
+    <div class="tabs">
+      <button :class="{ on: tab === 'create' }" @click="tab = 'create'">创建房间</button>
+      <button :class="{ on: tab === 'join' }" @click="tab = 'join'">加入房间</button>
+    </div>
+
     <!-- 创建房间 -->
-    <div class="card block">
+    <div v-if="tab === 'create'" class="card block">
       <h2>创建房间</h2>
       <p class="hint">你当房主，定小麦位，朋友扫码或输房间号进来</p>
 
@@ -213,27 +198,9 @@ async function join() {
       <p v-else-if="createError" class="error">{{ createError }}</p>
     </div>
 
-    <div class="divider">或者</div>
-
-    <!-- 加入房间 -->
-    <div class="card block">
-      <h2>加入房间</h2>
-      <p class="hint">输入房主给你的 6 位房间号</p>
-      <div class="row">
-        <input
-          v-model="joinNo"
-          class="input no"
-          type="text"
-          inputmode="numeric"
-          maxlength="6"
-          placeholder="000000"
-          @keyup.enter="join"
-        />
-        <button class="btn primary join" :disabled="joining" @click="join">
-          {{ joining ? '加入中…' : '加入' }}
-        </button>
-      </div>
-      <p v-if="joinError" class="error">{{ joinError }}</p>
+    <!-- 加入房间：房间列表 + 我的房间 + 输号加入 -->
+    <div v-else class="card block">
+      <JoinRoomPanel mode="offline" />
     </div>
   </div>
 </template>
@@ -381,6 +348,29 @@ async function join() {
   text-align: center;
   font-size: 12px;
   color: var(--c-text-light);
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tabs button {
+  flex: 1;
+  height: 42px;
+  border: 2px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-card);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--c-text-light);
+  cursor: pointer;
+}
+
+.tabs button.on {
+  border-color: var(--c-primary);
+  background: #fff6e0;
+  color: var(--c-primary-dark);
 }
 
 .row {
