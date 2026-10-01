@@ -1,7 +1,7 @@
 # 线上模式 AI v2 优化开发计划与派发词
 
 日期：2026-09-30。项目：`D:/newPoker`，不是 `D:/dezhou`，也不是独立的新网站。
-状态（2026-10-01）：6.1 online-ai-fix-001 及单列规则 repair 已在 `codex/online-ai-fix` 工作树实现；review-4 代码复核通过，已列金额 P1 场景全部关闭，定向回归 36/36、独立单一存活者金额组合 44,784/44,784 及 3 项多赢家/余数控制通过，未发现新的阻塞 finding（见 §6.1 记录）。尚未提交冻结、合入、完成人工扫码回跳验收或部署。6.2–6.4 未实施；本地收尾后，6.2 等待 dezhou 固定共享核心包交付。
+状态（2026-10-01）：6.1 online-ai-fix-001 及单列规则 repair 已通过 review-4，已列金额 P1 场景全部关闭；定向回归 36/36、独立单一存活者金额组合 44,784/44,784 及 3 项多赢家/余数控制通过。功能提交 `b66a53c4735afb7fe2c53704506bf6e3e17aa77c` 已合入并推送 `feature/room-repo`，且已部署 ECS；扫码回跳人工验收仍待完成（发布记录见 §6.1）。6.2–6.4 未实施；6.2 等待 dezhou 固定共享核心包交付。
 基线：`feature/room-repo@903618a4bb523cd0e434299313b259c3ccd01485`。
 
 本文是 V1 的增量开发计划，覆盖问题修复、共用模型和扩增模拟预算。
@@ -209,7 +209,7 @@ core是无状态纯计算；房间级对手统计和本手状态由现有runtime
 | 3 online-ai-integration-001 | 依赖2 | server/ai/runtime.mjs/policy薄适配、server/index.js调度、集成测试 | 安全DTO、动态N、思考并行、全押/多街、陈旧/重复/跨房、一次apply；真实双房试玩 |
 | 4 online-ai-release-001 | 依赖3及独立review；发布owner | 性能/QA脚本、运行配置、release记录/部署文档（不夹带模型修复） | 完整自动gate、ECS共享核矩阵、30min双房/手机、Git拉取同SHA、回滚与服务健康 |
 
-6.1 当前工作树已通过 review-4 代码复核，已列金额 P1 均关闭；正式收尾还需提交冻结、合入及人工扫码回跳验收记录。6.2–6.4 为 pending；6.2 依赖 dezhou 已 review/合入的固定核心包，独立测试冻结及功能 SHA 仍待补齐。
+6.1 功能已合入、推送并部署，独立 tests-only 冻结 SHA 与人工扫码回跳验收仍待补记录；6.2–6.4 为 pending，6.2 依赖 dezhou 已 review/合入的固定核心包。
 2–4只有前置review合入才能ready；缺少Python运行时或固定核心包不能假装已满足。
 测试路径拆分可在freeze前细化，但必须先更新本文件path/命令，不默默扩功能。
 
@@ -320,6 +320,13 @@ B从accepted tests-only SHA修R1/R2/R5；不要重写已上线历史/结算，R6
 - 审查 HEAD 仍为 `903618a4bb523cd0e434299313b259c3ccd01485`，分支 `codex/online-ai-fix`；新增回归/控制/UI helper 与单测仍为未跟踪文件。下一动作：将已验收改动及新增文件按任务提交冻结、记录实际功能/评审/合入 SHA，补人工扫码回跳验收，排除既有 dirty `线上模式.md`。本轮只更新审查记录，未修改功能、提交、合入或部署。
 
 6.2 独立准入复核（review-4）：dezhou 当前 HEAD=`7bc27de1ac8a5b8d532f9bf6cb5c4b372809f1af`；`docs/plan/tasks/ai-core-001.md`、`ai-integration-001.md` 均仍为 `status: pending`，`D:/dezhou/packages/poker_ai/` 不存在，newPoker 的 `vendor/poker_ai.manifest.json` 不存在。当前未取得可消费的已 review/合入核心发布 SHA、包/hash/config/fixture；须由 dezhou owner 交付，不能在 6.2 自造共享模型。6.1 本地收尾可现在完成；冻结合入且共享核心交付后进入 6.2，线上模型切换仍须满足 dezhou 集成验收前置。
+
+#### 6.1 合入与 ECS 发布（2026-10-01）
+
+- 功能提交 `b66a53c4735afb7fe2c53704506bf6e3e17aa77c` 已 fast-forward 合入并推送 `origin/feature/room-repo`；独立的 tests-only 冻结 SHA 未生成。发布代码取自此完整 Git SHA。
+- ECS `i-uf6aw6q8inn2ymy0hw6d` 已从 Git 检出新 release `/opt/cangshu-releases/cangshu-20261001-git-b66a53c`，Node `v22.23.2`；客户端依赖安装和生产构建通过。PM2 `cangshu` 已切到该目录并保存启动配置。旧 release `/opt/cangshu-releases/cangshu-20260930-git-903618a` 保留作回滚；正式数据仍用 `/var/lib/cangshu`，原有创建码配置保留。
+- 发布前 HTTP `/health` 为 200 且 `rooms=0`。切换后 ECS 本机和公网验证 `/health`、首页、构建出的 JS/CSS 均通过；万象棋 Wiki `:8080` 仍为 200。公网访问为 `http://8.133.3.206/`（80 端口、HTTP，无 TLS）。未更改安全组，也未重启通用 Nginx。
+- 扫码回跳人工验收仍 pending；本次依用户明确的 6.1 部署授权先发布，后续补验并记录。失败回滚路径为恢复 PM2 到上述旧 release，沿用 `/var/lib/cangshu`。
 
 ### 6.2 online-ai-worker-001：固定共享包与进程边界
 
