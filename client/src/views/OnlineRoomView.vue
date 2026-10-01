@@ -33,6 +33,7 @@ import {
 } from '../data/room-repo.js'
 import { ACTION_LABEL } from '@shared/logic/betting.mjs'
 import { evaluate } from '@shared/logic/hand-evaluator.mjs'
+import { potLayerView } from '../lib/pot-layer-view.js'
 
 defineOptions({ name: 'OnlineRoomView' })
 
@@ -163,6 +164,14 @@ const lastActionByUid = computed(() => {
   for (const a of d.value?.actionLog ?? []) map[a.uid] = a
   return map
 })
+
+// 结算奖池层视图：分类标签与实际到账分离，金额只来自权威 awards（pot-layer-view.js）
+const resultLayerViews = computed(() =>
+  (d.value?.result?.potLayers ?? []).map((layer, index) => ({ layer, view: potLayerView(layer, index) })),
+)
+function historyLayerViews(record) {
+  return (record?.result?.potLayers ?? []).map((layer, index) => ({ layer, view: potLayerView(layer, index) }))
+}
 
 /** 我的牌型预览（公共牌 ≥3 张才算得出来） */
 const myHandName = computed(() => {
@@ -844,20 +853,21 @@ onUnmounted(() => {
             <img v-for="card in d.communityCards" :key="card" :src="cardURI(card)" alt="" />
           </div>
           <div class="res-pots" v-if="d.result.potLayers?.length">
-            <div class="res-pots-title">奖池分层与派彩</div>
-            <div class="res-pot-layer" v-for="(layer, index) in d.result.potLayers" :key="index">
+            <div class="res-pots-title">奖池分层、派彩与未匹配退回</div>
+            <div class="res-pot-layer" v-for="({ layer, view }, index) in resultLayerViews" :key="index">
               <div class="res-pot-layer-head">
-                <strong>{{ index === 0 ? '主池' : `边池 ${index}` }}</strong>
+                <strong>{{ view.title }}</strong>
                 <seed-chips :value="layer.amount" :size="14" />
               </div>
-              <div class="res-pot-layer-detail">出资：{{ resultNames(layer.contributorUids) }}</div>
-              <div class="res-pot-layer-detail">可争夺：{{ resultNames(layer.eligibleUids) }}</div>
+              <div class="res-pot-layer-detail">出资：{{ resultNames(view.contributorUids) }}</div>
+              <div v-if="view.uncalledReturn" class="res-pot-layer-detail">退回对象：{{ resultNames(view.recipientUids) }}</div>
+              <div v-else class="res-pot-layer-detail">可争夺：{{ resultNames(view.eligibleUids) }}</div>
               <div class="res-layer-awards">
-                <span class="res-layer-label">本层派彩：</span>
-                <span class="res-layer-award" v-for="award in layer.awards" :key="award.uid">
+                <span class="res-layer-label">{{ view.awardLabel }}：</span>
+                <span class="res-layer-award" v-for="award in view.awards" :key="award.uid">
                   {{ resultNames([award.uid]) }} +{{ award.amount }}
                 </span>
-                <span v-if="!layer.awards?.length" class="res-layer-empty">暂无派彩</span>
+                <span v-if="!view.hasAwards" class="res-layer-empty">{{ view.emptyAwardsLabel }}</span>
               </div>
             </div>
           </div>
@@ -959,10 +969,12 @@ onUnmounted(() => {
             <span v-if="player.hole?.length === 2">底牌 {{ player.hole.join('、') }}</span>
           </div>
         </div>
-        <div class="history-pot" v-for="(layer, index) in hand.result.potLayers" :key="index">
-          <b>{{ index === 0 ? '主池' : `边池 ${index}` }} {{ layer.amount }}</b>
-          <span>出资 {{ historyNames(hand, layer.contributorUids) }}；可争夺 {{ historyNames(hand, layer.eligibleUids) }}</span>
-          <span>派彩 {{ layer.awards.map(award => `${historyNames(hand, [award.uid])} +${award.amount}`).join('、') || '无' }}</span>
+        <div class="history-pot" v-for="({ layer, view }, index) in historyLayerViews(hand)" :key="index">
+          <b>{{ view.title }} {{ layer.amount }}</b>
+          <span v-if="view.uncalledReturn">出资 {{ historyNames(hand, view.contributorUids) }}；退回 {{ historyNames(hand, view.recipientUids) }}</span>
+          <span v-else>出资 {{ historyNames(hand, view.contributorUids) }}；可争夺 {{ historyNames(hand, view.eligibleUids) }}</span>
+          <span v-if="view.hasAwards">{{ view.awardLabel }} {{ view.awards.map(award => `${historyNames(hand, [award.uid])} +${award.amount}`).join('、') }}</span>
+          <span v-else>{{ view.awardLabel }} {{ view.emptyAwardsLabel }}</span>
         </div>
         <ol class="history-actions">
           <li v-for="action in hand.actionLog" :key="`${action.at}-${action.uid}`">

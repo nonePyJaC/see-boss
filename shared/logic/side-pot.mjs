@@ -109,13 +109,39 @@ export function distributePotDetailed(contributors, evaluateFor, compare) {
     winnings.set(uid, { uid, amount: current.amount + amount, layerIndex: current.layerIndex })
   }
 
+  // 最近一个真正有资格层的赢家：多人已匹配死钱层归底池胜者（见下方无资格分支）
+  let lastEligibleWinners = []
+
   layers.forEach((layer, layerIndex) => {
-    if (layer.eligibleUids.length === 0) return
+    if (layer.eligibleUids.length === 0) {
+      // 唯一出资人 = 未匹配下注：原路退回给出资人（§3.2：退款仅此一种）。
+      // 弃牌/离场不消灭未匹配筹码——退回该出的钱不是「赢」。
+      if (layer.contributorUids.length === 1) {
+        award(layerIndex, layer.contributorUids[0], layer.amount)
+        return
+      }
+      // 多名出资人已相互匹配、但全部弃牌/离场：这是死钱不是退款，
+      // 不退回弃牌者，归底池胜者。优先归最近一个有资格层的赢家；
+      // 还没有任何有资格层时（唯一存活者零投入、不在任何出资层里，
+      // 如庄家未行动即成唯一存活者），直接归未弃牌的存活者（review R3-R1）。
+      const winners = lastEligibleWinners.length
+        ? lastEligibleWinners
+        : contributors.filter((c) => !c.folded).map((c) => c.uid).sort()
+      const share = Math.floor(layer.amount / winners.length)
+      let remainder = layer.amount - share * winners.length
+      for (const uid of winners) {
+        const extra = remainder > 0 ? 1 : 0
+        remainder -= extra
+        award(layerIndex, uid, share + extra)
+      }
+      return
+    }
 
     // 该层只有一个人有资格（其他人都弃牌了）→ 直接通吃，无需比牌
     if (layer.eligibleUids.length === 1) {
       const uid = layer.eligibleUids[0]
       award(layerIndex, uid, layer.amount)
+      lastEligibleWinners = [uid]
       return
     }
 
@@ -137,6 +163,7 @@ export function distributePotDetailed(contributors, evaluateFor, compare) {
       remainder -= extra
       award(layerIndex, uid, share + extra)
     }
+    lastEligibleWinners = winnersSorted.map((w) => w.uid)
   })
 
   return {

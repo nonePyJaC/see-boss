@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildSidePots, verifyPots, distributePot } from './side-pot.mjs'
+import { buildSidePots, verifyPots, distributePot, distributePotDetailed } from './side-pot.mjs'
 import { evaluate } from './hand-evaluator.mjs'
 import { compareHands } from './hand-evaluator.mjs'
 
@@ -156,4 +156,55 @@ test('分配：不能整除时余数只加 1，总数守恒', () => {
   assert.equal(total, 303, '分配总额必须等于总投入')
   // 每人至少 101
   for (const w of winnings) assert.ok(w.amount >= 101)
+})
+
+test('分配：出资人弃牌/离场的无资格层按出资原路退回，不蒸发', () => {
+  // review C-R1：b 加注到 300 后弃牌，其未匹配的 280 必须按权威分配退回
+  const c = [
+    { uid: 'a', totalBet: 20, folded: false },
+    { uid: 'b', totalBet: 300, folded: true },
+  ]
+  const { winnings, potLayers } = distributePotDetailed(c, () => null, compareHands)
+  const map = Object.fromEntries(winnings.map((w) => [w.uid, w.amount]))
+  assert.equal(map.a, 40, '主池 20×2 归唯一具备资格者')
+  assert.equal(map.b, 280, 'b 未匹配的 280 退回，不进池也不消失')
+  assert.equal(map.a + map.b, 320, '分配总额必须等于总投入')
+  assert.equal(potLayers[1].eligibleUids.length, 0)
+  assert.deepEqual(potLayers[1].awards, [{ uid: 'b', amount: 280 }])
+})
+
+test('分配：多名出资人相互匹配后全部弃牌的层是死钱，归底池胜者而非退回弃牌者', () => {
+  // review R2-R1：已匹配筹码不是退款，不能返给弃牌者；归最近有资格层的赢家
+  const c = [
+    { uid: 'a', totalBet: 50, folded: false },
+    { uid: 'b', totalBet: 100, folded: true },
+    { uid: 'c', totalBet: 100, folded: true },
+  ]
+  const { winnings, potLayers } = distributePotDetailed(c, () => null, compareHands)
+  const map = Object.fromEntries(winnings.map((w) => [w.uid, w.amount]))
+  assert.equal(map.a, 250, '主池 150 + 死钱 100 全部归唯一存活的 a')
+  assert.equal(map.b, undefined, 'b 已匹配的 100 不得退回')
+  assert.equal(map.c, undefined, 'c 已匹配的 100 不得退回')
+  assert.equal(potLayers[1].eligibleUids.length, 0)
+  assert.deepEqual(potLayers[1].contributorUids.sort(), ['b', 'c'])
+  assert.deepEqual(potLayers[1].awards, [{ uid: 'a', amount: 100 }])
+})
+
+test('分配：零投入唯一存活者接手首层死钱（无上一合格赢家时归存活者）', () => {
+  // review R3-R1：唯一存活者 totalBet=0、不在任何出资层里，死钱仍须归底池胜者
+  const c = [
+    { uid: 'a', totalBet: 0, folded: false },
+    { uid: 'b', totalBet: 10, folded: true },
+    { uid: 'c', totalBet: 20, folded: true },
+    { uid: 'd', totalBet: 0, folded: true },
+  ]
+  const { winnings, potLayers } = distributePotDetailed(c, () => null, compareHands)
+  const map = Object.fromEntries(winnings.map((w) => [w.uid, w.amount]))
+  assert.equal(map.a, 20, '已匹配主池 20 归唯一存活者 a')
+  assert.equal(map.c, 10, 'c 未匹配的 10 原路退回')
+  assert.equal(map.b, undefined)
+  assert.equal(map.d, undefined)
+  assert.equal(winnings.reduce((sum, w) => sum + w.amount, 0), 30, '总到账必须等于总投入')
+  assert.deepEqual(potLayers[0].awards, [{ uid: 'a', amount: 20 }])
+  assert.deepEqual(potLayers[1].awards, [{ uid: 'c', amount: 10 }])
 })

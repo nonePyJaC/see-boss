@@ -81,6 +81,25 @@ export function sklanskyGroup(c1, c2) {
 const has = (legals, t) => legals.some((a) => a.type === t)
 const pick = (legals, t) => legals.find((a) => a.type === t)
 
+function callPricing(obs) {
+  const currentBet = Number.isFinite(obs?.currentBet) ? obs.currentBet : 0
+  const myBet = Number.isFinite(obs?.myBet) ? obs.myBet : 0
+  const owed = Math.max(0, currentBet - myBet)
+  const stack = Number.isFinite(obs?.mySeeds) ? Math.max(0, obs.mySeeds) : 0
+  const call = pick(obs?.legalActions ?? [], 'call')
+  const requested = call && Number.isFinite(call.amount) ? call.amount : owed
+  const amount = Math.min(owed, Math.max(0, requested), stack)
+  let contestablePot = Number.isFinite(obs?.pot) ? Math.max(0, obs.pot) : 0
+  const players = obs?.publicPlayers ?? []
+  const me = players.find((p) => p?.seatId === obs?.mySeatId)
+  if (me && Number.isFinite(me.totalBet) && players.every((p) => Number.isFinite(p?.totalBet))) {
+    const maxTotal = Math.max(0, me.totalBet) + stack
+    const committed = players.reduce((sum, p) => sum + Math.min(maxTotal, Math.max(0, p.totalBet)), 0)
+    contestablePot = Math.min(contestablePot, committed)
+  }
+  return { amount, potOdds: amount > 0 ? amount / (contestablePot + amount) : 0 }
+}
+
 /** 合法加注区间：短人单挑时按有效筹码封顶，避免无意义的单人边池。 */
 function raiseBounds(obs) {
   const r = pick(obs.legalActions ?? [], 'raise')
@@ -121,6 +140,9 @@ export function decideAction(obs, persona, ctx = {}, rng = Math.random, opts = {
   try {
     return decide(obs, persona, ctx, rng, opts)
   } catch {
+    // 安全降级保留（review C-R3）：但必须让唯一调度 owner 观测到，否则
+    // 全程兜底的「性能成绩」无法与真实策略区分
+    opts.onDegraded?.('exception')
     return fallbackAction(obs?.legalActions)
   }
 }
@@ -143,7 +165,8 @@ function decide(obs, persona, ctx, rng, opts) {
 
   const myCards = obs.myCards ?? []
   const board = obs.board ?? []
-  const toCall = Math.max(0, (obs.currentBet ?? 0) - (obs.myBet ?? 0))
+  const callPrice = callPricing(obs)
+  const toCall = callPrice.amount
   const pot = obs.pot ?? 0
   const bounds = raiseBounds(obs)
 
@@ -152,7 +175,7 @@ function decide(obs, persona, ctx, rng, opts) {
     .filter((p) => p && p.seatId !== obs.mySeatId && !p.folded).length
 
   // 单挑长牌桌翻牌前：Sklansky 分组路径（advanced_ai.py 思想）
-  if (board.length === 0 && obs.gameType !== 'short' && aliveOpps === 1 && myCards.length === 2) {
+  if (board.length === 0 && obs.gameType !== 'short' && aliveOpps === 1 && myCards.length === 2 && toCall <= 0) {
     return preflopHeadsUp(obs, eff, ctx, rng, legals, toCall, pot, bounds)
   }
 
@@ -177,6 +200,7 @@ function decide(obs, persona, ctx, rng, opts) {
     if (opp.aggression > 1.5) adjusted -= 0.05 * adapt      // 对手激进：弱牌更谨慎
   }
   adjusted = Math.max(0, Math.min(1, adjusted))
+  const potOdds = callPrice.potOdds
 
   // 慢打：只允许 flop/turn（board 3|4 张）；河牌永不因慢打让渡价值
   const hs = ctx.handState
@@ -188,7 +212,7 @@ function decide(obs, persona, ctx, rng, opts) {
     }
     if (hs.slowPlaying && adjusted >= 0.7) {
       if (toCall <= 0 && has(legals, 'check')) return { type: 'check' }
-      if (toCall > 0 && has(legals, 'call')) return { type: 'call' }
+      if (toCall > 0 && strength > potOdds && has(legals, 'call')) return { type: 'call' }
       hs.slowPlaying = false
     }
   }
@@ -204,8 +228,6 @@ function decide(obs, persona, ctx, rng, opts) {
     if (opp.aggression > 1.5) { raiseLine += 0.03 * adapt; foldLine -= 0.03 * adapt }
     if (opp.vpip > 0.4) foldLine += 0.03 * adapt
   }
-
-  const potOdds = toCall > 0 ? toCall / (pot + toCall) : 0
 
   // 诈唬：弱牌 + 随机命中 + 必须可合法加注且筹码够（不能越过筹码边界）
   // 诈唬强度 = bluffThreshold + 0.1（mcts_ai 原值），确保能跨过加注线而不是只敢跟注
@@ -227,11 +249,11 @@ function decide(obs, persona, ctx, rng, opts) {
     if (toCall <= 0) {
       if (has(legals, 'check')) return { type: 'check' }
     } else {
-      if (effStrength > potOdds || eff.callTendency > 0.6) {
+      if (strength > potOdds && (effStrength > potOdds || eff.callTendency > 0.6)) {
         if (has(legals, 'call')) return { type: 'call' }
       }
       if (has(legals, 'fold')) return { type: 'fold' }
-      if (has(legals, 'call')) return { type: 'call' }
+      if (strength > potOdds && has(legals, 'call')) return { type: 'call' }
     }
   }
 
@@ -248,11 +270,13 @@ function decide(obs, persona, ctx, rng, opts) {
         const raw = raiseTarget(obs, effStrength, eff.passiveAggressive, toCall)
         return { type: 'raise', amount: clampAmount(raw, bounds, obs.bigBlind) }
       }
-      if (has(legals, 'call')) return { type: 'call' }
-      if (has(legals, 'allin')) return { type: 'allin' }
+      if (strength > potOdds && has(legals, 'call')) return { type: 'call' }
+      if (strength > potOdds && has(legals, 'allin')) return { type: 'allin' }
+      if (has(legals, 'fold')) return { type: 'fold' }
     }
   }
 
+  if (toCall > 0 && strength <= potOdds && has(legals, 'fold')) return { type: 'fold' }
   return fallbackAction(legals)
 }
 

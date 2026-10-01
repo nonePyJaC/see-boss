@@ -162,24 +162,31 @@ function newModel() {
  * handId 用来给「翻前自愿入池」按手去重（同一手多次加注只算一次 vpip）。
  * @param {'check'|'call'|'raise'|'allin'|'fold'|...} type
  */
-export function recordAction(rt, observerSeatId, targetSeatId, { type, phase, facedBet = false, handId = null }) {
+export function recordAction(rt, observerSeatId, targetSeatId, {
+  type, phase, facedBet = false, handId = null, paidAmount, raiseTo, currentBetBefore,
+}) {
   if (observerSeatId === targetSeatId) return
   let byTarget = rt.models.get(observerSeatId)
   if (!byTarget) { byTarget = new Map(); rt.models.set(observerSeatId, byTarget) }
   let m = byTarget.get(targetSeatId)
   if (!m) { m = newModel(); byTarget.set(targetSeatId, m) }
 
-  if (type === 'raise' || type === 'allin') m.raises += 1
-  else if (type === 'call') m.calls += 1
+  const kind = type === 'allin'
+    ? Number.isFinite(raiseTo) && Number.isFinite(currentBetBefore)
+      ? raiseTo > currentBetBefore ? 'raise' : 'call'
+      : null
+    : type === 'raise' || type === 'bet' ? 'raise' : type
+  const contributed = paidAmount == null || (Number.isFinite(paidAmount) && paidAmount > 0)
+  if (contributed && kind === 'raise') m.raises += 1
+  else if (contributed && kind === 'call') m.calls += 1
   else if (type === 'fold') m.folds += 1
   if (facedBet) {
     m.facedBet += 1
     if (type === 'fold') m.foldToBet += 1
   }
   // vpip 口径：翻前第一手自愿入池动作（call/raise/allin）记一次，按手去重
-  if (phase === 'preflop' && handId != null
-      && type !== 'fold' && type !== 'check'
-      && m.vpipHandId !== handId) {
+  if (phase === 'preflop' && handId != null && contributed
+      && (kind === 'call' || kind === 'raise') && m.vpipHandId !== handId) {
     m.vpipHandId = handId
     m.vpipEnter += 1
   }
@@ -244,8 +251,8 @@ export function buildObservation({
     mySeeds: mySeeds ?? 0,
     bigBlind: bigBlind ?? 1,
     publicPlayers: (publicPlayers ?? []).map((p) => ({
-      seatId: p.seatId, bet: p.bet ?? 0, seeds: p.seeds ?? 0,
-      folded: !!p.folded, allIn: !!p.allIn, isAI: !!p.isAI,
+      seatId: p.seatId, bet: p.bet ?? 0, totalBet: Number.isFinite(p.totalBet) ? p.totalBet : null,
+      seeds: p.seeds ?? 0, folded: !!p.folded, allIn: !!p.allIn, isAI: !!p.isAI,
     })),
     publicActions: (publicActions ?? []).map((a) => ({
       seatId: a.seatId ?? a.uid, type: a.type, amount: a.amount ?? null, phase: a.phase,

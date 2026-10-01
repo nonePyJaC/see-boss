@@ -156,7 +156,7 @@ function newRoom({ id, hostUid, host, cfg }) {
     deadlineRefreshUsed: false,
     aiRuntime: createRuntime(),  // AI 人设/对手模型/情绪/慢打标记（runtime.mjs）
     aiTimer: null,               // 每房最多一个 AI 行动计时器
-    aiStats: { decisions: 0, totalMs: 0, maxMs: 0, samples: [] },   // 决策耗时采样（§12 门禁数据）
+    aiStats: { decisions: 0, totalMs: 0, maxMs: 0, samples: [], degraded: 0 },   // 决策耗时/降级采样（§12 门禁数据）
     recentHands: [],             // 最近 3 手公开记录，仅保存在房间内存
     dealerUid: null,
     roundNo: 1,
@@ -861,7 +861,8 @@ function applyRoomAction({ room, actorSeatId, action, source }) {
   // 学习快照：动作前的阶段和需跟额（给 AI 对手模型记 facedBet）
   const seatBefore = st.seats?.find((s) => s.uid === actorSeatId)
   const phaseBefore = st.phase
-  const facedBetBefore = Math.max(0, (st.currentBet ?? 0) - (seatBefore?.bet ?? 0)) > 0
+  const currentBetBefore = st.currentBet ?? 0
+  const facedBetBefore = Math.max(0, currentBetBefore - (seatBefore?.bet ?? 0)) > 0
 
   let r
   if (st.turnUid === actorSeatId) {
@@ -880,7 +881,16 @@ function applyRoomAction({ room, actorSeatId, action, source }) {
   room.turnSeq += 1
   syncSeats(room)
   // 公开行动喂给所有 AI 观察者的对手模型（§8.7 只记公开可见数据）
-  recordAiObservation(room, actorSeatId, action.type, phaseBefore, facedBetBefore)
+  const actionEvent = room.state.actionLog?.at(-1)
+  recordAiObservation(room, actorSeatId, {
+    type: actionEvent?.type ?? action.type,
+    phase: actionEvent?.phase ?? phaseBefore,
+    facedBet: facedBetBefore,
+    handId: room.handId,
+    paidAmount: actionEvent?.amount,
+    raiseTo: actionEvent?.betTotal,
+    currentBetBefore,
+  })
   resolveOnlineIfDone(room)
   if (room.state.finished) {
     // 本手结束：私人手牌只活在当前手里，摊牌结果已写进 state.result
@@ -929,10 +939,15 @@ function resolveOnlineIfDone(room) {
     isWinner: h.isWinner,
     won: h.won,
   }))
+  const safePotLayers = (res.potLayers ?? []).map((layer) => ({
+    ...layer,
+    // 未匹配退回仅指本层唯一出资人（§3.2）；多人出资但全部弃牌的层是死钱，不是退款
+    isUncalledReturn: (layer.contributorUids ?? []).length === 1,
+  }))
   room.state.result = {
     pot: res.pot,
     winnings: res.winnings ?? [],
-    potLayers: res.potLayers ?? [],
+    potLayers: safePotLayers,
     hands: safeHands,
   }
   room.recentHands.unshift({
@@ -1118,7 +1133,7 @@ function onAiTurn(captured) {
     mySeeds: engineSeat?.seeds ?? 0,
     bigBlind: room.bigBlind,
     publicPlayers: st.seats.map((s) => ({
-      seatId: s.uid, bet: s.bet, seeds: s.seeds, folded: s.folded, allIn: s.allIn,
+      seatId: s.uid, bet: s.bet, totalBet: s.totalBet, seeds: s.seeds, folded: s.folded, allIn: s.allIn,
       isAI: room.seats.find((x) => x.uid === s.uid)?.kind === 'ai',
     })),
     publicActions: (st.actionLog ?? []).slice(-20),
@@ -1136,13 +1151,16 @@ function onAiTurn(captured) {
 
   const t0 = Date.now()
   let act = null
+  let degraded = false
   try {
-    act = decideAction(obs, persona, ctx, Math.random)
+    act = decideAction(obs, persona, ctx, Math.random, { onDegraded: () => { degraded = true } })
   } catch (e) {
     // 错误信息不得含私牌（e 是异常对象本身，不含 obs）——只记座位和阶段
+    degraded = true
     console.error(`[ai] 决策异常 room=${room.id} seat=${seat.uid} phase=${st.phase}:`, e?.message ?? e)
   }
   if (!act || !['fold', 'check', 'call', 'raise', 'allin'].includes(act.type)) {
+    degraded = true
     act = fallbackAction(obs.legalActions)
   }
   const ms = Date.now() - t0
@@ -1160,6 +1178,7 @@ function onAiTurn(captured) {
   if (!r.ok) {
     // 决策产物非法 → 用降级链再试一次；仍失败说明规则边界问题，
     // 记日志后 fold 兜底（fold 在非回合也合法清理路径，但这里是回合内）
+    degraded = true
     console.error(`[ai] 非法动作降级 room=${room.id} seat=${seat.uid}: ${r.error}`)
     applyRoomAction({
       room,
@@ -1168,17 +1187,16 @@ function onAiTurn(captured) {
       source: 'ai',
     })
   }
+  if (degraded) room.aiStats.degraded += 1
 }
 
 /** 记录一条公开行动到每个 AI 观察者的对手模型（含 vpip 去重） */
-function recordAiObservation(room, actorSeatId, type, phase, facedBet) {
+function recordAiObservation(room, actorSeatId, action) {
   const rt = room.aiRuntime
-  if (!rt) return
+  if (!rt || !action) return
   for (const s of room.seats) {
     if (s.kind !== 'ai' || s.uid === actorSeatId) continue
-    recordAction(rt, s.uid, actorSeatId, {
-      type, phase, facedBet, handId: room.handId,
-    })
+    recordAction(rt, s.uid, actorSeatId, action)
   }
 }
 
