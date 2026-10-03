@@ -1,7 +1,7 @@
 # 线上模式 AI v2 优化开发计划与派发词
 
 日期：2026-09-30。项目：`D:/newPoker`，不是 `D:/dezhou`，也不是独立的新网站。
-状态（2026-10-01）：6.1 online-ai-fix-001 及单列规则 repair 已通过 review-4，已列金额 P1 场景全部关闭；定向回归 36/36、独立单一存活者金额组合 44,784/44,784 及 3 项多赢家/余数控制通过。功能提交 `b66a53c4735afb7fe2c53704506bf6e3e17aa77c` 已合入并推送 `feature/room-repo`，且已部署 ECS；扫码回跳人工验收仍待完成（发布记录见 §6.1）。6.2–6.4 未实施；6.2 等待 dezhou 固定共享核心包交付。
+状态（2026-10-01）：6.1 online-ai-fix-001 及单列规则 repair 已通过 review-4，已列金额 P1 场景全部关闭；定向回归 36/36、独立单一存活者金额组合 44,784/44,784 及 3 项多赢家/余数控制通过。功能提交 `b66a53c4735afb7fe2c53704506bf6e3e17aa77c` 已合入并推送 `feature/room-repo`，且已部署 ECS；扫码回跳人工验收仍待完成（发布记录见 §6.1）。6.2–6.4 未实施；6.2 等待 dezhou 固定worker开发用核心包交付（开发/上线分开验收，见§2.3）。
 基线：`feature/room-repo@903618a4bb523cd0e434299313b259c3ccd01485`。
 
 本文是 V1 的增量开发计划，覆盖问题修复、共用模型和扩增模拟预算。
@@ -82,6 +82,24 @@ manifest至少含源仓库、完整核心SHA、model/schema/config版本、逐�
 
 可以先做线上问题修复，但不跳过核心发布依赖，不能让一个agent同时横跨两个项目随意改策略。
 共享schema/配置有变更先改dezhou契约和依赖task，再同步线上计划；不同版本的任务不可拼接部署。
+
+### 2.3 开发接入与最终上线分开验收（2026-10-03 用户批准）
+
+用户明确优先尽快满足newPoker开工条件，在解释限定新入口流程与开发包/上线包边界后回复：
+「可以，然后给我派发词吧」。事实来源为dezhou共享契约§7.2及
+[批准记录](D:/dezhou/docs/plan/handovers/ai-core-new-entry-gate-decision.md)。
+
+- §6.2可使用dezhou真实可调用、独立review并合入的固定worker开发包；不等待全部range/policy/
+  observation/integration完成。包必须包含安全DTO、真实native decide/CLI、CONTRACT/配置/fixture、
+  Git可复现导出、完整来源SHA/hash及可信验收证据，标明releasePurpose=worker-development与待实现能力。
+- fix前置和本地Python 3.11–3.14运行时仍须核验；缺包/缺版本/只交输入DTO不能标ready。
+  worker只做固定vendor、协议与进程客户端，不改房间apply、不切默认模型、不部署。
+- §6.3和§6.4继续等待完整策略、公开输入及dezhou实际接入验收后的固定正式核心包；完整动态预算、
+  模型行为、真实对局、ECS性能/双房/人工及Git-first上线门禁均保留。开发包不能投入生产。
+- 当前开发包SHA=none，§6.2仍pending。dezhou先按input → native决策 → CLI/frame → export/固定包
+  逐域推进；本轮仅安排输入A，尚未启动newPoker worker。
+- dezhou限定的contract/capability freeze只适用于其ai-core-001全新入口，不自动扩展到线上
+  并发/进程/房间任务。newPoker仍按本计划独立A/B/C与真实业务验收执行。
 
 ## 3. 线上输入、筹码和显示规范
 
@@ -205,11 +223,11 @@ core是无状态纯计算；房间级对手统计和本手状态由现有runtime
 | 顺序/ID | 范围与前置 | 允许功能路径 | 自动/人工验收 |
 |---|---|---|---|
 | 1 online-ai-fix-001 | R1/R2/R5及R6真实回归；可先独立做 | server/ai/policy.mjs/runtime.mjs、server/index.js公开学习/投影、对应单测/脚本 | 实际短码成本、全押分类、精准分池、真实注册性能脚本；结算/扫码人工回归 |
-| 2 online-ai-worker-001 | 依赖1 + dezhou固定核心发布SHA | vendor/poker_ai及manifest、同步脚本、server/ai/worker-client.mjs、进程协议测试 | 固定来源hash、独立启动、限界队列/超时/帧/崩溃、同核一致性；不改房间apply |
-| 3 online-ai-integration-001 | 依赖2 | server/ai/runtime.mjs/policy薄适配、server/index.js调度、集成测试 | 安全DTO、动态N、思考并行、全押/多街、陈旧/重复/跨房、一次apply；真实双房试玩 |
+| 2 online-ai-worker-001 | 依赖1 + §2.3固定worker开发包SHA + 本地兼容Python | vendor/poker_ai及manifest、同步脚本、server/ai/worker-client.mjs、进程协议测试 | 固定来源hash、独立启动、限界队列/超时/帧/崩溃、同核一致性；不改房间apply |
+| 3 online-ai-integration-001 | 依赖2 + dezhou完整正式核心包 | server/ai/runtime.mjs/policy薄适配、server/index.js调度、集成测试 | 安全DTO、动态N、思考并行、全押/多街、陈旧/重复/跨房、一次apply；真实双房试玩 |
 | 4 online-ai-release-001 | 依赖3及独立review；发布owner | 性能/QA脚本、运行配置、release记录/部署文档（不夹带模型修复） | 完整自动gate、ECS共享核矩阵、30min双房/手机、Git拉取同SHA、回滚与服务健康 |
 
-6.1 功能已合入、推送并部署，独立 tests-only 冻结 SHA 与人工扫码回跳验收仍待补记录；6.2–6.4 为 pending，6.2 依赖 dezhou 已 review/合入的固定核心包。
+6.1 功能已合入、推送并部署，独立 tests-only 冻结 SHA 与人工扫码回跳验收仍待补记录；6.2–6.4 为 pending，6.2 依赖§2.3已review/合入的固定worker开发包；6.3/6.4仍依赖完整正式核心包。
 2–4只有前置review合入才能ready；缺少Python运行时或固定核心包不能假装已满足。
 测试路径拆分可在freeze前细化，但必须先更新本文件path/命令，不默默扩功能。
 
@@ -330,7 +348,7 @@ B从accepted tests-only SHA修R1/R2/R5；不要重写已上线历史/结算，R6
 
 ### 6.2 online-ai-worker-001：固定共享包与进程边界
 
-风险：high（跨进程/超时/可见性）；不在这一任务改server/index.js或应用房间动作。
+风险：high（跨进程/超时/可见性）；准入包按§2.3，可用固定worker开发包；不在这一任务改server/index.js或应用房间动作。
 路径：vendor/poker_ai/、manifest、`scripts/sync-poker-ai.mjs`、`server/ai/worker-client.mjs`、
 `server/ai/worker-client.test.mjs`；同核fixture/导出校验脚本；只读shared规则/房间数据。
 同步脚本读取明确的已发布包及完整源SHA，校验→候选目录→验收后更新Git文件；不静默覆盖本地vendor改动。
@@ -351,7 +369,7 @@ freeze规模：分transport/frame域与process/lifecycle域，复用一个runner
 
 ```text
 在 D:/newPoker 实施线上模式AI优化开发计划.md §6.2 online-ai-worker-001。
-先确认fix已review合入、dezhou已发布完整核心SHA和manifest；缺失不重写JS模型。
+先确认fix已review合入、本地兼容Python已实测、dezhou已交付§2.3固定worker开发包完整SHA/manifest/验收证据；缺失不重写JS模型。
 独立A冻结W-I1到W-I5的协议/进程业务oracle和合法控制；B从accepted freeze实现。
 只做固定vendor包、同步验证、一个常驻Python客户端及限界任务/异常清理；不改房间apply或UI。
 Python路径显式可配置并记录真实版本；标准库运行，不覆盖系统Python、不新增HTTP端口。
@@ -386,7 +404,7 @@ stateful机制只有一个在途调度owner，handState只有通过有效结果�
 
 ```text
 在 D:/newPoker 实施线上模式AI优化开发计划.md §6.3 online-ai-integration-001。
-先确认worker和固定核心发布已经独立review；A冻结安全DTO/动态人数/并行等待/晚结果/一次apply。
+先确认worker及完整正式核心包已独立review（仅worker开发包不够）；A冻结安全DTO/动态人数/并行等待/晚结果/一次apply。
 B只做薄适配和唯一调度owner。Node到AI回合立即提交，计算与0.8–10s等待重叠，合法后apply一次。
 按共享配置动态N（含all-in、不含folded/未入手），真实记录requested/used/method/stop。
 应用前复核room/hand/turn/seat/generation；重置/换人/销毁/降级后的晚结果零副作用。
