@@ -354,9 +354,9 @@ function onState(r) {
     cred.value = null
   }
   // 旁观者：两手之间尝试入座（进行中 join 会被拒，下一轮 poll 再试）
-  if (!cred.value && !joinDenied.value) void joinOnce()
+  if (!cred.value && !joinDenied.value) maybeJoin()
 }
-
+/** * 入座退避。 * * ⚠️ 之前每轮 poll 都直接调 joinOnce()，对局中它因 canSeat=false 直接 return， * 于是「清 cred → join 没成 → 下轮又清又 join」500ms 无限循环， * 页面持续重渲染，最终把 Vue 响应式系统拖垮崩溃（实测踩过）。 * 现在至少隔 JOIN_BACKOFF_MS 才试一次。 */const JOIN_BACKOFF_MS = 3000let nextJoinAt = 0function maybeJoin() {  const now = Date.now()  if (now < nextJoinAt) return  nextJoinAt = now + JOIN_BACKOFF_MS  void joinOnce()}
 function onPollError() {
   // 规格 §7.1：断线只显示断线状态，不自动离开
   offline.value = true
@@ -401,7 +401,6 @@ async function joinOnce() {
     joinBusy = false
   }
 }
-
 // ── 建房 ──
 async function createRoom() {
   const seeds = formSeeds.value
@@ -541,6 +540,7 @@ async function bindRoom(no) {
   offline.value = false
   gate.value = ''
   joinDenied.value = ''
+  nextJoinAt = 0
   cred.value = loadSeatCred(no)
   mode.value = 'room'
   await pull()
