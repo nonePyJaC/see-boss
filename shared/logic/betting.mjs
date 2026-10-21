@@ -173,6 +173,19 @@ function postBlind(state, seat, amount) {
   seat.totalBet += actual
   state.pot += actual
   if (seat.seeds === 0) seat.allIn = true
+  // 盲注也要进流水。之前不记，AI 看行动历史时只看到一串 check/call，
+  // 完全看不出「谁下了小盲、谁下了大盲、当前注额是怎么来的」——
+  // 模型会误判注额结构（实测踩过：提示词里阿丙在大盲之后直接 check）。
+  state.actionLog.push({
+    uid: seat.uid,
+    nickname: seat.nickname,
+    type: actual < amount ? 'blind_allin' : 'blind',
+    amount: actual,
+    betTotal: seat.totalBet,
+    allIn: seat.allIn,
+    phase: state.phase,
+    at: state.actionLog.length,
+  })
 }
 
 /**
@@ -249,6 +262,7 @@ export function applyAction(state, { uid, type, amount }) {
       type: t,
       amount: committed,          // 该动作实际投入的筹码
       betTotal: s.bet,            // 该玩家本轮累计下注额
+      allIn: s.allIn === true,    // 展示用：该动作后玩家是否全下（全下跟注与普通跟注同型）
       phase: next.phase,
       at: next.actionLog.length,
     })
@@ -526,6 +540,7 @@ export function showdown(state, holeCards) {
       uid: s.uid,
       nickname: s.nickname,
       folded: s.folded,
+      allIn: s.allIn === true,
       totalBet: s.totalBet,
       hole: holeCards[s.uid] ?? [],
       hand: hands[s.uid] ?? null,

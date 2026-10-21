@@ -72,6 +72,21 @@ test('单挑短码全下：平局分主池，多投部分原额返还', () => {
   })
 })
 
+test('showdown：结果 hands 带 allIn 展示标记', () => {
+  const state = {
+    gameType: 'long',
+    pot: 200,
+    communityCards: ['Kh', 'Kc', '3d', '3c', 'Ah'],
+    seats: [
+      { uid: 'x', nickname: '全下者', totalBet: 100, folded: false, allIn: true },
+      { uid: 'y', nickname: '深码', totalBet: 100, folded: false },
+    ],
+  }
+  const result = showdown(state, { x: ['Qs', 'Jd'], y: ['Ts', '9h'] })
+  assert.equal(result.hands.find((h) => h.uid === 'x').allIn, true)
+  assert.equal(result.hands.find((h) => h.uid === 'y').allIn, false)
+})
+
 test('初始化：双人局庄家是小盲', () => {
   const s = newGame({
     players: PLAYERS.slice(0, 2),
@@ -312,39 +327,49 @@ test('applyAction 兼容 JSON 往返后的状态（数据库场景）', () => {
 
 // ── 行动流水 ──
 
-test('行动流水记录每个动作', () => {
+test('行动流水记录每个动作（盲注也记）', () => {
   let s = newGame()
+  // 盲注现在也进流水 —— 之前不记，AI 看行动历史时只看到一串
+  // check/call，完全看不出「谁下了小盲、谁下了大盲、注额怎么来的」，
+  // 模型会误判注额结构（实测踩过：提示词里阿丙在大盲之后直接 check）。
   s = applyAction(s, { uid: 'a', type: 'call' }).state
   s = applyAction(s, { uid: 'b', type: 'raise', amount: 60 }).state
 
   const log = s.actionLog
-  assert.equal(log.length, 2)
+  assert.equal(log.length, 4, '两条盲注 + call + raise')
 
-  assert.equal(log[0].uid, 'a')
-  assert.equal(log[0].type, 'call')
-  assert.equal(log[0].amount, 20, 'a 补足到 20，投入 20')
-  assert.equal(log[0].betTotal, 20)
-  assert.equal(log[0].phase, 'preflop')
+  // 前两条是盲注
+  assert.equal(log[0].type, 'blind')
+  assert.equal(log[0].amount, 10, '小盲 10')
+  assert.equal(log[1].type, 'blind')
+  assert.equal(log[1].amount, 20, '大盲 20')
 
-  assert.equal(log[1].uid, 'b')
-  assert.equal(log[1].type, 'raise')
-  assert.equal(log[1].amount, 50, 'b 从 10 加到 60，投入 50')
-  assert.equal(log[1].nickname, '小鼠')
+  assert.equal(log[2].uid, 'a')
+  assert.equal(log[2].type, 'call')
+  assert.equal(log[2].amount, 20, 'a 补足到 20，投入 20')
+  assert.equal(log[2].betTotal, 20)
+  assert.equal(log[2].phase, 'preflop')
+
+  assert.equal(log[3].uid, 'b')
+  assert.equal(log[3].type, 'raise')
+  assert.equal(log[3].amount, 50, 'b 从 10 加到 60，投入 50')
+  assert.equal(log[3].nickname, '小鼠')
 })
 
 test('弃牌和过牌记录金额为 0', () => {
   let s = newGame()
   s = applyAction(s, { uid: 'a', type: 'fold' }).state
-  assert.equal(s.actionLog[0].type, 'fold')
-  assert.equal(s.actionLog[0].amount, 0)
+  // 盲注占了前两条，fold 是第三条
+  assert.equal(s.actionLog[2].type, 'fold')
+  assert.equal(s.actionLog[2].amount, 0)
 })
 
 test('失败的动作不写入流水', () => {
   const s = newGame()
   const r = applyAction(s, { uid: 'b', type: 'call' }) // 不是 b 的回合
   assert.ok(r.error)
-  // 返回的 state 不存在，原状态也不应有流水
-  assert.equal(s.actionLog.length, 0)
+  // 返回的 state 不存在，原状态也只有两条盲注
+  assert.equal(s.actionLog.length, 2)
 })
 
 test('流水跨阶段保留，可按 phase 筛选', () => {
@@ -354,11 +379,32 @@ test('流水跨阶段保留，可按 phase 筛选', () => {
   s = applyAction(s, { uid: 'c', type: 'check' }).state // → flop
 
   assert.equal(s.phase, PHASE.FLOP)
-  assert.equal(s.actionLog.filter((a) => a.phase === 'preflop').length, 3)
+  // 两条盲注 + a call + b call + c check（check 记在换街之前，所以 phase 是 preflop）
+  assert.equal(s.actionLog.filter((a) => a.phase === 'preflop').length, 5)
   assert.equal(s.actionLog.filter((a) => a.phase === 'flop').length, 0)
 
   s = applyAction(s, { uid: 'b', type: 'check' }).state
   assert.equal(s.actionLog.filter((a) => a.phase === 'flop').length, 1)
+})
+
+test('行动流水：全下跟注标 allIn，普通跟注不标', () => {
+  let s = newGame({ players: [
+    { uid: 'a', nickname: '阿鼠', avatar: 1, seeds: 1000 },
+    { uid: 'b', nickname: '小鼠', avatar: 2, seeds: 1000 },
+    { uid: 'c', nickname: '仓仓', avatar: 3, seeds: 100 },
+  ] })
+  s = applyAction(s, { uid: 'a', type: 'raise', amount: 100 }).state
+  s = applyAction(s, { uid: 'b', type: 'call' }).state
+  s = applyAction(s, { uid: 'c', type: 'call' }).state
+
+  const byUid = Object.fromEntries(s.actionLog.map((x) => [x.uid, x]))
+  assert.equal(byUid.a.allIn, false, '常规加注不标全下')
+  assert.equal(byUid.b.allIn, false, '普通跟注不标全下')
+  assert.deepEqual(
+    (({ type, amount, allIn }) => ({ type, amount, allIn }))(byUid.c),
+    { type: 'call', amount: 80, allIn: true },
+    '全下跟注与普通跟注同型，必须靠 allIn 区分',
+  )
 })
 
 // ── 动态加注档位 ──

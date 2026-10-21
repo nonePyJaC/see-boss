@@ -163,11 +163,11 @@ test('行动记录按发言顺序编号', () => {
     { seatId: 'seat-3', nickname: '阿丁', type: 'fold', amount: 0, phase: 'flop' },
   ]
   const p = buildPrompt(o, persona, [])
-  assert.match(p, /【本手已发生的行动】（按发言顺序）/)
-  assert.match(p, /1\. 阿甲 check/)
-  assert.match(p, /2\. 阿乙 check/)
-  assert.match(p, /3\. 阿丙 check/)
-  assert.match(p, /4\. 阿丁 fold/)
+  assert.match(p, /【本手已发生的行动】（按发言顺序，含盲注）/)
+  assert.match(p, /1\. 阿甲 过牌/)
+  assert.match(p, /2\. 阿乙 过牌/)
+  assert.match(p, /3\. 阿丙 过牌/)
+  assert.match(p, /4\. 阿丁 弃牌/)
 })
 
 test('牌面：T 渲染成 10', () => {
@@ -194,6 +194,61 @@ test('单挑时位置说 heads-up', () => {
   }
   const p = buildPrompt(o, persona, [])
   assert.match(p, /单挑（heads-up）/)
+})
+
+// ── 注额结构（实测踩过：阿丙在大盲之后直接 check）────────
+
+test('盲注进行动流水，且区分大小盲', () => {
+  const o = fivePlayer(4, 0)
+  // obs 的 smallBlind 是 10，所以 10=小盲、20=大盲
+  o.publicActions = [
+    { seatId: 'seat-0', nickname: '阿甲', type: 'blind', amount: 10, phase: 'preflop' },
+    { seatId: 'seat-1', nickname: '阿乙', type: 'blind', amount: 20, phase: 'preflop' },
+  ]
+  const p = buildPrompt(o, persona, [])
+  assert.match(p, /1\. 阿甲 下盲注（小盲） 10/)
+  assert.match(p, /2\. 阿乙 下盲注（大盲） 20/)
+})
+
+test('当前注额结构单独一行，说明还差多少平注', () => {
+  const o = fivePlayer(4, 0)
+  o.currentBet = 120
+  o.myBet = 0
+  const p = buildPrompt(o, persona, [])
+  assert.match(p, /【当前注额】本轮最高下注 120，我已下 0，还需补 120 才能平注/)
+})
+
+test('已平注时不说「还需补」', () => {
+  const o = fivePlayer(4, 0)
+  o.currentBet = 40
+  o.myBet = 40
+  const p = buildPrompt(o, persona, [])
+  assert.match(p, /本轮最高下注 40，我已下 40，已平注/)
+  assert.ok(!/还需补/.test(p))
+})
+
+test('加注显示成「加注到 N」', () => {
+  const o = fivePlayer(4, 0)
+  o.publicActions = [
+    { seatId: 'seat-2', nickname: '阿丙', type: 'raise', amount: 120, phase: 'preflop' },
+  ]
+  const p = buildPrompt(o, persona, [])
+  assert.match(p, /阿丙 加注到 120/)
+})
+
+test('动作名翻成人话', () => {
+  const o = fivePlayer(4, 0)
+  o.publicActions = [
+    { seatId: 'seat-2', nickname: '阿丙', type: 'check', amount: 0, phase: 'flop' },
+    { seatId: 'seat-3', nickname: '阿丁', type: 'fold', amount: 0, phase: 'flop' },
+    { seatId: 'seat-1', nickname: '阿乙', type: 'call', amount: 40, phase: 'flop' },
+    { seatId: 'seat-0', nickname: '阿甲', type: 'allin', amount: 3000, phase: 'flop' },
+  ]
+  const p = buildPrompt(o, persona, [])
+  assert.match(p, /阿丙 过牌/)
+  assert.match(p, /阿丁 弃牌/)
+  assert.match(p, /阿乙 跟注 40/)
+  assert.match(p, /阿甲 全下 3000/)
 })
 
 test('性格参数翻成人话', () => {

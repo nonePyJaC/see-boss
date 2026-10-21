@@ -156,11 +156,29 @@ export function buildPrompt(obs, persona, recentHands) {
     return a.type
   }).join(' / ')
 
-  // 本手行动：按发生顺序编号，明确「这是发言顺序」
+  // 本手行动：按发生顺序编号，明确「这是发言顺序」。
+  // 动作名翻成人话，并带上该动作投入的金额 —— 模型必须能看出
+  // 注额结构（谁下了小盲、谁加注到多少、当前要跟多少）。
+  const ACT_LABEL = {
+    blind: '下盲注',
+    blind_allin: '盲注全下',
+    fold: '弃牌',
+    check: '过牌',
+    call: '跟注',
+    bet: '下注',
+    raise: '加注到',
+    allin: '全下',
+    give: '划转',
+  }
   const history = (obs.publicActions ?? []).slice(-14).map((a, i) => {
     const who = a.seatId === obs.mySeatId ? '我' : (a.nickname ?? a.seatId)
+    const label = ACT_LABEL[a.type] ?? a.type
     const amt = a.amount ? ' ' + a.amount : ''
-    return `  ${i + 1}. ${who} ${a.type}${amt}`
+    // 盲注要区分大小麦，否则两人都显示「下盲注」看不出结构
+    const role = a.type === 'blind' || a.type === 'blind_allin'
+      ? (a.amount <= (obs.smallBlind ?? 0) ? '（小盲）' : '（大盲）')
+      : ''
+    return `  ${i + 1}. ${who} ${label}${role}${amt}`
   }).join('\n')
 
   return [
@@ -172,18 +190,22 @@ export function buildPrompt(obs, persona, recentHands) {
     '【公共牌】' + cardText(obs.board),
     '【公共池】' + obs.pot,
     '【盲注】小盲 ' + (obs.smallBlind ?? '?') + ' / 大盲 ' + (obs.bigBlind ?? obs.currentBet ?? '?'),
-    '【我的后手】' + obs.mySeeds + '（本手已下 ' + obs.myBet + '，当前需跟到 ' + obs.currentBet + '）',
+    '【当前注额】本轮最高下注 ' + obs.currentBet +
+      '，我已下 ' + obs.myBet +
+      (obs.currentBet > obs.myBet ? '，还需补 ' + (obs.currentBet - obs.myBet) + ' 才能平注' : '，已平注'),
+    '【我的后手】' + obs.mySeeds,
     '【其他玩家】（按座位顺序，小盲→大盲→…）',
     others || '  （无）',
     '【我的性格】' + personaText(persona),
     '【上一手】' + lastHandText(recentHands, obs.mySeatId),
-    '【本手已发生的行动】（按发言顺序）',
+    '【本手已发生的行动】（按发言顺序，含盲注）',
     history || '  （还没有人行动）',
     '',
     '【你可以做的动作】' + acts,
     '',
     '请按你的性格、位置和当前局面决定这一步。位置很重要：',
     '后位（靠近按钮）信息多、可以宽松些；前位（小盲/枪口）要谨慎。',
+    '要注意当前注额结构：谁已经下注、下到多少、我还差多少才平注。',
     '要考虑是造池、控池还是诈唬；加注尺度要符合下注轮次',
     '（比如 3bet、4bet 的常规大小），别乱来。',
     '',
