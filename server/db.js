@@ -122,6 +122,17 @@ function migrate(d) {
     state      TEXT NOT NULL DEFAULT '{}',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- ── 用户自配的模型 key ──
+  -- 存在库里而不是环境变量，这样用户能在应用内自己填，不用登服务器改 pm2。
+  -- account 是主键：一个账号一套 key，换设备登录也能用上。
+  -- ⚠️ 明文存储。朋友局自用可接受；真要上公网得改成加密列。
+  CREATE TABLE IF NOT EXISTS llm_keys (
+    account      TEXT PRIMARY KEY,
+    deepseek_key TEXT NOT NULL DEFAULT '',
+    stepfun_key  TEXT NOT NULL DEFAULT '',
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
   `)
 }
 
@@ -428,6 +439,67 @@ export function loadAllRoomSnapshots() {
 
 export function deleteRoomSnapshot(roomId) {
   getDb().prepare('DELETE FROM room_snapshots WHERE room_id = ?').run(String(roomId))
+}
+
+// ── 用户自配的模型 key ──────────────────────────────────
+
+/**
+ * 存/改用户自配的模型 key。
+ *
+ * 只更新传了的那一项 —— 传 { deepseekKey } 不动 stepfun，
+ * 这样前端可以分两个输入框各自保存，不会互相覆盖。
+ * 传空字符串等于清掉该项。
+ *
+ * @param {string} uid 设备 uid（会解析成账号名）
+ */
+export function saveUserLlmKeys(uid, patch = {}) {
+  const me = accountByUid(uid)
+  if (!me) return { ok: false, error: '尚未登录账号' }
+  const d = getDb()
+  const cur = d.prepare('SELECT * FROM llm_keys WHERE account = ?').get(me.account)
+  const deepseek = patch.deepseekKey != null
+    ? String(patch.deepseekKey).trim().slice(0, 200)
+    : (cur?.deepseek_key ?? '')
+  const stepfun = patch.stepfunKey != null
+    ? String(patch.stepfunKey).trim().slice(0, 200)
+    : (cur?.stepfun_key ?? '')
+
+  d.prepare(
+    `INSERT INTO llm_keys (account, deepseek_key, stepfun_key, updated_at)
+     VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT(account) DO UPDATE SET
+       deepseek_key = excluded.deepseek_key,
+       stepfun_key  = excluded.stepfun_key,
+       updated_at   = datetime('now')`
+  ).run(me.account, deepseek, stepfun)
+  return { ok: true }
+}
+
+/**
+ * 读用户自配的 key。只返回「有没有配」的布尔，不返回 key 本身 ——
+ * key 一旦写出去就收不回来了，前端只需要知道状态来显示「已配置」。
+ */
+export function userLlmKeyStatus(uid) {
+  const me = accountByUid(uid)
+  if (!me) return { ok: false, error: '尚未登录账号' }
+  const row = getDb().prepare('SELECT * FROM llm_keys WHERE account = ?').get(me.account)
+  return {
+    ok: true,
+    deepseek: Boolean(row?.deepseek_key),
+    stepfun: Boolean(row?.stepfun_key),
+  }
+}
+
+/** 读用户自配的 key 原文（只给服务端内部用，不走 HTTP 出去） */
+export function userLlmKeys(uid) {
+  const me = accountByUid(uid)
+  if (!me) return null
+  const row = getDb().prepare('SELECT * FROM llm_keys WHERE account = ?').get(me.account)
+  if (!row) return null
+  return {
+    deepseek: row.deepseek_key || '',
+    stepfun: row.stepfun_key || '',
+  }
 }
 
 // ── 维护：清数据 ────────────────────────────────────────

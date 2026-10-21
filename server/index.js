@@ -76,7 +76,6 @@ import {
 } from './ai/runtime.mjs'
 import { decideAction, fallbackAction } from './ai/policy.mjs'
 import { llmDecide, llmEnabled, modelReady, availableModels } from './ai/llm.mjs'
-
 import {
   openDb, DB_PATH,
   loginAccount, accountByUid, updateMyAccount, logoutAccount,
@@ -85,6 +84,7 @@ import {
   addHistory, listHistory, deleteRoomHistory,
   saveRoomSnapshot, loadRoomSnapshot, loadAllRoomSnapshots, deleteRoomSnapshot,
   wipeData, dataCounts,
+  saveUserLlmKeys, userLlmKeyStatus, userLlmKeys,
 } from './db.js'
 import { debugPage } from './debug-room-page.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -1128,6 +1128,13 @@ async function onAiTurn(captured) {
   const seat = room.seats.find((s) => s.uid === captured.turnSeatId)
   if (!seat || seat.kind !== 'ai') return
 
+  // AI 用谁的 key：优先用房主的（建房那个人），房主没配就用座位本人的。
+  // 这样「我配好 key，朋友进来直接能看到 AI 会打」—— 不用每个人都配一遍。
+  const hostKeys = userLlmKeys(room.hostUid)
+  const userKeys = (hostKeys && (hostKeys.deepseek || hostKeys.stepfun))
+    ? hostKeys
+    : userLlmKeys(seat.accountUid ?? seat.uid)
+
   const rt = room.aiRuntime
   const engineSeat = st.seats.find((s) => s.uid === seat.uid)
   const obs = buildObservation({
@@ -1173,10 +1180,11 @@ async function onAiTurn(captured) {
   // ── 决策：房间开了 useLLM 且服务端有 sk-key 就走大模型，否则本地策略 ──
   // 两条路都可能失败，失败就落到下一条，最后还有 fallbackAction 兜底。
   // 牌桌上绝不能因为 AI 卡住 —— 任何异常都降级，不抛给上层。
-  if (room.useLLM && modelReady(room.llmModel)) {
+  if (room.useLLM && modelReady(room.llmModel, userKeys)) {
     const r = await llmDecide(obs, persona, room.recentHands, {
       modelId: room.llmModel,
       thinking: room.llmThinking === true,
+      userKeys,
     })
     if (r.action) {
       act = r.action
@@ -1821,10 +1829,28 @@ function handleAdminStats(body) {
 /**
  * 列出可用的 AI 模型（给建房页下拉用）。
  * 不鉴权 —— 只暴露模型名和 baseURL，不暴露 key。
- * 没配 key 的模型不会出现在列表里，前端自然选不到。
+ * 带 uid 时按该用户自配的 key 过滤，没配的模型不出现。
  */
-function handleLlmModels() {
-  return ok({ models: availableModels(), enabled: llmEnabled() })
+function handleLlmModels(body, uid) {
+  const userKeys = uid ? userLlmKeys(uid) : null
+  return ok({ models: availableModels(userKeys), enabled: llmEnabled(userKeys) })
+}
+
+/** 存/改自己配的模型 key */
+function handleSaveLlmKeys(body, uid) {
+  const r = saveUserLlmKeys(uid, {
+    deepseekKey: body?.deepseekKey,
+    stepfunKey: body?.stepfunKey,
+  })
+  if (!r.ok) return fail(r.error)
+  return ok(userLlmKeyStatus(uid))
+}
+
+/** 看自己配了哪些（只返回布尔，不返回 key 本身） */
+function handleLlmKeyStatus(body, uid) {
+  const r = userLlmKeyStatus(uid)
+  if (!r.ok) return fail(r.error)
+  return ok(r)
 }
 
 // ── 工具 ───────────────────────────────────────────────
@@ -1999,6 +2025,8 @@ const ROUTES = {
   '/api/admin/stats': handleAdminStats,
   '/api/admin/wipe': handleAdminWipe,
   '/api/llm/models': handleLlmModels,
+  '/api/llm/keys': handleSaveLlmKeys,
+  '/api/llm/keys/status': handleLlmKeyStatus,
 }
 
 function handleAccountAccountLogoutWrap(b) { return handleAccountLogout(b) }

@@ -18,10 +18,14 @@
 /**
  * 模型注册表。
  *
- * key 只从环境变量读，不进仓库 —— 仓库里只有模型名和 baseURL。
- * 真实 key 由服务器上的 pm2 环境变量提供（见 ecosystem.server.config.cjs）。
+ * key 有两个来源，优先级从高到低：
+ *   1. 用户在应用内自己填的（存在 llm_keys 表，按账号）
+ *   2. 服务器环境变量（部署时注入）
  *
- * 想加第三个模型：在这里加一项 + 在服务器配对应 key，不用改别处。
+ * 这样不配环境变量也能用 —— 用户点自己头像填 key 就行。
+ * 仓库里只有模型名和 baseURL，没有任何 key。
+ *
+ * 想加第三个模型：在这里加一项，不用改别处。
  */
 const MODELS = {
   deepseek: {
@@ -29,7 +33,7 @@ const MODELS = {
     label: 'DeepSeek',
     model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
     base: process.env.DEEPSEEK_BASE || 'https://api.deepseek.com',
-    key: process.env.DEEPSEEK_API_KEY || '',
+    envKey: process.env.DEEPSEEK_API_KEY || '',
     // 深度思考靠换模型实现（deepseek-reasoner）
     thinkingModel: 'deepseek-reasoner',
   },
@@ -38,42 +42,55 @@ const MODELS = {
     label: 'StepFun',
     model: process.env.STEPFUN_MODEL || 'step-5-preview',
     base: process.env.STEPFUN_BASE || 'https://api.stepfun.com/v1',
-    key: process.env.STEPFUN_API_KEY || '',
+    envKey: process.env.STEPFUN_API_KEY || '',
     // 深度思考靠 reasoning_effort 参数实现
     thinkingParam: 'reasoning_effort',
     // ⚠️ 这是个通用推理模型，不适合牌桌实时决策，实测数据：
     //    · 思考过程算进 max_tokens，给到 3000 仍被截断、content 始终为空
     //      （finish_reason: length，reasoning_content 里只有分析没有 JSON）
     //    · 单次耗时 22~50 秒，牌桌上一个人要等半分钟才能动
-    //    所以默认不推荐；保留是因为 key 已配、想试的人可以自己选，
-    //    选之前会看到下面这条提示。
+    //    保留是因为想试的人可以自己选，选之前会看到下面这条提示。
     warn: '该模型思考很慢（20 秒以上）且经常不返回结果，建议用 DeepSeek',
   },
 }
 
 const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 12000)
 
+/**
+ * 当前生效的 key：用户自配优先，其次环境变量。
+ * @param {string} id 模型 id
+ * @param {object|null} userKeys userLlmKeys() 的返回值
+ */
+function effectiveKey(id, userKeys) {
+  const m = MODELS[String(id)]
+  if (!m) return ''
+  const own = userKeys?.[m.id]
+  return own || m.envKey || ''
+}
+
 /** 模型 id → 配置。id 不存在返回 null */
 export function getModel(id) {
   return MODELS[String(id)] ?? null
 }
 
-/** 给前端下拉用：只列配了 key 的模型 */
-export function availableModels() {
+/**
+ * 给前端下拉用：只列有 key 的模型（用户自配或环境变量都算）。
+ * @param {object|null} userKeys 当前用户自配的 key
+ */
+export function availableModels(userKeys = null) {
   return Object.values(MODELS)
-    .filter((m) => m.key)
+    .filter((m) => effectiveKey(m.id, userKeys))
     .map((m) => ({ id: m.id, label: m.label, model: m.model, warn: m.warn ?? '' }))
 }
 
 /** 有没有任何一个模型可用 */
-export function llmEnabled() {
-  return Object.values(MODELS).some((m) => m.key)
+export function llmEnabled(userKeys = null) {
+  return Object.values(MODELS).some((m) => effectiveKey(m.id, userKeys))
 }
 
-/** 某个模型可用吗（配了 key） */
-export function modelReady(id) {
-  const m = getModel(id)
-  return Boolean(m?.key)
+/** 某个模型可用吗（有 key） */
+export function modelReady(id, userKeys = null) {
+  return Boolean(effectiveKey(id, userKeys))
 }
 
 /** 阶段中文名 + 公共牌张数，给提示词用 */
@@ -300,8 +317,10 @@ export function parseDecision(text) {
  *   任何失败都返回 degraded:true 且 action:null，由调用方退回本地策略。
  */
 export async function llmDecide(obs, persona, recentHands, opts = {}) {
-  const cfg = getModel(opts.modelId) ?? Object.values(MODELS).find((m) => m.key)
-  if (!cfg?.key) {
+  const userKeys = opts.userKeys ?? null
+  const cfg = getModel(opts.modelId) ?? Object.values(MODELS).find((m) => effectiveKey(m.id, userKeys))
+  const key = effectiveKey(cfg?.id, userKeys)
+  if (!cfg || !key) {
     return { action: null, degraded: true, error: '模型未配置 key' }
   }
 
@@ -332,7 +351,7 @@ export async function llmDecide(obs, persona, recentHands, opts = {}) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + cfg.key,
+        Authorization: 'Bearer ' + key,
       },
       body: JSON.stringify(body),
       signal: ctrl.signal,
@@ -343,8 +362,7 @@ export async function llmDecide(obs, persona, recentHands, opts = {}) {
         action: null, degraded: true, model: cfg.id,
         error: 'HTTP ' + res.status, ms: Date.now() - t0,
       }
-    }
-    const j = await res.json()
+    }    const j = await res.json()
     const msg = j?.choices?.[0]?.message
     // content 为空时退回 reasoning_content —— 推理模型有时把答案写在思考里
     // （StepFun 实测：content 空、reasoning_content 有完整 JSON）

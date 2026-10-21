@@ -4,14 +4,42 @@
  * - 每仓鼠一行（哪个仓鼠给了你几颗）
  * - 长按具体行清空重置（双方同时清，避免坏账）
  */
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { hamsterDataURI, getHamster } from '@shared/assets/hamsters.mjs'
 import { goldenSeedSVG, svgToDataURI } from '@shared/assets/visuals.mjs'
 import { useUser } from '../stores/user.js'
+import { saveLlmKeys, llmKeyStatus } from '../data/room-repo.js'
 
 const router = useRouter()
 const { user, goldenSeeds, ledgerRows, clearLedgerRow, resetAll } = useUser()
+
+// ── AI 模型 key ──
+const dsKey = ref('')
+const sfKey = ref('')
+const saving = ref(false)
+const keyStatus = ref({ deepseek: false, stepfun: false })
+
+onMounted(async () => {
+  const r = await llmKeyStatus()
+  if (r.ok) keyStatus.value = r.data
+})
+
+async function saveKey(which) {
+  saving.value = true
+  try {
+    // 只传要改的那项，服务端不会覆盖另一项
+    const patch = which === 'deepseek' ? { deepseekKey: dsKey.value } : { stepfunKey: sfKey.value }
+    const r = await saveLlmKeys(patch)
+    if (!r.ok) { showToast(r.error || '保存失败'); return }
+    keyStatus.value = r.data
+    dsKey.value = ''
+    sfKey.value = ''
+    showToast('已保存')
+  } finally {
+    saving.value = false
+  }
+}
 
 const LONG_PRESS_MS = 550
 let pressTimer = null
@@ -120,6 +148,37 @@ if (!user.value) router.replace('/register')
       </button>
     </div>
 
+    <!-- AI 模型 key -->
+    <div class="card keys-card">
+      <h3 class="keys-title">AI 模型密钥</h3>
+      <p class="keys-hint">
+        填了自己的 key，建房时就能让 AI 用大模型决策。key 只存在这个账号下，
+        不会发给别人。不填也不影响玩 —— AI 会用本地策略。
+      </p>
+
+      <label class="keys-label">DeepSeek</label>
+      <div class="keys-row">
+        <input v-model="dsKey" class="input" type="password"
+               :placeholder="keyStatus.deepseek ? '已配置（输入新值可覆盖）' : 'sk-...'" />
+        <button class="btn btn--sm" :disabled="saving || !dsKey.trim()" @click="saveKey('deepseek')">
+          {{ saving ? '…' : '保存' }}
+        </button>
+      </div>
+
+      <label class="keys-label">StepFun</label>
+      <div class="keys-row">
+        <input v-model="sfKey" class="input" type="password"
+               :placeholder="keyStatus.stepfun ? '已配置（输入新值可覆盖）' : 'sk-...'" />
+        <button class="btn btn--sm" :disabled="saving || !sfKey.trim()" @click="saveKey('stepfun')">
+          {{ saving ? '…' : '保存' }}
+        </button>
+      </div>
+
+      <p class="keys-hint keys-hint--sm">
+        StepFun 思考很慢（20 秒以上）且经常不返回结果，建议用 DeepSeek。
+      </p>
+    </div>
+
     <!-- 清空确认 -->
     <div v-if="confirmReset" class="mask" @click.self="confirmReset = false">
       <div class="dialog">
@@ -137,6 +196,16 @@ if (!user.value) router.replace('/register')
 </template>
 
 <style scoped>
+/* AI 模型 key 设置 */
+.keys-card { display: flex; flex-direction: column; gap: 8px; }
+.keys-title { margin: 0; font-size: 15px; }
+.keys-hint { margin: 0; font-size: 11px; line-height: 1.6; color: var(--c-text-light); }
+.keys-hint--sm { font-size: 10px; opacity: .8; }
+.keys-label { font-size: 12px; font-weight: 700; color: var(--c-text-light); margin-top: 4px; }
+.keys-row { display: flex; gap: 8px; }
+.keys-row .input { flex: 1; height: 40px; font-size: 13px; }
+.keys-row .btn { width: 64px; flex-shrink: 0; }
+
 .profile {
   padding: calc(12px + var(--sat)) 16px calc(16px + var(--sab));
   gap: 12px;

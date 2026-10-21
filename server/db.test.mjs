@@ -20,6 +20,7 @@ import {
   addHistory, listHistory,
   saveRoomSnapshot, loadRoomSnapshot, loadAllRoomSnapshots, deleteRoomSnapshot,
   wipeData, dataCounts,
+  saveUserLlmKeys, userLlmKeyStatus, userLlmKeys,
 } from './db.js'
 
 // 每个用例一个干净的库
@@ -313,5 +314,53 @@ test('wipeData 可按需只清一类', () => {
   assert.equal(dataCounts().history, 0)
   assert.equal(dataCounts().accounts, 2, '账号不该被动')
   assert.equal(dataCounts().ledger, 2, '账本不该被动')
+})
+
+
+// ── 用户自配的模型 key ─────────────────────────────────
+
+test('存 key 后状态变 true，原文能读回', () => {
+  fresh()
+  loginAccount('keyUser', 'u-k')
+  assert.equal(userLlmKeyStatus('u-k').deepseek, false)
+
+  const r = saveUserLlmKeys('u-k', { deepseekKey: 'sk-test-123' })
+  assert.equal(r.ok, true, r.error)
+  assert.equal(userLlmKeyStatus('u-k').deepseek, true)
+  assert.equal(userLlmKeyStatus('u-k').stepfun, false, '没传的不该被动')
+  assert.equal(userLlmKeys('u-k').deepseek, 'sk-test-123')
+})
+
+test('只传一项不会覆盖另一项', () => {
+  fresh()
+  loginAccount('keyUser2', 'u-k2')
+  saveUserLlmKeys('u-k2', { deepseekKey: 'sk-ds' })
+  saveUserLlmKeys('u-k2', { stepfunKey: 'sk-sf' })
+  const k = userLlmKeys('u-k2')
+  assert.equal(k.deepseek, 'sk-ds', '先存的 deepseek 不该被清掉')
+  assert.equal(k.stepfun, 'sk-sf')
+})
+
+test('没登录账号不能存 key', () => {
+  fresh()
+  const r = saveUserLlmKeys('nobody-here', { deepseekKey: 'x' })
+  assert.equal(r.ok, false)
+})
+
+test('换设备同一账号能读到同一套 key', () => {
+  fresh()
+  loginAccount('sharedAcct', 'device-A')
+  saveUserLlmKeys('device-A', { deepseekKey: 'sk-shared' })
+  // 换设备：同账号名登录，uid 不同
+  loginAccount('sharedAcct', 'device-B')
+  assert.equal(userLlmKeys('device-B').deepseek, 'sk-shared')
+})
+
+test('清数据会连 key 表一起清掉', () => {
+  fresh()
+  loginAccount('wipeKeyUser', 'u-wk')
+  saveUserLlmKeys('u-wk', { deepseekKey: 'sk-x' })
+  wipeData()
+  assert.equal(userLlmKeys('u-wk'), null, '账号没了 key 也该没')
 })
 
