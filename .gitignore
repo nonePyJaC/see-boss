@@ -12,6 +12,7 @@ dist/
 .env.local
 .env.*.local
 client/.env
+sk.txt
 
 # ============ logs ============
 *.log

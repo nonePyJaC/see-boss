@@ -9,6 +9,7 @@
     "preview": "npm run preview --prefix client",
     "start": "node server/index.js",
     "dev:server": "node server/index.js",
+    "deploy:ecs": "node scripts/deploy-ecs.mjs",
     "test:server": "node scripts/test-room-server.mjs",
     "test:online": "node scripts/test-online-room-server.mjs",
     "test:ai": "node --test server/ai/ai.test.mjs",

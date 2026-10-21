@@ -75,6 +75,7 @@ import {
   opponentSummary, emotionDelta, buildObservation,
 } from './ai/runtime.mjs'
 import { decideAction, fallbackAction } from './ai/policy.mjs'
+import { assertProductionLayout } from './production-layout.mjs'
 import { llmDecide, llmEnabled, modelReady, availableModels } from './ai/llm.mjs'
 import {
   openDb, DB_PATH,
@@ -93,6 +94,7 @@ const PORT = Number(process.env.PORT) || 80
 /** 前端构建产物目录：../client/dist */
 const STATIC_DIR = process.env.HAMSTER_STATIC_DIR
   || path.join(__dirname, '..', 'client', 'dist')
+assertProductionLayout({ projectDir: path.join(__dirname, '..'), staticDir: STATIC_DIR })
 const MAX_SEATS = 8
 /** 请求体上限，防恶意大包打爆内存 */
 const MAX_BODY = 16 * 1024
