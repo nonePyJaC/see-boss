@@ -73,19 +73,19 @@ export function createOnlineRoom(cfg = {}, me = {}, createCode = '') {
   return request('/api/room/create', { uid: getUid(), cfg, me, createCode })
 }
 
-/** 可用的 AI 模型列表（服务端或用户自己配了 key 的才会出现） */
+/** 可用的 AI 模型列表（带 uid，按该用户自配的 key 过滤） */
 export function llmModels() {
-  return request('/api/llm/models', {})
+  return request('/api/llm/models', { uid: getUid() })
 }
 
 /** 存/改自己配的模型 key。只传要改的那项，另一项不动 */
 export function saveLlmKeys(patch) {
-  return request('/api/llm/keys', patch)
+  return request('/api/llm/keys', { uid: getUid(), ...patch })
 }
 
 /** 看自己配了哪些（只返回有没有，不返回 key） */
 export function llmKeyStatus() {
-  return request('/api/llm/keys/status', {})
+  return request('/api/llm/keys/status', { uid: getUid() })
 }
 
 /** 线上拉状态：cred = {seatId, seatToken}，缺了按旁观者投影返回 */
