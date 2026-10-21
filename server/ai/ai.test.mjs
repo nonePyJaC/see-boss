@@ -153,7 +153,7 @@ test('sklanskyGroup 具体值', () => {
 
 // ═══ 安全观察 ═══
 
-test('安全观察只含 §8.4 字段，剥离对手底牌等越权字段', () => {
+test('安全观察只含白名单字段，剥离对手底牌等越权字段', () => {
   const obs = buildObservation({
     gameType: 'long', mySeatId: 'me', myCards: ['Ah', 'Kd'], board: ['2s'],
     pot: 60, currentBet: 20, myBet: 0, mySeeds: 1000,
@@ -165,9 +165,13 @@ test('安全观察只含 §8.4 字段，剥离对手底牌等越权字段', () =
     publicActions: [{ seatId: 'opp', type: 'call', amount: 20, phase: 'preflop', secret: 'x' }],
     legalActions: [{ type: 'fold', label: '弃牌' }],
   })
+  // 白名单：§8.4 原有字段 + 给 LLM 提示词用的三个公开字段
+  // （phase / smallBlind / myNickname 都是桌上看得见的信息，不含私牌）。
   assert.deepEqual(
     Object.keys(obs).sort(),
-    ['bigBlind', 'board', 'currentBet', 'gameType', 'legalActions', 'myBet', 'myCards', 'mySeatId', 'mySeeds', 'pot', 'publicActions', 'publicPlayers'].sort(),
+    ['bigBlind', 'board', 'currentBet', 'gameType', 'legalActions', 'myBet', 'myCards',
+     'myNickname', 'mySeatId', 'mySeeds', 'phase', 'pot', 'publicActions', 'publicPlayers',
+     'smallBlind'].sort(),
   )
   const opp = obs.publicPlayers[1]
   assert.ok(!('holeCards' in opp), '观察里不得包含对手底牌')

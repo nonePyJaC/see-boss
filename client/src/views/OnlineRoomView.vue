@@ -31,9 +31,9 @@ import {
   addAi, removeAi,
   loadSeatCred, saveSeatCred, clearSeatCred,
 } from '../data/room-repo.js'
-import { ACTION_LABEL } from '@shared/logic/betting.mjs'
 import { evaluate } from '@shared/logic/hand-evaluator.mjs'
 import { potLayerView } from '../lib/pot-layer-view.js'
+import { actionLabel } from '../lib/action-log-view.js'
 
 defineOptions({ name: 'OnlineRoomView' })
 
@@ -61,6 +61,8 @@ const bigBlind = ref(20)
 const gameType = ref('long')
 const createBusy = ref(false)
 const createError = ref('')
+/** AI 是否交给大模型决策。勾了但服务端没配 key 时会自动退回本地策略 */
+const useLLM = ref(false)
 
 // 盲注联动（与线下入口同口径）：只填小麦，大麦 = 小麦 × 2；
 // 大麦上限 = 初始瓜子 ÷ 10（至少留 10 个大麦），换入场数自动收敛。
@@ -262,11 +264,6 @@ function confirmRaise() {
   else act('raise', n)
 }
 
-function actionLabel(a) {
-  const base = ACTION_LABEL[a.type] ?? a.type
-  if (a.type === 'fold' || a.type === 'check') return base
-  return `${base} ${a.amount}`
-}
 function avatarURI(id) { return hamsterDataURI(getHamster(id), 64) }
 function cardURI(code, faceDown = false) { return svgToDataURI(cardSVG(code, 60, faceDown)) }
 function resultNames(uids = []) {
@@ -388,6 +385,7 @@ async function createRoom() {
       smallBlind: smallBlind.value,
       bigBlind: bigBlind.value,
       initialSeeds: seeds,
+      useLLM: useLLM.value,
     }, {
       nickname: user.value?.nickname || '房主',
       avatar: user.value?.avatar ?? 1,
@@ -597,6 +595,15 @@ onUnmounted(() => {
         </div>
         <input v-model="customSeeds" class="input" type="number" placeholder="自定义初始瓜子" />
 
+        <label class="llm-toggle">
+          <input type="checkbox" v-model="useLLM" />
+          <span class="llm-toggle-txt">
+            <b>AI 用大模型决策</b>
+            <i>勾上后 AI 每一步交给大模型，会看到自己的牌、公共牌、池子、盲注、各人后手、
+              上一手结果和自己的性格，再决定造池 / 控池 / 诈唬。不勾则用本地策略。</i>
+          </span>
+        </label>
+
         <label class="field-label">盲注</label>
         <div class="blind-row">
           <div class="blind-item">
@@ -765,6 +772,7 @@ onUnmounted(() => {
                 {{ s.nickname }}
                 <span v-if="s.isMe" class="me-tag">我</span>
                 <span v-if="s.isAI" class="ai-tag">AI</span>
+                <span v-if="s.allIn" class="allin-tag">全下</span>
               </div>
               <div class="os-seeds"><seed-chips :value="s.seeds" :size="11" /></div>
               <div class="os-act">
@@ -884,6 +892,7 @@ onUnmounted(() => {
                   {{ h.nickname }}
                   <span v-if="h.uid === mySeatId" class="me-tag">我</span>
                   <span v-if="h.folded" class="folded-tag">已弃牌</span>
+                  <span v-else-if="h.allIn" class="allin-tag">全下</span>
                 </div>
                 <div class="r-hand-name" v-if="h.hand">{{ handSummary(h.hand) }}</div>
                 <div class="r-finance" v-if="resultFinance(h)">
@@ -961,7 +970,7 @@ onUnmounted(() => {
           <img v-for="card in hand.communityCards" :key="card" :src="cardURI(card)" alt="" />
         </div>
         <div class="history-player" v-for="player in hand.result.hands" :key="player.uid" :class="{ folded: player.folded }">
-          <strong>{{ player.nickname }}{{ player.folded ? '（已弃牌）' : '' }}</strong>
+          <strong>{{ player.nickname }}{{ player.folded ? '（已弃牌）' : player.allIn ? '（全下）' : '' }}</strong>
           <span v-if="player.hand">{{ handSummary(player.hand) }}</span>
           <span>{{ historyFinance(player) }}</span>
           <div class="history-cards" v-if="!player.folded && player.cards?.length === 5">
@@ -1045,6 +1054,17 @@ onUnmounted(() => {
   background: #fff; font-size: 15px; font-weight: 700; color: var(--c-text-light); cursor: pointer;
 }
 .chip-row button.on { border-color: var(--c-primary); background: #fff3e0; color: var(--c-primary-dark); }
+
+/* AI 大模型决策开关 */
+.llm-toggle {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px; border: 2px solid var(--c-border); border-radius: 14px;
+  background: #fff; cursor: pointer;
+}
+.llm-toggle input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--c-primary); flex-shrink: 0; }
+.llm-toggle-txt { display: flex; flex-direction: column; gap: 4px; }
+.llm-toggle-txt b { font-size: 14px; color: var(--c-text); }
+.llm-toggle-txt i { font-size: 11px; line-height: 1.5; color: var(--c-text-light); font-style: normal; }
 .blind-row { display: flex; gap: 10px; }
 .blind-item { flex: 1; display: flex; align-items: center; gap: 8px; }
 .blind-item span { font-size: 13px; color: var(--c-text-light); white-space: nowrap; }
@@ -1231,6 +1251,7 @@ onUnmounted(() => {
 }
 .os-name .me-tag { font-size: 8px; padding: 0 3px; border-radius: 4px; }
 .os-name .ai-tag { font-size: 8px; padding: 0 3px; border-radius: 4px; background: #a1887f; }
+.os-name .allin-tag { font-size: 8px; padding: 0 3px; border-radius: 4px; }
 .os-seeds { font-size: 10px; font-weight: 800; color: #8d6e63; line-height: 1.1; }
 .os-seeds :deep(.seed-num b) { color: #8d6e63; }
 .os-act {
@@ -1307,6 +1328,7 @@ onUnmounted(() => {
 .res-row.folded { opacity: 0.5; }
 .r-name { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 5px; }
 .folded-tag { font-size: 10px; background: var(--c-border); color: #fff; padding: 1px 5px; border-radius: 5px; }
+.allin-tag { font-size: 10px; background: #e07a2f; color: #fff; padding: 1px 5px; border-radius: 5px; white-space: nowrap; }
 .r-hand-name { font-size: 14px; font-weight: 800; color: var(--c-primary-dark); margin-top: 2px; }
 .r-finance { display: flex; flex-wrap: wrap; gap: 3px 5px; margin-top: 5px; color: #6d4c41; font-size: 10px; font-weight: 700; line-height: 1.4; }
 .r-finance span { padding: 1px 5px; border-radius: 6px; background: rgba(109, 76, 65, 0.08); }

@@ -75,6 +75,7 @@ import {
   opponentSummary, emotionDelta, buildObservation,
 } from './ai/runtime.mjs'
 import { decideAction, fallbackAction } from './ai/policy.mjs'
+import { llmDecide, llmEnabled } from './ai/llm.mjs'
 
 import {
   openDb, DB_PATH,
@@ -156,7 +157,11 @@ function newRoom({ id, hostUid, host, cfg }) {
     deadlineRefreshUsed: false,
     aiRuntime: createRuntime(),  // AI 人设/对手模型/情绪/慢打标记（runtime.mjs）
     aiTimer: null,               // 每房最多一个 AI 行动计时器
-    aiStats: { decisions: 0, totalMs: 0, maxMs: 0, samples: [], degraded: 0 },   // 决策耗时/降级采样（§12 门禁数据）
+    aiStats: { decisions: 0, totalMs: 0, maxMs: 0, samples: [], degraded: 0,
+               llmCalls: 0, llmFails: 0, llmUsed: 0, llmMs: 0 },   // 决策耗时/降级采样（§12 门禁数据）
+    // AI 是否交给大模型决策（建房时勾选）。服务端没配 sk-key 时这个开关无效，
+    // 自动退回本地策略 —— 见 runAiTurn 里的 llmEnabled() 判断。
+    useLLM: cfg.useLLM === true,
     recentHands: [],             // 最近 3 手公开记录，仅保存在房间内存
     dealerUid: null,
     roundNo: 1,
@@ -932,6 +937,7 @@ function resolveOnlineIfDone(room) {
   // 隐私：弃牌者的底牌绝不外发
   const safeHands = (res.hands ?? []).map((h) => ({
     uid: h.uid, nickname: h.nickname, folded: h.folded,
+    allIn: h.allIn === true,
     totalBet: h.totalBet ?? 0,
     hole: h.folded ? [] : (h.hole ?? []),
     cards: h.folded ? [] : (h.cards ?? []),
@@ -957,8 +963,8 @@ function resolveOnlineIfDone(room) {
     bigBlind: room.bigBlind,
     endedAt: Date.now(),
     communityCards: [...(room.state.communityCards ?? [])],
-    actionLog: (room.state.actionLog ?? []).map(({ uid, nickname, type, amount, betTotal, phase, at }) => ({
-      uid, nickname, type, amount, betTotal, phase, at,
+    actionLog: (room.state.actionLog ?? []).map(({ uid, nickname, type, amount, betTotal, allIn, phase, at }) => ({
+      uid, nickname, type, amount, betTotal, allIn, phase, at,
     })),
     result: structuredClone(room.state.result),
   })
@@ -1109,7 +1115,7 @@ function scheduleAiTurn(room) {
  * 决策完成后 applyRoomAction 内部的 afterTurnChanged 会调度下一位 AI ——
  * 多个 AI 连续行动是逐个定时器串行，不是同步 while 循环。
  */
-function onAiTurn(captured) {
+async function onAiTurn(captured) {
   const room = rooms.get(captured.roomId)
   if (!room || !isOnline(room)) return
   const st = room.state
@@ -1132,8 +1138,12 @@ function onAiTurn(captured) {
     myBet: engineSeat?.bet ?? 0,
     mySeeds: engineSeat?.seeds ?? 0,
     bigBlind: room.bigBlind,
+    smallBlind: room.smallBlind,
+    phase: st.phase,
+    myNickname: seat.nickname,
     publicPlayers: st.seats.map((s) => ({
-      seatId: s.uid, bet: s.bet, totalBet: s.totalBet, seeds: s.seeds, folded: s.folded, allIn: s.allIn,
+      seatId: s.uid, nickname: s.nickname,
+      bet: s.bet, totalBet: s.totalBet, seeds: s.seeds, folded: s.folded, allIn: s.allIn,
       isAI: room.seats.find((x) => x.uid === s.uid)?.kind === 'ai',
     })),
     publicActions: (st.actionLog ?? []).slice(-20),
@@ -1152,13 +1162,35 @@ function onAiTurn(captured) {
   const t0 = Date.now()
   let act = null
   let degraded = false
-  try {
-    act = decideAction(obs, persona, ctx, Math.random, { onDegraded: () => { degraded = true } })
-  } catch (e) {
-    // 错误信息不得含私牌（e 是异常对象本身，不含 obs）——只记座位和阶段
-    degraded = true
-    console.error(`[ai] 决策异常 room=${room.id} seat=${seat.uid} phase=${st.phase}:`, e?.message ?? e)
+  let usedLLM = false
+
+  // ── 决策：房间开了 useLLM 且服务端有 sk-key 就走大模型，否则本地策略 ──
+  // 两条路都可能失败，失败就落到下一条，最后还有 fallbackAction 兜底。
+  // 牌桌上绝不能因为 AI 卡住 —— 任何异常都降级，不抛给上层。
+  if (room.useLLM && llmEnabled()) {
+    const r = await llmDecide(obs, persona, room.recentHands)
+    if (r.action) {
+      act = r.action
+      usedLLM = true
+      room.aiStats.llmCalls = (room.aiStats.llmCalls ?? 0) + 1
+      room.aiStats.llmMs = (room.aiStats.llmMs ?? 0) + (r.ms ?? 0)
+    } else {
+      degraded = true
+      room.aiStats.llmFails = (room.aiStats.llmFails ?? 0) + 1
+      console.warn(`[ai] LLM 降级 room=${room.id} seat=${seat.uid}: ${r.error ?? '未知'}`)
+    }
   }
+
+  if (!act) {
+    try {
+      act = decideAction(obs, persona, ctx, Math.random, { onDegraded: () => { degraded = true } })
+    } catch (e) {
+      // 错误信息不得含私牌（e 是异常对象本身，不含 obs）——只记座位和阶段
+      degraded = true
+      console.error(`[ai] 决策异常 room=${room.id} seat=${seat.uid} phase=${st.phase}:`, e?.message ?? e)
+    }
+  }
+
   if (!act || !['fold', 'check', 'call', 'raise', 'allin'].includes(act.type)) {
     degraded = true
     act = fallbackAction(obs.legalActions)
@@ -1168,6 +1200,7 @@ function onAiTurn(captured) {
   room.aiStats.totalMs += ms
   room.aiStats.maxMs = Math.max(room.aiStats.maxMs, ms)
   room.aiStats.samples.push(ms)
+  if (usedLLM) room.aiStats.llmUsed = (room.aiStats.llmUsed ?? 0) + 1
 
   const r = applyRoomAction({
     room,
@@ -1863,6 +1896,9 @@ function serializeRoom(room) {
     bigBlind: room.bigBlind,
     initialSeeds: room.initialSeeds,
     hostUid: room.hostUid,
+    // AI 决策模式：true=大模型，false=本地策略。
+    // 存进快照，重启后还认得；同时透给前端显示。
+    useLLM: room.useLLM === true,
     // online 的底牌只存内存不落盘：重启后重新发比恢复更安全
     seats: room.seats.map((s) => ({
       uid: s.uid, nickname: s.nickname, avatar: s.avatar, seeds: s.seeds,

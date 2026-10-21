@@ -239,6 +239,9 @@ export function opponentSummary(rt, observerSeatId, targetSeatIds) {
 export function buildObservation({
   gameType, mySeatId, myCards, board, pot, currentBet, myBet, mySeeds, bigBlind,
   publicPlayers, publicActions, legalActions,
+  // 下面几个是给 LLM 提示词用的，本地策略不读。
+  // 都设成可选，老调用方不传也能照跑。
+  phase, smallBlind, myNickname,
 }) {
   return {
     gameType,
@@ -250,13 +253,21 @@ export function buildObservation({
     myBet: myBet ?? 0,
     mySeeds: mySeeds ?? 0,
     bigBlind: bigBlind ?? 1,
+    smallBlind: smallBlind ?? null,
+    phase: phase ?? null,
+    myNickname: myNickname ?? null,
     publicPlayers: (publicPlayers ?? []).map((p) => ({
-      seatId: p.seatId, bet: p.bet ?? 0, totalBet: Number.isFinite(p.totalBet) ? p.totalBet : null,
+      seatId: p.seatId, nickname: p.nickname ?? null,
+      bet: p.bet ?? 0, totalBet: Number.isFinite(p.totalBet) ? p.totalBet : null,
       seeds: p.seeds ?? 0, folded: !!p.folded, allIn: !!p.allIn, isAI: !!p.isAI,
     })),
     publicActions: (publicActions ?? []).map((a) => ({
-      seatId: a.seatId ?? a.uid, type: a.type, amount: a.amount ?? null, phase: a.phase,
+      seatId: a.seatId ?? a.uid, nickname: a.nickname ?? null,
+      type: a.type, amount: a.amount ?? null, phase: a.phase,
     })),
-    legalActions: (legalActions ?? []).map((a) => ({ type: a.type, label: a.label, amount: a.amount })),
+    legalActions: (legalActions ?? []).map((a) => ({
+      type: a.type, label: a.label, amount: a.amount,
+      min: a.min ?? null, max: a.max ?? null,
+    })),
   }
 }
