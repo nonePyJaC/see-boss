@@ -109,6 +109,30 @@ test('在线房主配置的账号 Key 真正发送模型输入，并应用模型
   assert.ok(!audit.join('\n').match(/test-only-key|PRIVATE_OPPONENT|【我的底牌】|"reason"/))
 })
 
+test('实际在线请求包含核对后的次对、免费行动和原始按钮/盲位，仍不泄漏其他底牌', async () => {
+  const { room } = await fixture()
+  for (let n = 0; room.state.phase === 'preflop' && n < 4; n++) await onAiTurn(captured(room))
+  assert.equal(room.state.phase, 'flop')
+  const turn = captured(room)
+  room.hands[turn.turnSeatId] = ['As', 'Tc']
+  room.state.communityCards = ['Ts', '7c', 'Kh']
+  for (const uid of Object.keys(room.hands)) if (uid !== turn.turnSeatId)
+    room.hands[uid] = ['OPPONENT_PRIVATE_1', 'OPPONENT_PRIVATE_2']
+  respond = (body) => {
+    const prompt = userPrompt(body)
+    assert.match(prompt, /当前最佳五张：一对 10；踢脚 A、K、7/)
+    assert.match(prompt, /与公共牌配成第 2 对（次对）/)
+    assert.match(prompt, /本次过牌成本 0/)
+    assert.match(prompt, /本手起始 3 人，当前未弃牌 2 人；多人局剩两人/)
+    assert.match(prompt, new RegExp('【我的位置】' + (turn.turnSeatId === room.state.sbUid ? '小盲位' : '大盲位')))
+    assert.ok(!prompt.includes('OPPONENT_PRIVATE'))
+    return reply({ action: 'raise', amount: 80, reason: '次对A踢脚，对手可能用更弱对子跟注，小额取值' })
+  }
+  await onAiTurn(turn)
+  assert.equal(room.state.actionLog.at(-1).betTotal, 80)
+  assert.equal(room.state.actionLog.at(-1).uid, turn.turnSeatId)
+})
+
 test('私有复盘保存实际输入、简短理由、执行结果和真实缓存字段，公共日志不泄漏正文', async () => {
   const { room } = await fixture()
   respond = () => reply({ action: 'raise', amount: 80, reason: '位置靠后，选择小额加注' })

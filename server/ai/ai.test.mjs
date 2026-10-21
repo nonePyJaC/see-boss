@@ -165,13 +165,12 @@ test('安全观察只含白名单字段，剥离对手底牌等越权字段', ()
     publicActions: [{ seatId: 'opp', type: 'call', amount: 20, phase: 'preflop', secret: 'x' }],
     legalActions: [{ type: 'fold', label: '弃牌' }],
   })
-  // 白名单：§8.4 原有字段 + 给 LLM 提示词用的三个公开字段
-  // （phase / smallBlind / myNickname 都是桌上看得见的信息，不含私牌）。
+  // 白名单含公开的阶段、盲注及按钮身份，不含对手私牌。
   assert.deepEqual(
     Object.keys(obs).sort(),
-    ['bigBlind', 'board', 'currentBet', 'gameType', 'legalActions', 'myBet', 'myCards',
+    ['bigBlind', 'bigBlindSeatId', 'board', 'currentBet', 'dealerSeatId', 'gameType', 'legalActions', 'myBet', 'myCards',
      'myNickname', 'mySeatId', 'mySeeds', 'phase', 'pot', 'publicActions', 'publicPlayers',
-     'sbIndex', 'smallBlind'].sort(),
+     'sbIndex', 'smallBlind', 'smallBlindSeatId'].sort(),
   )
   const opp = obs.publicPlayers[1]
   assert.ok(!('holeCards' in opp), '观察里不得包含对手底牌')

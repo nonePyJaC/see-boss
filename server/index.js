@@ -1181,6 +1181,9 @@ async function decideAiTurn(room, captured, job) {
     smallBlind: room.smallBlind,
     phase: st.phase,
     myNickname: seat.nickname,
+    dealerSeatId: st.dealerUid,
+    smallBlindSeatId: st.sbUid,
+    bigBlindSeatId: st.bbUid,
     // 线上引擎存的是 sbUid / bbUid（不是下标），转成下标给位置推算用
     sbIndex: st.sbUid
       ? st.seats.findIndex((s) => s.uid === st.sbUid)
