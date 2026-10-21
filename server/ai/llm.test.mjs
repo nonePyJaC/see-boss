@@ -54,7 +54,7 @@ test('提示词包含全部要求的信息', () => {
   assert.match(p, /大盲 20/)
   assert.match(p, /我的后手】2800/)
   // 别人后手
-  assert.match(p, /阿乙：后手 1900/)
+  assert.match(p, /阿乙（大盲）：后手 1900/)
   assert.match(p, /已全下/)
   // 性格
   assert.match(p, /我的性格】/)
@@ -93,6 +93,107 @@ test('翻牌前不显示公共牌', () => {
   const p = buildPrompt(pre, persona, [])
   assert.match(p, /翻牌前（还没有公共牌）/)
   assert.match(p, /【公共牌】（无）/)
+})
+
+// ── 位置（5 人局实测口径）────────────────────────────
+
+/** 造一个 5 人局的观察对象，我坐在第 myIdx 个座位 */
+function fivePlayer(myIdx = 4, sbIdx = 0) {
+  const names = ['阿甲', '阿乙', '阿丙', '阿丁', '阿戊']
+  const ids = names.map((_, i) => 'seat-' + i)
+  return {
+    ...obs,
+    sbIndex: sbIdx,
+    mySeatId: ids[myIdx],
+    myNickname: names[myIdx],
+    publicPlayers: names.map((n, i) => ({
+      seatId: ids[i], nickname: n, bet: 0, seeds: 3000,
+      folded: false, allIn: false, isAI: i === myIdx,
+    })),
+    publicActions: [],
+  }
+}
+
+test('位置：按钮位', () => {
+  // sb=0 → bb=1 → 按钮 = 4（我）
+  const p = buildPrompt(fivePlayer(4, 0), persona, [])
+  assert.match(p, /【我的位置】按钮位（最后发言，最占优）/)
+})
+
+test('位置：小盲位', () => {
+  const p = buildPrompt(fivePlayer(0, 0), persona, [])
+  assert.match(p, /【我的位置】小盲位/)
+})
+
+test('位置：大盲位', () => {
+  const p = buildPrompt(fivePlayer(1, 0), persona, [])
+  assert.match(p, /【我的位置】大盲位/)
+})
+
+test('位置：枪口位（翻前最先发言）', () => {
+  // sb=0 → bb=1 → 枪口 = 2
+  const p = buildPrompt(fivePlayer(2, 0), persona, [])
+  assert.match(p, /枪口位（翻前最先发言）/)
+})
+
+test('位置：中间位带距按钮位数', () => {
+  // sb=0 → bb=1 → 按钮=4，我坐 3 → 距按钮 1 位（后位）
+  const p = buildPrompt(fivePlayer(3, 0), persona, [])
+  assert.match(p, /中间位/)
+  assert.match(p, /距按钮 1 位（后位）/)
+})
+
+test('其他人按座位顺序列，并标出小盲/大盲', () => {
+  const p = buildPrompt(fivePlayer(4, 0), persona, [])
+  assert.match(p, /1\. 阿甲（小盲）/)
+  assert.match(p, /2\. 阿乙（大盲）/)
+  assert.match(p, /3\. 阿丙：/)
+  const i1 = p.indexOf('阿甲（小盲）')
+  const i2 = p.indexOf('阿乙（大盲）')
+  const i3 = p.indexOf('3. 阿丙')
+  assert.ok(i1 < i2 && i2 < i3, '应按座位顺序排列')
+})
+
+test('行动记录按发言顺序编号', () => {
+  const o = fivePlayer(4, 0)
+  o.publicActions = [
+    { seatId: 'seat-0', nickname: '阿甲', type: 'check', amount: 0, phase: 'flop' },
+    { seatId: 'seat-1', nickname: '阿乙', type: 'check', amount: 0, phase: 'flop' },
+    { seatId: 'seat-2', nickname: '阿丙', type: 'check', amount: 0, phase: 'flop' },
+    { seatId: 'seat-3', nickname: '阿丁', type: 'fold', amount: 0, phase: 'flop' },
+  ]
+  const p = buildPrompt(o, persona, [])
+  assert.match(p, /【本手已发生的行动】（按发言顺序）/)
+  assert.match(p, /1\. 阿甲 check/)
+  assert.match(p, /2\. 阿乙 check/)
+  assert.match(p, /3\. 阿丙 check/)
+  assert.match(p, /4\. 阿丁 fold/)
+})
+
+test('牌面：T 渲染成 10', () => {
+  const o = { ...obs, myCards: ['sJ', 'hT'] }
+  const p = buildPrompt(o, persona, [])
+  assert.match(p, /♠J ♥10/)
+})
+
+test('牌面：数字写法也认', () => {
+  const o = { ...obs, myCards: ['s14', 'h10'] }
+  const p = buildPrompt(o, persona, [])
+  assert.match(p, /♠A ♥10/)
+})
+
+test('单挑时位置说 heads-up', () => {
+  const o = {
+    ...obs,
+    sbIndex: 0,
+    mySeatId: 'seat-1',
+    publicPlayers: [
+      { seatId: 'seat-0', nickname: '阿甲', bet: 0, seeds: 3000, folded: false, allIn: false },
+      { seatId: 'seat-1', nickname: '我', bet: 0, seeds: 3000, folded: false, allIn: false },
+    ],
+  }
+  const p = buildPrompt(o, persona, [])
+  assert.match(p, /单挑（heads-up）/)
 })
 
 test('性格参数翻成人话', () => {

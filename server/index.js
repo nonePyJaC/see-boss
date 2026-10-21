@@ -1141,6 +1141,10 @@ async function onAiTurn(captured) {
     smallBlind: room.smallBlind,
     phase: st.phase,
     myNickname: seat.nickname,
+    // 线上引擎存的是 sbUid / bbUid（不是下标），转成下标给位置推算用
+    sbIndex: st.sbUid
+      ? st.seats.findIndex((s) => s.uid === st.sbUid)
+      : undefined,
     publicPlayers: st.seats.map((s) => ({
       seatId: s.uid, nickname: s.nickname,
       bet: s.bet, totalBet: s.totalBet, seeds: s.seeds, folded: s.folded, allIn: s.allIn,

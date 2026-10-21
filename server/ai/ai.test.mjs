@@ -171,7 +171,7 @@ test('安全观察只含白名单字段，剥离对手底牌等越权字段', ()
     Object.keys(obs).sort(),
     ['bigBlind', 'board', 'currentBet', 'gameType', 'legalActions', 'myBet', 'myCards',
      'myNickname', 'mySeatId', 'mySeeds', 'phase', 'pot', 'publicActions', 'publicPlayers',
-     'smallBlind'].sort(),
+     'sbIndex', 'smallBlind'].sort(),
   )
   const opp = obs.publicPlayers[1]
   assert.ok(!('holeCards' in opp), '观察里不得包含对手底牌')

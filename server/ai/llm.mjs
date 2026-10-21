@@ -34,13 +34,15 @@ const PHASE_LABEL = {
   river: '河牌圈（5 张公共牌）',
 }
 
-/** 牌面转可读文本，比如 "♠A ♥K" */
+/** 牌面转可读文本，比如 "♠A ♥K ♥10"。
+ *  接受两种写法：sA / hT（T=10）和 s14 / h10 */
 function cardText(cards) {
   if (!Array.isArray(cards) || cards.length === 0) return '（无）'
   const SUIT = { s: '♠', h: '♥', d: '♦', c: '♣' }
-  const RANK = { 14: 'A', 13: 'K', 12: 'Q', 11: 'J', 10: '10' }
+  const RANK = { A: 'A', K: 'K', Q: 'Q', J: 'J', T: '10', 10: '10',
+                 14: 'A', 13: 'K', 12: 'Q', 11: 'J' }
   return cards.map((c) => {
-    const m = /^([shdc])(\d+|[AJQK])$/i.exec(String(c))
+    const m = /^([shdc])(\d{1,2}|[AJQKT])$/i.exec(String(c))
     if (!m) return String(c)
     const suit = SUIT[m[1].toLowerCase()]
     const r = m[2].toUpperCase()
@@ -81,19 +83,66 @@ function lastHandText(recentHands, mySeatId) {
 }
 
 /**
+ * 位置标签。
+ *
+ * 德州的打法高度依赖位置（按钮位最后发言最占优，小盲/大盲翻前最被动）。
+ * 引擎的座位顺序就是发言顺序，所以按 seats 数组下标就能推出位置。
+ *
+ * @param seats 全部座位（含我），顺序 = 引擎座位顺序
+ * @param myIdx 我的下标
+ * @param sbIdx 小盲下标（引擎 sbIndex）
+ */
+function positionLabel(seats, myIdx, sbIdx) {
+  const n = seats.length
+  if (n < 2 || myIdx < 0) return ''
+  const alive = seats.filter((s) => !s.folded).length
+  // 单挑时小盲=按钮位且翻前先行动，位置语义完全不同，单独说
+  if (alive <= 2) return '单挑（heads-up）'
+
+  const bbIdx = (sbIdx + 1) % n
+  // 按钮位 = 小盲前一位
+  const btnIdx = (sbIdx - 1 + n) % n
+  const bits = []
+  if (myIdx === btnIdx) bits.push('按钮位（最后发言，最占优）')
+  else if (myIdx === sbIdx) bits.push('小盲位')
+  else if (myIdx === bbIdx) bits.push('大盲位')
+  // 枪口位 = 大盲下家，翻前第一个发言
+  else if (myIdx === (bbIdx + 1) % n) bits.push('枪口位（翻前最先发言）')
+  else bits.push('中间位')
+
+  // 距离按钮几个座位
+  const dist = (btnIdx - myIdx + n) % n
+  if (dist > 0 && dist <= 3) bits.push('距按钮 ' + dist + ' 位（后位）')
+  else if (dist > 3) bits.push('距按钮 ' + dist + ' 位（前位）')
+  return bits.join('，')
+}
+
+/**
  * 组装提示词。
  *
- * 包含（按你的要求）：
- *   自己的底牌、当前阶段、公共牌、池子、盲注、我的后手、别人后手、
- *   我的性格、上一手结果、本手已发生的公开行动、可选动作。
+ * 包含：
+ *   位置（按钮/小盲/大盲/枪口/中间位）、自己的底牌、当前阶段、公共牌、
+ *   池子、盲注、我的后手、别人后手、我的性格、上一手结果、
+ *   本手已发生的公开行动（按发言顺序）、可选动作。
  */
 export function buildPrompt(obs, persona, recentHands) {
   const phase = PHASE_LABEL[obs.phase] ?? obs.phase
-  const others = (obs.publicPlayers ?? [])
+  const players = obs.publicPlayers ?? []
+  const myIdx = players.findIndex((p) => p.seatId === obs.mySeatId)
+
+  // 位置：从座位顺序推（引擎 seats 顺序就是发言顺序）
+  const sbIdx = Number.isInteger(obs.sbIndex) ? obs.sbIndex : 0
+  const pos = positionLabel(players, myIdx, sbIdx)
+
+  // 其他人：带上位置标签，按座位顺序列（不是随机顺序）
+  const others = players
     .filter((p) => p.seatId !== obs.mySeatId)
-    .map((p) => {
+    .map((p, i) => {
+      const idx = players.indexOf(p)
       const tag = p.folded ? '已弃牌' : p.allIn ? '已全下' : '在局'
-      return `  - ${p.nickname ?? p.seatId}：后手 ${p.seeds}，本手已下 ${p.bet}（${tag}）`
+      const role = idx === sbIdx ? '小盲' : idx === (sbIdx + 1) % players.length ? '大盲' : ''
+      const roleTxt = role ? '（' + role + '）' : ''
+      return `  ${i + 1}. ${p.nickname ?? p.seatId}${roleTxt}：后手 ${p.seeds}，本手已下 ${p.bet}（${tag}）`
     })
     .join('\n')
 
@@ -107,31 +156,36 @@ export function buildPrompt(obs, persona, recentHands) {
     return a.type
   }).join(' / ')
 
-  const history = (obs.publicActions ?? []).slice(-12).map((a) => {
+  // 本手行动：按发生顺序编号，明确「这是发言顺序」
+  const history = (obs.publicActions ?? []).slice(-14).map((a, i) => {
     const who = a.seatId === obs.mySeatId ? '我' : (a.nickname ?? a.seatId)
-    return `  ${who} ${a.type}${a.amount ? ' ' + a.amount : ''}`
+    const amt = a.amount ? ' ' + a.amount : ''
+    return `  ${i + 1}. ${who} ${a.type}${amt}`
   }).join('\n')
 
   return [
     '你是德州扑克牌桌上的一位玩家，现在轮到你行动。',
     '',
+    '【我的位置】' + (pos || '未知'),
     '【我的底牌】' + cardText(obs.myCards),
     '【当前阶段】' + phase,
     '【公共牌】' + cardText(obs.board),
     '【公共池】' + obs.pot,
     '【盲注】小盲 ' + (obs.smallBlind ?? '?') + ' / 大盲 ' + (obs.bigBlind ?? obs.currentBet ?? '?'),
     '【我的后手】' + obs.mySeeds + '（本手已下 ' + obs.myBet + '，当前需跟到 ' + obs.currentBet + '）',
-    '【其他玩家】',
+    '【其他玩家】（按座位顺序，小盲→大盲→…）',
     others || '  （无）',
     '【我的性格】' + personaText(persona),
     '【上一手】' + lastHandText(recentHands, obs.mySeatId),
-    '【本手已发生的行动】',
+    '【本手已发生的行动】（按发言顺序）',
     history || '  （还没有人行动）',
     '',
     '【你可以做的动作】' + acts,
     '',
-    '请按你的性格和当前局面决定这一步。要考虑是造池、控池还是诈唬；',
-    '加注的尺度要符合下注轮次（比如 3bet、4bet 的常规大小），别乱来。',
+    '请按你的性格、位置和当前局面决定这一步。位置很重要：',
+    '后位（靠近按钮）信息多、可以宽松些；前位（小盲/枪口）要谨慎。',
+    '要考虑是造池、控池还是诈唬；加注尺度要符合下注轮次',
+    '（比如 3bet、4bet 的常规大小），别乱来。',
     '',
     '只回一行 JSON，不要解释，不要 markdown 代码块：',
     '{"action":"fold|check|call|raise|allin","amount":加注到的总金额(仅raise需要),"reason":"一句话思路"}',
