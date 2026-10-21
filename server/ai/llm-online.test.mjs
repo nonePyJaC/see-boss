@@ -30,8 +30,12 @@ globalThis.fetch = async (url, opts) => {
   requests.push({ body, signal: opts.signal })
   return respond(body, opts)
 }
-const reply = (decision) => Response.json({ choices: [{ message: { content: JSON.stringify(decision) } }] })
-const passive = (body) => reply({ action: body.messages[0].content.includes('还需补') ? 'call' : 'check' })
+const reply = (decision) => Response.json({ id: 'test-request', model: 'deepseek-chat',
+  choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decision), reasoning_content: 'RAW_REASONING_NOT_FOR_REVIEW' } }],
+  usage: { prompt_tokens: 1000, completion_tokens: 30, total_tokens: 1030,
+    prompt_cache_hit_tokens: 192, prompt_cache_miss_tokens: 808 } })
+const userPrompt = (body) => body.messages.find((message) => message.role === 'user').content
+const passive = (body) => reply({ action: userPrompt(body).includes('还需补') ? 'call' : 'check' })
 
 async function api(route, body) {
   const res = await fetch(base + route, {
@@ -93,7 +97,7 @@ test('在线房主配置的账号 Key 真正发送模型输入，并应用模型
   await onAiTurn(before)
   assert.equal(requests.length, 1, '必须请求外部模型，不能静默走本地策略')
   assert.equal(requests[0].body.model, 'deepseek-chat')
-  const prompt = requests[0].body.messages[0].content
+  const prompt = userPrompt(requests[0].body)
   assert.match(prompt, /raise（加注到 40 ~ 3200）/)
   assert.ok(!prompt.includes('PRIVATE_OPPONENT'))
   assert.equal(room.state.actionLog.at(-1).betTotal, 80)
@@ -103,6 +107,31 @@ test('在线房主配置的账号 Key 真正发送模型输入，并应用模型
   assert.ok(audit.some((line) => line.includes('"status":"ok"')))
   assert.ok(audit.some((line) => line.includes('"source":"llm"') && line.includes('"applied":true')))
   assert.ok(!audit.join('\n').match(/test-only-key|PRIVATE_OPPONENT|【我的底牌】|"reason"/))
+})
+
+test('私有复盘保存实际输入、简短理由、执行结果和真实缓存字段，公共日志不泄漏正文', async () => {
+  const { room } = await fixture()
+  respond = () => reply({ action: 'raise', amount: 80, reason: '位置靠后，选择小额加注' })
+  const turn = captured(room)
+  await onAiTurn(turn)
+  const dir = path.join(process.env.HAMSTER_DATA_DIR, 'ai-reviews')
+  const records = fs.readdirSync(dir).filter((file) => file.endsWith('.jsonl'))
+    .flatMap((file) => fs.readFileSync(path.join(dir, file), 'utf8').trim().split('\n').map(JSON.parse))
+  const record = records.find((r) => r.room === room.id && r.turn === turn.turnSeq)
+  assert.ok(record)
+  assert.deepEqual(record.input, requests[0].body)
+  assert.equal(record.output.briefReason, '位置靠后，选择小额加注')
+  assert.equal(record.output.requestId, 'test-request')
+  assert.equal(record.usage.cacheHitTokens, 192)
+  assert.equal(record.usage.cacheMissTokens, 808)
+  assert.equal(record.execution.status, 'applied')
+  assert.equal(record.execution.betTotal, 80)
+  assert.ok(!JSON.stringify(record).match(/test-only-key|Authorization|RAW_REASONING_NOT_FOR_REVIEW/))
+  assert.ok(!audit.join('\n').includes('位置靠后'))
+  assert.ok(audit.some((line) => line.includes('"cacheHitTokens":192')))
+  // 静态服务不得读出数据目录里的复盘文件（即使请求猜中了路径）。
+  const publicResponse = await realFetch(base + '/server/data/ai-reviews/' + fs.readdirSync(dir)[0])
+  assert.ok(!(await publicResponse.text()).includes('位置靠后'))
 })
 
 test('河牌输入保留整手超过 20 条动作、四轮街名及真实加注总额', async () => {
@@ -124,7 +153,7 @@ test('河牌输入保留整手超过 20 条动作、四轮街名及真实加注�
   history.push(structuredClone(room.state.actionLog.at(-1)))
   respond = passive
   await onAiTurn(captured(room))
-  const prompt = requests.at(-1).body.messages[0].content
+  const prompt = userPrompt(requests.at(-1).body)
   const historyText = prompt.split('【本手已发生的行动】')[1].split('【你可以做的动作】')[0]
   assert.equal((historyText.match(/^\s+\d+\./gm) ?? []).length, history.length)
   for (const label of ['翻牌前', '翻牌圈', '转牌圈', '河牌圈']) assert.ok(historyText.includes(label), label)
@@ -156,7 +185,7 @@ test('逐次请求动态更新：翻牌携带翻前全员动作，后续各轮�
   const phaseTurns = new Map()
   respond = (body) => {
     const st = room.state
-    const prompt = body.messages[0].content
+    const prompt = userPrompt(body)
     const historyText = prompt.split('【本手已发生的行动】')[1].split('【你可以做的动作】')[0]
     const lines = historyText.split('\n').filter((line) => /^\s+\d+\./.test(line))
     // 对每一次真正发给模型的内容校验，而不只看最后一份河牌提示词。
@@ -173,6 +202,7 @@ test('逐次请求动态更新：翻牌携带翻前全员动作，后续各轮�
     }
     frames.push({ handId: room.handId, phase: st.phase, prompt,
       history: structuredClone(st.actionLog), board: [...st.communityCards] })
+    assert.deepEqual(body.messages[0], requests[0].body.messages[0], '所有座位/轮次/手牌使用相同固定规则前缀')
     const key = `${room.handId}:${st.phase}`
     const n = phaseTurns.get(key) ?? 0
     phaseTurns.set(key, n + 1)

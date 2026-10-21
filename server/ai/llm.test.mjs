@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { buildPrompt, parseDecision, llmEnabled, availableModels, getModel, modelReady } from './llm.mjs'
+import { buildPrompt, buildMessages, LLM_SYSTEM_PROMPT, normalizeUsage, parseDecision, llmEnabled, availableModels, getModel, modelReady } from './llm.mjs'
 
 // ── 提示词组装 ──────────────────────────────────────────
 
@@ -38,6 +38,28 @@ const persona = {
   styleLabel: '专注',
   params: { tightLoose: 0.3, passiveAggressive: 0.6, bluffFrequency: 0.2, callTendency: 0.4, adaptivity: 0.5, slowPlayFrequency: 0.3 },
 }
+
+test('固定规则前置，牌面/性格/筹码变化只改变后续动态消息', () => {
+  const a = buildMessages(obs, persona, [])
+  const b = buildMessages({ ...obs, myCards: ['s2', 'h3'], phase: 'river', pot: 12345 }, { params: {} }, [])
+  assert.equal(a[0].role, 'system')
+  assert.equal(a[0].content, LLM_SYSTEM_PROMPT)
+  assert.deepEqual(a[0], b[0])
+  assert.notEqual(a[1].content, b[1].content)
+  assert.match(a[1].content, /♠A ♥K/)
+  assert.match(b[1].content, /河牌圈/)
+})
+
+test('缓存计量区分真实0命中、兼容字段和缺失未知', () => {
+  const actual = normalizeUsage({ prompt_tokens: 1000, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1000 })
+  assert.equal(actual.cacheHitTokens, 0)
+  assert.equal(actual.cacheMissTokens, 1000)
+  const compat = normalizeUsage({ prompt_tokens: 1000, prompt_tokens_details: { cached_tokens: 400 } })
+  assert.equal(compat.cacheHitTokens, 400)
+  assert.equal(compat.cacheMissTokens, 600)
+  assert.equal(normalizeUsage({ prompt_tokens: 1000 }).cacheHitTokens, null)
+  assert.equal(normalizeUsage(null).promptTokens, null)
+})
 
 test('提示词包含全部要求的信息', () => {
   const p = buildPrompt(obs, persona, [])

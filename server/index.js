@@ -77,6 +77,7 @@ import {
 import { decideAction, fallbackAction } from './ai/policy.mjs'
 import { assertProductionLayout } from './production-layout.mjs'
 import { llmDecide, llmEnabled, modelReady, availableModels } from './ai/llm.mjs'
+import { writeDecisionReview } from './ai/decision-review.mjs'
 import {
   openDb, DB_PATH,
   loginAccount, registerAccount, accountByUid, updateMyAccount, logoutAccount,
@@ -1209,8 +1210,17 @@ async function decideAiTurn(room, captured, job) {
   let degraded = false
   let usedLLM = false
   let fallbackReason = null
+  let reviewInput = null
+  let reviewResult = null
   const trace = { room: room.id, hand: captured.handId, turn: captured.turnSeq,
     seat: seat.uid, phase: st.phase, model: room.llmModel }
+  const saveReview = (execution) => {
+    if (!reviewInput || !reviewResult) return
+    const saved = writeDecisionReview(path.dirname(DB_PATH), {
+      trace: { ...trace, nickname: seat.nickname }, input: reviewInput, result: reviewResult, execution,
+    })
+    if (!saved) console.warn('[ai] review_unavailable ' + JSON.stringify(trace))
+  }
 
   // ── 决策：房间开了 useLLM 且服务端有 sk-key 就走大模型，否则本地策略 ──
   // 两条路都可能失败，失败就落到下一条，最后还有 fallbackAction 兜底。
@@ -1223,15 +1233,19 @@ async function decideAiTurn(room, captured, job) {
       thinking: room.llmThinking === true,
       userKeys,
       signal: job.controller.signal,
+      onRequest: (input) => { reviewInput = input },
     })
+    reviewResult = r
     // 网络等待期间可能换手、离开、重置或销毁房间。
     if (job.controller.signal.aborted || !currentAiSeat(room, captured)) {
-      console.info('[ai] llm_result ' + JSON.stringify({ ...trace, status: 'discarded', ms: r.ms ?? 0 }))
+      console.info('[ai] llm_result ' + JSON.stringify({ ...trace, status: 'discarded', ms: r.ms ?? 0, usage: r.usage ?? null }))
+      saveReview({ status: 'discarded' })
       return
     }
     console.info('[ai] llm_result ' + JSON.stringify({ ...trace,
       status: r.action ? 'ok' : 'failed', action: r.action?.type ?? null,
-      amount: r.action?.amount ?? null, error: r.error ?? null, ms: r.ms ?? 0 }))
+      amount: r.action?.amount ?? null, error: r.error ?? null, ms: r.ms ?? 0,
+      providerModel: r.providerModel ?? null, requestId: r.requestId ?? null, usage: r.usage ?? null }))
     if (r.action) {
       act = r.action
       usedLLM = true
@@ -1295,6 +1309,9 @@ async function decideAiTurn(room, captured, job) {
     action: appliedAction?.type ?? act.type, amount: act.amount ?? null,
     paidAmount: appliedAction?.amount ?? null, betTotal: appliedAction?.betTotal ?? null,
     applied: r.ok, fallbackReason, ms }))
+  saveReview({ status: r.ok ? 'applied' : 'rejected', source: usedLLM ? 'llm' : 'local',
+    action: appliedAction?.type ?? act.type, paidAmount: appliedAction?.amount,
+    betTotal: appliedAction?.betTotal, fallbackReason })
   if (degraded) room.aiStats.degraded += 1
 }
 
