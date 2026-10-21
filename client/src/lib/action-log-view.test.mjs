@@ -27,3 +27,9 @@ test('弃牌/过牌不显示金额', () => {
   assert.equal(actionLabel({ type: 'fold', amount: 0, allIn: false }), '弃牌')
   assert.equal(actionLabel({ type: 'check', amount: 0 }), '过牌')
 })
+
+test('相同投入120的连续加注，显示不同的本轮累计注额', () => {
+  assert.equal(actionLabel({ type: 'raise', amount: 120, betTotal: 180 }), '加注到 180（本次投入 120）')
+  assert.equal(actionLabel({ type: 'raise', amount: 120, betTotal: 240 }), '加注到 240（本次投入 120）')
+  assert.equal(actionLabel({ type: 'raise', amount: 120, betTotal: 300, allIn: true }), '全下加注到 300（本次投入 120）')
+})

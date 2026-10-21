@@ -10,6 +10,9 @@ import { ACTION_LABEL } from '../../../shared/logic/betting.mjs'
 export function actionLabel(a) {
   const base = ACTION_LABEL[a.type] ?? a.type
   if (a.type === 'fold' || a.type === 'check') return base
+  if ((a.type === 'raise' || a.type === 'bet') && Number.isFinite(a.betTotal)) {
+    return `${a.allIn ? '全下' : ''}${base}到 ${a.betTotal}（本次投入 ${a.amount}）`
+  }
   if (a.allIn && a.type !== 'allin') return `全下${base} ${a.amount}`
   return `${base} ${a.amount}`
 }

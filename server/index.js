@@ -159,8 +159,9 @@ function newRoom({ id, hostUid, host, cfg }) {
     deadlineRefreshUsed: false,
     aiRuntime: createRuntime(),  // AI 人设/对手模型/情绪/慢打标记（runtime.mjs）
     aiTimer: null,               // 每房最多一个 AI 行动计时器
+    aiJob: null,                 // 在途模型请求；换回合/销毁时取消
     aiStats: { decisions: 0, totalMs: 0, maxMs: 0, samples: [], degraded: 0,
-               llmCalls: 0, llmFails: 0, llmUsed: 0, llmMs: 0 },   // 决策耗时/降级采样（§12 门禁数据）
+               llmAttempts: 0, llmSkipped: 0, llmCalls: 0, llmFails: 0, llmUsed: 0, llmMs: 0 },
     // AI 决策模式：useLLM=true 时交给大模型，llmModel 选用哪个，
     // llmThinking 开深度思考。服务端没配对应 key 时自动退回本地策略。
     useLLM: cfg.useLLM === true,
@@ -1066,6 +1067,24 @@ function disarmAiTimer(room) {
     clearTimeout(room.aiTimer)
     room.aiTimer = null
   }
+  if (room.aiJob) {
+    room.aiJob.controller.abort()
+    room.aiJob = null
+  }
+}
+
+/** 请求前、回复后共用同一套资格检查；旧请求不能用于同一座位的新回合。 */
+function currentAiSeat(room, captured) {
+  if (!room || rooms.get(captured.roomId) !== room || !isOnline(room)) return null
+  const st = room.state
+  if (!st || st.finished || room.handId !== captured.handId
+    || room.turnSeq !== captured.turnSeq || st.turnUid !== captured.turnSeatId) return null
+  const seat = room.seats.find((s) => s.uid === captured.turnSeatId)
+  const engineSeat = st.seats.find((s) => s.uid === captured.turnSeatId)
+  if (seat?.kind !== 'ai' || !engineSeat || engineSeat.folded || engineSeat.allIn
+    || engineSeat.seeds <= 0 || !room.handParticipants.has(seat.uid)
+    || room.inactiveThisHand.has(seat.uid)) return null
+  return seat
 }
 
 /**
@@ -1121,18 +1140,27 @@ function scheduleAiTurn(room) {
  */
 async function onAiTurn(captured) {
   const room = rooms.get(captured.roomId)
-  if (!room || !isOnline(room)) return
+  if (!currentAiSeat(room, captured) || room.aiJob) return
+  if (room.aiTimer) clearTimeout(room.aiTimer)
+  room.aiTimer = null
+  const job = { controller: new AbortController() }
+  room.aiJob = job
+  try {
+    await decideAiTurn(room, captured, job)
+  } finally {
+    if (room.aiJob === job) room.aiJob = null
+  }
+}
+
+async function decideAiTurn(room, captured, job) {
+  const seat = currentAiSeat(room, captured)
+  if (!seat) return
   const st = room.state
-  if (!st || st.finished) return
-  if (room.handId !== captured.handId) return
-  if (room.turnSeq !== captured.turnSeq) return
-  if (st.turnUid !== captured.turnSeatId) return
-  const seat = room.seats.find((s) => s.uid === captured.turnSeatId)
-  if (!seat || seat.kind !== 'ai') return
 
   // AI 用谁的 key：优先用房主的（建房那个人），房主没配就用座位本人的。
   // 这样「我配好 key，朋友进来直接能看到 AI 会打」—— 不用每个人都配一遍。
-  const hostKeys = userLlmKeys(room.hostUid)
+  const hostSeat = room.seats.find((s) => s.uid === room.hostUid)
+  const hostKeys = userLlmKeys(hostSeat?.accountUid ?? room.hostUid)
   const userKeys = (hostKeys && (hostKeys.deepseek || hostKeys.stepfun))
     ? hostKeys
     : userLlmKeys(seat.accountUid ?? seat.uid)
@@ -1161,8 +1189,10 @@ async function onAiTurn(captured) {
       bet: s.bet, totalBet: s.totalBet, seeds: s.seeds, folded: s.folded, allIn: s.allIn,
       isAI: room.seats.find((x) => x.uid === s.uid)?.kind === 'ai',
     })),
-    publicActions: (st.actionLog ?? []).slice(-20),
-    legalActions: availableActions(st, seat.uid),
+    publicActions: st.actionLog ?? [],
+    legalActions: availableActions(st, seat.uid).map((a) => a.type === 'raise'
+      ? { ...a, min: a.amount, max: engineSeat.bet + engineSeat.seeds }
+      : a),
   })
   const persona = ensurePersona(rt, seat.uid)
   const aliveTargets = st.seats
@@ -1178,16 +1208,30 @@ async function onAiTurn(captured) {
   let act = null
   let degraded = false
   let usedLLM = false
+  let fallbackReason = null
+  const trace = { room: room.id, hand: captured.handId, turn: captured.turnSeq,
+    seat: seat.uid, phase: st.phase, model: room.llmModel }
 
   // ── 决策：房间开了 useLLM 且服务端有 sk-key 就走大模型，否则本地策略 ──
   // 两条路都可能失败，失败就落到下一条，最后还有 fallbackAction 兜底。
   // 牌桌上绝不能因为 AI 卡住 —— 任何异常都降级，不抛给上层。
   if (room.useLLM && modelReady(room.llmModel, userKeys)) {
+    room.aiStats.llmAttempts = (room.aiStats.llmAttempts ?? 0) + 1
+    console.info('[ai] llm_request ' + JSON.stringify({ ...trace, historyActions: obs.publicActions.length }))
     const r = await llmDecide(obs, persona, room.recentHands, {
       modelId: room.llmModel,
       thinking: room.llmThinking === true,
       userKeys,
+      signal: job.controller.signal,
     })
+    // 网络等待期间可能换手、离开、重置或销毁房间。
+    if (job.controller.signal.aborted || !currentAiSeat(room, captured)) {
+      console.info('[ai] llm_result ' + JSON.stringify({ ...trace, status: 'discarded', ms: r.ms ?? 0 }))
+      return
+    }
+    console.info('[ai] llm_result ' + JSON.stringify({ ...trace,
+      status: r.action ? 'ok' : 'failed', action: r.action?.type ?? null,
+      amount: r.action?.amount ?? null, error: r.error ?? null, ms: r.ms ?? 0 }))
     if (r.action) {
       act = r.action
       usedLLM = true
@@ -1196,9 +1240,13 @@ async function onAiTurn(captured) {
       room.aiStats.llmModel = r.model ?? room.llmModel
     } else {
       degraded = true
+      fallbackReason = r.error ?? 'llm_failed'
       room.aiStats.llmFails = (room.aiStats.llmFails ?? 0) + 1
-      console.warn(`[ai] LLM 降级 room=${room.id} seat=${seat.uid} model=${room.llmModel}: ${r.error ?? '未知'}`)
     }
+  } else if (room.useLLM) {
+    degraded = true
+    fallbackReason = 'model_or_key_missing'
+    room.aiStats.llmSkipped = (room.aiStats.llmSkipped ?? 0) + 1
   }
 
   if (!act) {
@@ -1220,9 +1268,7 @@ async function onAiTurn(captured) {
   room.aiStats.totalMs += ms
   room.aiStats.maxMs = Math.max(room.aiStats.maxMs, ms)
   room.aiStats.samples.push(ms)
-  if (usedLLM) room.aiStats.llmUsed = (room.aiStats.llmUsed ?? 0) + 1
-
-  const r = applyRoomAction({
+  let r = applyRoomAction({
     room,
     actorSeatId: seat.uid,
     action: act,
@@ -1230,16 +1276,25 @@ async function onAiTurn(captured) {
   })
   if (!r.ok) {
     // 决策产物非法 → 用降级链再试一次；仍失败说明规则边界问题，
-    // 记日志后 fold 兜底（fold 在非回合也合法清理路径，但这里是回合内）
+    // 安全链 check → call → fold 兜底；不重新请求模型。
     degraded = true
+    usedLLM = false
+    fallbackReason = 'illegal_action'
     console.error(`[ai] 非法动作降级 room=${room.id} seat=${seat.uid}: ${r.error}`)
-    applyRoomAction({
+    act = fallbackAction(obs.legalActions)
+    r = applyRoomAction({
       room,
       actorSeatId: seat.uid,
-      action: fallbackAction(obs.legalActions),
+      action: act,
       source: 'ai',
     })
   }
+  if (usedLLM && r.ok) room.aiStats.llmUsed = (room.aiStats.llmUsed ?? 0) + 1
+  const appliedAction = r.ok ? room.state.actionLog.at(-1) : null
+  console.info('[ai] decision ' + JSON.stringify({ ...trace, source: usedLLM ? 'llm' : 'local',
+    action: appliedAction?.type ?? act.type, amount: act.amount ?? null,
+    paidAmount: appliedAction?.amount ?? null, betTotal: appliedAction?.betTotal ?? null,
+    applied: r.ok, fallbackReason, ms }))
   if (degraded) room.aiStats.degraded += 1
 }
 

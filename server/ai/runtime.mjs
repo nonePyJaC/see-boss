@@ -265,6 +265,8 @@ export function buildObservation({
     publicActions: (publicActions ?? []).map((a) => ({
       seatId: a.seatId ?? a.uid, nickname: a.nickname ?? null,
       type: a.type, amount: a.amount ?? null, phase: a.phase,
+      betTotal: Number.isFinite(a.betTotal) ? a.betTotal : null,
+      allIn: !!a.allIn,
     })),
     legalActions: (legalActions ?? []).map((a) => ({
       type: a.type, label: a.label, amount: a.amount,

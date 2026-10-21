@@ -24,7 +24,7 @@ const obs = {
     { seatId: 'p-3', nickname: '阿丙', bet: 0, seeds: 0, folded: false, allIn: true, isAI: false },
   ],
   publicActions: [
-    { seatId: 'p-2', nickname: '阿乙', type: 'raise', amount: 100, phase: 'preflop' },
+    { seatId: 'p-2', nickname: '阿乙', type: 'raise', amount: 100, betTotal: 100, phase: 'preflop' },
   ],
   legalActions: [
     { type: 'fold', label: '弃牌' },
@@ -163,7 +163,7 @@ test('行动记录按发言顺序编号', () => {
     { seatId: 'seat-3', nickname: '阿丁', type: 'fold', amount: 0, phase: 'flop' },
   ]
   const p = buildPrompt(o, persona, [])
-  assert.match(p, /【本手已发生的行动】（按发言顺序，含盲注）/)
+  assert.match(p, /【本手已发生的行动】（完整本手，按发言顺序，含盲注/)
   assert.match(p, /1\. 阿甲 过牌/)
   assert.match(p, /2\. 阿乙 过牌/)
   assert.match(p, /3\. 阿丙 过牌/)
@@ -230,10 +230,10 @@ test('已平注时不说「还需补」', () => {
 test('加注显示成「加注到 N」', () => {
   const o = fivePlayer(4, 0)
   o.publicActions = [
-    { seatId: 'seat-2', nickname: '阿丙', type: 'raise', amount: 120, phase: 'preflop' },
+    { seatId: 'seat-2', nickname: '阿丙', type: 'raise', amount: 120, betTotal: 180, phase: 'preflop' },
   ]
   const p = buildPrompt(o, persona, [])
-  assert.match(p, /阿丙 加注到 120/)
+  assert.match(p, /阿丙 加注到 180（本次投入 120）.*翻牌前/)
 })
 
 test('动作名翻成人话', () => {

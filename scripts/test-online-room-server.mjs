@@ -42,12 +42,13 @@ async function api(p, b = {}) {
 
 const uid = (n) => 'u-' + n + '-' + Math.random().toString(36).slice(2, 6)
 const me = (n = '测试') => ({ nickname: n, avatar: 1 })
+let accountSequence = 0
 
 async function register(uidValue, nickname = '测试') {
-  const r = await api('/api/account/login', {
+  const r = await api('/api/account/register', {
     uid: uidValue,
     account: 't' + Math.random().toString(36).slice(2, 11),
-    nickname,
+    nickname: nickname.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 4) + (++accountSequence).toString(36),
   })
   assert.equal(r.ok, true, r.error)
 }

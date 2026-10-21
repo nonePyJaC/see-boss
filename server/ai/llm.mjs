@@ -10,7 +10,7 @@
  *   2. 返回值必须是合法动作。模型吐什么都要校验，
  *      不合法就退回本地策略，绝不让牌局卡住。
  *   3. 超时/报错/限流都算降级，不抛给上层。
- *   4. 提示词和响应都不落库、不进日志正文（只记 seat 和耗时）。
+ *   4. 提示词和响应正文不落库、不进日志；调用方只记录请求标识、动作和耗时。
  *
  * 走 OpenAI 兼容的 chat/completions 接口，所以各家都能接。
  */
@@ -209,14 +209,14 @@ export function buildPrompt(obs, persona, recentHands) {
       const tag = p.folded ? '已弃牌' : p.allIn ? '已全下' : '在局'
       const role = idx === sbIdx ? '小盲' : idx === (sbIdx + 1) % players.length ? '大盲' : ''
       const roleTxt = role ? '（' + role + '）' : ''
-      return `  ${i + 1}. ${p.nickname ?? p.seatId}${roleTxt}：后手 ${p.seeds}，本手已下 ${p.bet}（${tag}）`
+      return `  ${i + 1}. ${p.nickname ?? p.seatId}${roleTxt}：后手 ${p.seeds}，本轮已下 ${p.bet}，本手累计 ${p.totalBet ?? '未知'}（${tag}）`
     })
     .join('\n')
 
   const acts = (obs.legalActions ?? []).map((a) => {
     if (a.type === 'raise') {
-      const lo = a.min ?? a.minRaise ?? 0
-      const hi = a.max ?? a.maxRaise ?? 0
+      const lo = a.min ?? a.minRaise ?? a.amount
+      const hi = a.max ?? a.maxRaise ?? (obs.myBet + obs.mySeeds)
       return `raise（加注到 ${lo} ~ ${hi}）`
     }
     if (a.type === 'call') return `call（跟 ${a.amount ?? obs.currentBet}）`
@@ -233,19 +233,23 @@ export function buildPrompt(obs, persona, recentHands) {
     check: '过牌',
     call: '跟注',
     bet: '下注',
-    raise: '加注到',
+    raise: '加注',
     allin: '全下',
     give: '划转',
   }
-  const history = (obs.publicActions ?? []).slice(-14).map((a, i) => {
+  const history = (obs.publicActions ?? []).map((a, i) => {
     const who = a.seatId === obs.mySeatId ? '我' : (a.nickname ?? a.seatId)
-    const label = ACT_LABEL[a.type] ?? a.type
-    const amt = a.amount ? ' ' + a.amount : ''
+    const hasTotal = Number.isFinite(a.betTotal)
+    const isRaise = a.type === 'raise' || a.type === 'bet'
+    const label = isRaise && hasTotal ? (a.type === 'raise' ? '加注到' : '下注到') : ACT_LABEL[a.type] ?? a.type
+    const amt = isRaise && hasTotal ? ' ' + a.betTotal + '（本次投入 ' + a.amount + '）'
+      : a.amount ? ' ' + a.amount : ''
     // 盲注要区分大小麦，否则两人都显示「下盲注」看不出结构
     const role = a.type === 'blind' || a.type === 'blind_allin'
       ? (a.amount <= (obs.smallBlind ?? 0) ? '（小盲）' : '（大盲）')
       : ''
-    return `  ${i + 1}. ${who} ${label}${role}${amt}`
+    const total = !isRaise && hasTotal ? '；本轮累计 ' + a.betTotal : ''
+    return `  ${i + 1}. ${who} ${label}${role}${amt}${total}${a.allIn ? '（已全下）' : ''} [${PHASE_LABEL[a.phase] ?? a.phase ?? '未知轮次'}]`
   }).join('\n')
 
   return [
@@ -265,7 +269,7 @@ export function buildPrompt(obs, persona, recentHands) {
     others || '  （无）',
     '【我的性格】' + personaText(persona),
     '【上一手】' + lastHandText(recentHands, obs.mySeatId),
-    '【本手已发生的行动】（按发言顺序，含盲注）',
+    '【本手已发生的行动】（完整本手，按发言顺序，含盲注；每条标明轮次，注额均为该轮金额）',
     history || '  （还没有人行动）',
     '',
     '【你可以做的动作】' + acts,
@@ -273,6 +277,7 @@ export function buildPrompt(obs, persona, recentHands) {
     '请按你的性格、位置和当前局面决定这一步。位置很重要：',
     '后位（靠近按钮）信息多、可以宽松些；前位（小盲/枪口）要谨慎。',
     '要注意当前注额结构：谁已经下注、下到多少、我还差多少才平注。',
+    'raise 的 amount 是本轮累计下注到的总额，call 是补齐差额；河牌最后一人跟平即摊牌，继续加注会让对手再次行动。',
     '要考虑是造池、控池还是诈唬；加注尺度要符合下注轮次',
     '（比如 3bet、4bet 的常规大小），别乱来。',
     '',
@@ -344,6 +349,9 @@ export async function llmDecide(obs, persona, recentHands, opts = {}) {
 
   const t0 = Date.now()
   const ctrl = new AbortController()
+  const cancel = () => ctrl.abort()
+  if (opts.signal?.aborted) return { action: null, degraded: true, error: '已取消', model: cfg.id, ms: 0 }
+  opts.signal?.addEventListener('abort', cancel, { once: true })
   // 思考模型慢得多，超时放宽
   const timer = setTimeout(() => ctrl.abort(), thinking ? TIMEOUT_MS * 3 : TIMEOUT_MS)
   try {
@@ -381,10 +389,11 @@ export async function llmDecide(obs, persona, recentHands, opts = {}) {
     const aborted = e?.name === 'AbortError'
     return {
       action: null, degraded: true, model: cfg.id,
-      error: aborted ? '超时' : (e?.message ?? String(e)),
+      error: opts.signal?.aborted ? '已取消' : aborted ? '超时' : '网络请求失败',
       ms: Date.now() - t0,
     }
   } finally {
     clearTimeout(timer)
+    opts.signal?.removeEventListener('abort', cancel)
   }
 }
