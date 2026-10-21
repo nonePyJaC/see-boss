@@ -14,6 +14,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { HAMSTERS, hamsterDataURI } from '../../../shared/assets/hamsters.mjs'
 import { goldenSeedSVG, svgToDataURI } from '../../../shared/assets/visuals.mjs'
 import { accountRepo } from '../data/account-repo.js'
+import { listRooms } from '../data/room-repo.js'
 import { writeIdentity } from '../data/identity.js'
 
 const router = useRouter()
@@ -50,7 +51,7 @@ onMounted(async () => {
   try {
     const m = await accountRepo.me()
     if (m.ok && m.data?.loggedIn) {
-      router.replace(String(route.query.redirect ?? '/lobby'))
+      await afterAuth()
       return
     }
   } catch (e) {
@@ -59,6 +60,36 @@ onMounted(async () => {
     verifying.value = false
   }
 })
+
+/**
+ * 登录/注册成功后该去哪。
+ *
+ * redirect 是 JoinView 在「线上房未登录」时塞进来的 /join/<房号>。
+ * 但房间可能在你注册的这段时间里已经没了（发布清房、TTL 过期、房主解散），
+ * 直接跳回去只会看到「房间不存在」——用户刚注册完就被怼一句报错，很莫名其妙。
+ *
+ * 所以：redirect 指向的房间不存在时，回落大厅。
+ */
+async function afterAuth() {
+  const target = String(route.query.redirect ?? '').trim()
+  const m = target.match(/\/join\/(\d{6})/)
+  if (m) {
+    try {
+      const r = await listRooms()
+      const alive = r.ok && (r.data?.rooms ?? []).some((x) => String(x.id) === m[1])
+      if (!alive) {
+        router.replace('/lobby')
+        return
+      }
+    } catch (e) {
+      // 查不动就别赌，回大厅最稳
+      console.warn('[register] 校验房间失败，回落大厅', e?.message ?? e)
+      router.replace('/lobby')
+      return
+    }
+  }
+  router.replace(target || '/lobby')
+}
 
 /**
  * 登录：输账号名登上原号。
@@ -79,7 +110,7 @@ async function doLogin() {
       error.value = r.error || '登录失败'
       return
     }
-    router.replace(String(route.query.redirect ?? '/lobby'))
+    await afterAuth()
   } catch (e) {
     error.value = '登录失败：' + (e?.message ?? e)
   } finally {
@@ -107,7 +138,7 @@ async function doRegister() {
       if (r.code === 'TAKEN') tab.value = 'login'
       return
     }
-    router.replace(String(route.query.redirect ?? '/lobby'))
+    await afterAuth()
   } catch (e) {
     error.value = e?.message ?? String(e)
   } finally {
