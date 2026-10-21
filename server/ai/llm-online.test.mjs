@@ -149,6 +149,60 @@ test('模型失败或返回非法加注时安全降级，并区分请求数和�
   assert.equal(room.aiStats.degraded, 2)
 })
 
+test('逐次请求动态更新：翻牌携带翻前全员动作，后续各轮累积历史，下一手重新开始', async () => {
+  const { room, host } = await fixture()
+  const frames = []
+  const phaseNames = { preflop: '翻牌前', flop: '翻牌圈', turn: '转牌圈', river: '河牌圈' }
+  const phaseTurns = new Map()
+  respond = (body) => {
+    const st = room.state
+    const prompt = body.messages[0].content
+    const historyText = prompt.split('【本手已发生的行动】')[1].split('【你可以做的动作】')[0]
+    const lines = historyText.split('\n').filter((line) => /^\s+\d+\./.test(line))
+    // 对每一次真正发给模型的内容校验，而不只看最后一份河牌提示词。
+    assert.match(prompt, new RegExp('【当前阶段】' + phaseNames[st.phase]))
+    assert.ok(prompt.includes('【公共池】' + st.pot + '\n'))
+    assert.equal(lines.length, st.actionLog.length)
+    for (const [i, action] of st.actionLog.entries()) {
+      const who = action.uid === st.turnUid ? '我' : action.nickname
+      assert.ok(lines[i].startsWith(`  ${i + 1}. ${who} `))
+      assert.ok(lines[i].includes(`[${phaseNames[action.phase]}`))
+      if (action.type === 'raise' || action.type === 'bet') {
+        assert.ok(lines[i].includes(`到 ${action.betTotal}（本次投入 ${action.amount}）`))
+      }
+    }
+    frames.push({ handId: room.handId, phase: st.phase, prompt,
+      history: structuredClone(st.actionLog), board: [...st.communityCards] })
+    const key = `${room.handId}:${st.phase}`
+    const n = phaseTurns.get(key) ?? 0
+    phaseTurns.set(key, n + 1)
+    return n === 0 ? reply({ action: 'raise', amount: 60 }) : passive(body)
+  }
+  const firstHandId = room.handId
+  for (let i = 0; i < 16 && !room.state.finished; i++) await onAiTurn(captured(room))
+  assert.equal(room.state.finished, true)
+  assert.deepEqual([...new Set(frames.map((frame) => frame.phase))], ['preflop', 'flop', 'turn', 'river'])
+  let earlier = []
+  for (const [phase, cardCount] of [['preflop', 0], ['flop', 3], ['turn', 4], ['river', 5]]) {
+    const frame = frames.find((item) => item.phase === phase)
+    assert.equal(frame.board.length, cardCount)
+    assert.deepEqual(frame.history.slice(0, earlier.length), earlier, `${phase} 应保留前序完整历史`)
+    earlier = frame.history
+  }
+  assert.notEqual(frames[0].prompt, frames.find((frame) => frame.phase === 'flop').prompt)
+  const preflopFrames = frames.filter((frame) => frame.phase === 'preflop')
+  assert.ok(preflopFrames[1].history.length > preflopFrames[0].history.length, '同一轮内下一次决策也包含刚发生的动作')
+  await api('/api/room/start', host)
+  assert.equal(room.handId, firstHandId + 1)
+  await onAiTurn(captured(room))
+  const nextHand = frames.at(-1)
+  assert.equal(nextHand.handId, room.handId)
+  assert.equal(nextHand.phase, 'preflop')
+  assert.equal(nextHand.board.length, 0)
+  assert.deepEqual(nextHand.history.map((action) => action.type), ['blind', 'blind'])
+  assert.ok(!nextHand.history.some((action) => action.phase !== 'preflop'))
+})
+
 test('关闭大模型或缺少对应 Key 不发送请求；缺 Key 的回退可观测', async () => {
   const first = await fixture()
   first.room.useLLM = false
