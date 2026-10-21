@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DatabaseSync, backup } from 'node:sqlite'
 import config from './lib/ecs-config.cjs'
 import { releaseTransaction } from './lib/release-transaction.mjs'
+import { clearDeploymentRoomData } from './lib/deployment-room-data.mjs'
 
 const { PATHS, DEFAULTS, validateSha, settingsFromEnvironment, validateSettings } = config
 const args = process.argv.slice(2)
@@ -41,20 +42,6 @@ async function inspectHealth() {
   const result = await response.json()
   if (!result.ok || !Number.isInteger(result.rooms)) throw new Error('健康状态无效')
   return result
-}
-async function checkRooms(allowWaiting) {
-  const health = await inspectHealth()
-  if (!health.rooms) return
-  if (!allowWaiting) throw new Error(`仍有 ${health.rooms} 个房间，当前不允许发布`)
-  const response = await fetch('http://127.0.0.1/api/room/list', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uid: 'deployment-preflight' }), signal: AbortSignal.timeout(4000),
-  })
-  const result = await response.json()
-  const rooms = result.data?.rooms
-  if (!response.ok || !result.ok || !Array.isArray(rooms) || rooms.some(r => r.inProgress)) {
-    throw new Error('仍有进行中的牌局或房间状态无法确认，当前不允许发布')
-  }
 }
 function pointCurrent(release) {
   if (path.dirname(release) !== PATHS.releases) throw new Error('release 超出固定发布目录')
@@ -132,7 +119,7 @@ async function main() {
   if (bootstrap === currentIsLink) throw new Error(bootstrap ? '已完成初始化，禁止再次重置账号' : '尚未统一发布布局；需经授权的一次性 --bootstrap-reset')
   if (!bootstrap && fs.realpathSync(PATHS.current) !== oldDir) throw new Error('PM2 与唯一入口不一致，禁止盲目发布')
   if (!bootstrap && oldDir === release) { await verify(release, PATHS.data); persist(); console.log(JSON.stringify({ ...report(), unchanged: true }, null, 2)); return }
-  await checkRooms(bootstrap)
+  await inspectHealth()
   run('npm', ['ci', '--prefix', `${release}/client`], { stdio: 'inherit', timeout: 240000 })
   run('npm', ['run', 'build', '--prefix', `${release}/client`], { stdio: 'inherit', timeout: 180000 })
   privateDirectory(PATHS.backups)
@@ -155,11 +142,12 @@ async function main() {
   // Enable the single PM2 boot owner while the previous service is still healthy.
   run('pm2', ['startup', 'systemd', '-u', 'root', '--hp', '/root'], { stdio: 'pipe' })
   run('systemctl', ['is-enabled', 'pm2-root.service'])
-  await checkRooms(bootstrap)
+  const beforeSwitch = await inspectHealth()
   const legacyCheckout = `${archive}/legacy-checkout`
   const oldCanonicalFiles = `${archive}/previous-data-files`
   let stopped = false, movedCheckout = false, resetData = false, resetComplete = false, switched = false
   let emptyCounts = null
+  let clearedRoomData = null
   await releaseTransaction({
     activate: async () => {
       stopApp(); stopped = true
@@ -178,6 +166,9 @@ async function main() {
         }), '空数据库计数')
         if (Object.values(emptyCounts).some(n => n !== 0)) throw new Error('初始化数据库未清空')
       }
+      // User authorizes discarding all rooms on release, including stale/active ones.
+      // Memory rooms vanish with the old process; snapshots must not resurrect them.
+      clearedRoomData = clearDeploymentRoomData(`${PATHS.data}/hamster.db`)
       startRelease(release)
     },
     verifyNew: () => verify(release, PATHS.data),
@@ -209,6 +200,7 @@ async function main() {
     }
   }
   console.log(JSON.stringify({ ...report(), backup: archive, resetAccounts: bootstrap, emptyCounts,
+    discardedMemoryRooms: beforeSwitch.rooms, clearedRoomData,
     health: await inspectHealth(), bootService: 'pm2-root.service', wiki: 200 }, null, 2))
 }
 

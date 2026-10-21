@@ -2,10 +2,15 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import config from './lib/ecs-config.cjs'
 import { remoteCommand } from './deploy-ecs.mjs'
 import { releaseTransaction } from './lib/release-transaction.mjs'
 import { assertProductionLayout } from '../server/production-layout.mjs'
+import { clearDeploymentRoomData } from './lib/deployment-room-data.mjs'
 
 const sha = 'a'.repeat(40)
 const release = `/opt/cangshu-releases/${sha}`
@@ -87,4 +92,62 @@ test('PM2 保存失败也回滚；回滚失败不能报告成功', async () => {
     verifyNew: async () => {}, restore: async () => { throw new Error('old failed') },
     verifyOld: async () => {}, persist: async () => {},
   }), /回滚未完成/)
+})
+
+function withRoomDatabase(check) {
+  const parent = fs.realpathSync(os.tmpdir())
+  const dir = fs.mkdtempSync(path.join(parent, 'cangshu-deploy-rooms-'))
+  const file = path.join(dir, 'hamster.db')
+  let db
+  try {
+    db = new DatabaseSync(file)
+    db.exec(`
+      PRAGMA foreign_keys = ON;
+      CREATE TABLE accounts (account TEXT PRIMARY KEY);
+      CREATE TABLE llm_keys (account TEXT REFERENCES accounts(account), model_key TEXT);
+      CREATE TABLE account_ledger (owner TEXT REFERENCES accounts(account), amount INTEGER);
+      CREATE TABLE room_snapshots (room_id TEXT PRIMARY KEY);
+      CREATE TABLE history (id INTEGER PRIMARY KEY, room_id TEXT REFERENCES room_snapshots(room_id));
+      INSERT INTO accounts VALUES ('owner');
+      INSERT INTO llm_keys VALUES ('owner', 'test-key-to-preserve');
+      INSERT INTO account_ledger VALUES ('owner', 42);
+      INSERT INTO room_snapshots VALUES ('abandoned'), ('playing');
+      INSERT INTO history VALUES (1, 'abandoned'), (2, 'playing');
+    `)
+    check({ db, file, dir })
+  } finally {
+    db?.close()
+    assert.equal(path.dirname(fs.realpathSync(dir)), parent)
+    assert.ok(path.basename(dir).startsWith('cangshu-deploy-rooms-'))
+    fs.rmSync(dir, { recursive: true })
+  }
+}
+
+test('发布清空遗留及进行中房间的数据，账号、模型Key、账本保留；重复清理安全', () => {
+  withRoomDatabase(({ db, file }) => {
+    const preserved = ['accounts', 'llm_keys', 'account_ledger'].map(table => db.prepare(`SELECT * FROM ${table}`).all())
+    assert.deepEqual(clearDeploymentRoomData(file), { history: 2, rooms: 2 })
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM room_snapshots').get().n, 0)
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM history').get().n, 0)
+    assert.deepEqual(['accounts', 'llm_keys', 'account_ledger'].map(table => db.prepare(`SELECT * FROM ${table}`).all()), preserved)
+    assert.deepEqual(clearDeploymentRoomData(file), { history: 0, rooms: 0 })
+  })
+})
+
+test('清理房间失败时事务回滚，不能留下历史删完而快照仍在的半成品', () => {
+  withRoomDatabase(({ db, file }) => {
+    db.exec("CREATE TRIGGER cleanup_control BEFORE DELETE ON room_snapshots BEGIN SELECT RAISE(ABORT, 'cleanup-control'); END")
+    assert.throws(() => clearDeploymentRoomData(file), /cleanup-control/)
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM history').get().n, 2)
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM room_snapshots').get().n, 2)
+    assert.equal(db.prepare('SELECT model_key FROM llm_keys').get().model_key, 'test-key-to-preserve')
+  })
+})
+
+test('没有数据库时不创建另一份空库', () => {
+  withRoomDatabase(({ dir }) => {
+    const missing = path.join(dir, 'not-created.db')
+    assert.deepEqual(clearDeploymentRoomData(missing), { history: 0, rooms: 0 })
+    assert.equal(fs.existsSync(missing), false)
+  })
 })
