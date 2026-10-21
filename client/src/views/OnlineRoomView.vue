@@ -29,6 +29,7 @@ import {
   createOnlineRoom, joinRoom, onlineState, onlineAction,
   onlineExtendTurn, onlineReset, onlineLeave, startRoom,
   addAi, removeAi,
+  llmModels,
   loadSeatCred, saveSeatCred, clearSeatCred,
 } from '../data/room-repo.js'
 import { evaluate } from '@shared/logic/hand-evaluator.mjs'
@@ -63,6 +64,36 @@ const createBusy = ref(false)
 const createError = ref('')
 /** AI 是否交给大模型决策。勾了但服务端没配 key 时会自动退回本地策略 */
 const useLLM = ref(false)
+/** 选用哪个模型（从 /api/llm/models 拉） */
+const llmModel = ref('')
+/** 深度思考（默认关，慢且贵） */
+const llmThinking = ref(false)
+/** 可选模型列表 */
+const llmModelList = ref([])
+const llmModelsLoading = ref(false)
+/** 当前选中模型的警告（比如 StepFun 太慢） */
+const currentModelWarn = computed(() => {
+  const m = llmModelList.value.find((x) => x.id === llmModel.value)
+  return m?.warn ?? ''
+})
+
+onMounted(async () => {
+  llmModelsLoading.value = true
+  try {
+    const r = await llmModels()
+    if (r.ok) {
+      llmModelList.value = r.data?.models ?? []
+      // 默认选第一个可用的
+      if (llmModelList.value.length && !llmModel.value) {
+        llmModel.value = llmModelList.value[0].id
+      }
+    }
+  } catch {
+    // 拉不到就不显示模型选择，勾了也会退回本地策略
+  } finally {
+    llmModelsLoading.value = false
+  }
+})
 
 // 盲注联动（与线下入口同口径）：只填小麦，大麦 = 小麦 × 2；
 // 大麦上限 = 初始瓜子 ÷ 10（至少留 10 个大麦），换入场数自动收敛。
@@ -386,6 +417,8 @@ async function createRoom() {
       bigBlind: bigBlind.value,
       initialSeeds: seeds,
       useLLM: useLLM.value,
+      llmModel: llmModel.value,
+      llmThinking: llmThinking.value,
     }, {
       nickname: user.value?.nickname || '房主',
       avatar: user.value?.avatar ?? 1,
@@ -603,6 +636,32 @@ onUnmounted(() => {
               上一手结果和自己的性格，再决定造池 / 控池 / 诈唬。不勾则用本地策略。</i>
           </span>
         </label>
+
+        <!-- 模型选择：勾了才展开 -->
+        <div v-if="useLLM" class="llm-panel">
+          <template v-if="llmModelList.length">
+            <label class="field-label">选择模型</label>
+            <div class="chip-row">
+              <button v-for="m in llmModelList" :key="m.id"
+                      :class="{ on: llmModel === m.id }"
+                      @click="llmModel = m.id">
+                {{ m.label }}
+              </button>
+            </div>
+            <p v-if="currentModelWarn" class="hint warn">⚠️ {{ currentModelWarn }}</p>
+
+            <label class="llm-toggle llm-toggle--sm">
+              <input type="checkbox" v-model="llmThinking" />
+              <span class="llm-toggle-txt">
+                <b>深度思考</b>
+                <i>让模型多想一会儿再决定，质量更高但每次要等更久、更耗额度。默认关闭。</i>
+              </span>
+            </label>
+          </template>
+          <p v-else class="hint">
+            {{ llmModelsLoading ? '正在读取可用模型…' : '服务端还没配置模型，AI 将使用本地策略。' }}
+          </p>
+        </div>
 
         <label class="field-label">盲注</label>
         <div class="blind-row">
@@ -1065,6 +1124,15 @@ onUnmounted(() => {
 .llm-toggle-txt { display: flex; flex-direction: column; gap: 4px; }
 .llm-toggle-txt b { font-size: 14px; color: var(--c-text); }
 .llm-toggle-txt i { font-size: 11px; line-height: 1.5; color: var(--c-text-light); font-style: normal; }
+
+/* 模型选择面板 */
+.llm-panel {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; border: 2px dashed var(--c-border); border-radius: 14px;
+  background: #fffdf7;
+}
+.llm-toggle--sm { padding: 8px 10px; }
+.hint.warn { color: #e65100; font-weight: 700; }
 .blind-row { display: flex; gap: 10px; }
 .blind-item { flex: 1; display: flex; align-items: center; gap: 8px; }
 .blind-item span { font-size: 13px; color: var(--c-text-light); white-space: nowrap; }

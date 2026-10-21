@@ -75,7 +75,7 @@ import {
   opponentSummary, emotionDelta, buildObservation,
 } from './ai/runtime.mjs'
 import { decideAction, fallbackAction } from './ai/policy.mjs'
-import { llmDecide, llmEnabled } from './ai/llm.mjs'
+import { llmDecide, llmEnabled, modelReady, availableModels } from './ai/llm.mjs'
 
 import {
   openDb, DB_PATH,
@@ -159,9 +159,11 @@ function newRoom({ id, hostUid, host, cfg }) {
     aiTimer: null,               // 每房最多一个 AI 行动计时器
     aiStats: { decisions: 0, totalMs: 0, maxMs: 0, samples: [], degraded: 0,
                llmCalls: 0, llmFails: 0, llmUsed: 0, llmMs: 0 },   // 决策耗时/降级采样（§12 门禁数据）
-    // AI 是否交给大模型决策（建房时勾选）。服务端没配 sk-key 时这个开关无效，
-    // 自动退回本地策略 —— 见 runAiTurn 里的 llmEnabled() 判断。
+    // AI 决策模式：useLLM=true 时交给大模型，llmModel 选用哪个，
+    // llmThinking 开深度思考。服务端没配对应 key 时自动退回本地策略。
     useLLM: cfg.useLLM === true,
+    llmModel: String(cfg.llmModel ?? ''),
+    llmThinking: cfg.llmThinking === true,
     recentHands: [],             // 最近 3 手公开记录，仅保存在房间内存
     dealerUid: null,
     roundNo: 1,
@@ -1171,17 +1173,21 @@ async function onAiTurn(captured) {
   // ── 决策：房间开了 useLLM 且服务端有 sk-key 就走大模型，否则本地策略 ──
   // 两条路都可能失败，失败就落到下一条，最后还有 fallbackAction 兜底。
   // 牌桌上绝不能因为 AI 卡住 —— 任何异常都降级，不抛给上层。
-  if (room.useLLM && llmEnabled()) {
-    const r = await llmDecide(obs, persona, room.recentHands)
+  if (room.useLLM && modelReady(room.llmModel)) {
+    const r = await llmDecide(obs, persona, room.recentHands, {
+      modelId: room.llmModel,
+      thinking: room.llmThinking === true,
+    })
     if (r.action) {
       act = r.action
       usedLLM = true
       room.aiStats.llmCalls = (room.aiStats.llmCalls ?? 0) + 1
       room.aiStats.llmMs = (room.aiStats.llmMs ?? 0) + (r.ms ?? 0)
+      room.aiStats.llmModel = r.model ?? room.llmModel
     } else {
       degraded = true
       room.aiStats.llmFails = (room.aiStats.llmFails ?? 0) + 1
-      console.warn(`[ai] LLM 降级 room=${room.id} seat=${seat.uid}: ${r.error ?? '未知'}`)
+      console.warn(`[ai] LLM 降级 room=${room.id} seat=${seat.uid} model=${room.llmModel}: ${r.error ?? '未知'}`)
     }
   }
 
@@ -1812,6 +1818,15 @@ function handleAdminStats(body) {
   return ok({ ...dataCounts(), memoryRooms: rooms.size })
 }
 
+/**
+ * 列出可用的 AI 模型（给建房页下拉用）。
+ * 不鉴权 —— 只暴露模型名和 baseURL，不暴露 key。
+ * 没配 key 的模型不会出现在列表里，前端自然选不到。
+ */
+function handleLlmModels() {
+  return ok({ models: availableModels(), enabled: llmEnabled() })
+}
+
 // ── 工具 ───────────────────────────────────────────────
 
 function createShuffledDeckSafe(gameType) {
@@ -1903,6 +1918,8 @@ function serializeRoom(room) {
     // AI 决策模式：true=大模型，false=本地策略。
     // 存进快照，重启后还认得；同时透给前端显示。
     useLLM: room.useLLM === true,
+    llmModel: room.llmModel ?? '',
+    llmThinking: room.llmThinking === true,
     // online 的底牌只存内存不落盘：重启后重新发比恢复更安全
     seats: room.seats.map((s) => ({
       uid: s.uid, nickname: s.nickname, avatar: s.avatar, seeds: s.seeds,
@@ -1981,6 +1998,7 @@ const ROUTES = {
   '/api/room/leave': handleLeave,
   '/api/admin/stats': handleAdminStats,
   '/api/admin/wipe': handleAdminWipe,
+  '/api/llm/models': handleLlmModels,
 }
 
 function handleAccountAccountLogoutWrap(b) { return handleAccountLogout(b) }
@@ -2096,9 +2114,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   // 身份从请求体拿。线下照旧认设备 uid；线上接口内部再用 seatId+seatToken 认座。
-  // /state 例外：纯旁观请求可以没有任何身份，服务端按旁观者投影返回。
+  // 例外（不需要身份）：
+  //   /api/room/state   纯旁观请求可以没有任何身份，服务端按旁观者投影返回
+  //   /api/llm/models   只暴露模型名和 baseURL，不暴露 key，谁都能看
   const uid = String(body.uid ?? '').trim()
-  if (!uid && url.pathname !== '/api/room/state') {
+  const NO_UID_NEEDED = ['/api/room/state', '/api/llm/models']
+  if (!uid && !NO_UID_NEEDED.includes(url.pathname)) {
     res.writeHead(400, { 'Content-Type': 'application/json' })
     return res.end(JSON.stringify(fail('缺少 uid')))
   }

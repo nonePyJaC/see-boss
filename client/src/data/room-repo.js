@@ -73,6 +73,11 @@ export function createOnlineRoom(cfg = {}, me = {}, createCode = '') {
   return request('/api/room/create', { uid: getUid(), cfg, me, createCode })
 }
 
+/** 可用的 AI 模型列表（服务端配了 key 的才会出现） */
+export function llmModels() {
+  return request('/api/llm/models', {})
+}
+
 /** 线上拉状态：cred = {seatId, seatToken}，缺了按旁观者投影返回 */
 export function onlineState(roomId, cred) {
   return request('/api/room/state', { uid: getUid(), roomId, ...cred })

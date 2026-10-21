@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { buildPrompt, parseDecision, llmEnabled } from './llm.mjs'
+import { buildPrompt, parseDecision, llmEnabled, availableModels, getModel, modelReady } from './llm.mjs'
 
 // ── 提示词组装 ──────────────────────────────────────────
 
@@ -303,7 +303,28 @@ test('解析：负数金额忽略', () => {
 })
 
 test('没配 key 时 llmEnabled 为假', () => {
-  // 测试环境不设 LLM_API_KEY / SK_KEY，所以应为 false
-  // （若本地恰好设了，这条会假失败 —— 那时删掉即可）
-  assert.equal(llmEnabled(), Boolean(process.env.LLM_API_KEY || process.env.SK_KEY))
+  assert.equal(llmEnabled(), Boolean(process.env.DEEPSEEK_API_KEY || process.env.STEPFUN_API_KEY))
+})
+
+test('availableModels 只列配了 key 的', () => {
+  const list = availableModels()
+  assert.ok(Array.isArray(list))
+  // 每项都该有 id / label / model
+  for (const m of list) {
+    assert.ok(m.id && m.label && m.model, '模型项字段齐全')
+  }
+  // 数量不超过注册表里的两个
+  assert.ok(list.length <= 2)
+})
+
+test('getModel 不认识的 id 返回 null', () => {
+  assert.equal(getModel('不存在的模型'), null)
+  assert.equal(getModel(undefined), null)
+})
+
+test('modelReady 与 key 一致', () => {
+  for (const id of ['deepseek', 'stepfun']) {
+    const expect = Boolean(process.env[id.toUpperCase() + '_API_KEY'])
+    assert.equal(modelReady(id), expect, id + ' 的可用性应与 key 一致')
+  }
 })

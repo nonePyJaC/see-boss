@@ -1,8 +1,8 @@
 /**
  * LLM 决策 —— 让 AI 的这一步交给大模型，而不是本地策略。
  *
- * 触发条件：房间开了 useLLM 开关 + 服务端配了 sk-key。
- * 两者缺一都退回本地 decideAction（见 server/index.js 的调用点）。
+ * 触发条件：房间开了 useLLM 开关 + 选了模型 + 该模型配了 key。
+ * 缺任何一项都退回本地 decideAction（见 server/index.js 的调用点）。
  *
  * 设计约束：
  *   1. 只喂公开信息 + 自己的底牌。绝不把别人的底牌、Room 对象、
@@ -12,18 +12,68 @@
  *   3. 超时/报错/限流都算降级，不抛给上层。
  *   4. 提示词和响应都不落库、不进日志正文（只记 seat 和耗时）。
  *
- * 走 OpenAI 兼容的 chat/completions 接口 —— sk-key 那套就是这套协议，
- * 所以 baseURL / model 都能用环境变量换，不写死。
+ * 走 OpenAI 兼容的 chat/completions 接口，所以各家都能接。
  */
 
-const API_BASE = process.env.LLM_API_BASE || 'https://api.stepfun.com/v1'
-const API_KEY = process.env.LLM_API_KEY || process.env.SK_KEY || ''
-const MODEL = process.env.LLM_MODEL || 'step-5-preview'
+/**
+ * 模型注册表。
+ *
+ * key 只从环境变量读，不进仓库 —— 仓库里只有模型名和 baseURL。
+ * 真实 key 由服务器上的 pm2 环境变量提供（见 ecosystem.server.config.cjs）。
+ *
+ * 想加第三个模型：在这里加一项 + 在服务器配对应 key，不用改别处。
+ */
+const MODELS = {
+  deepseek: {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+    base: process.env.DEEPSEEK_BASE || 'https://api.deepseek.com',
+    key: process.env.DEEPSEEK_API_KEY || '',
+    // 深度思考靠换模型实现（deepseek-reasoner）
+    thinkingModel: 'deepseek-reasoner',
+  },
+  stepfun: {
+    id: 'stepfun',
+    label: 'StepFun',
+    model: process.env.STEPFUN_MODEL || 'step-5-preview',
+    base: process.env.STEPFUN_BASE || 'https://api.stepfun.com/v1',
+    key: process.env.STEPFUN_API_KEY || '',
+    // 深度思考靠 reasoning_effort 参数实现
+    thinkingParam: 'reasoning_effort',
+    // ⚠️ 这是个通用推理模型，不适合牌桌实时决策，实测数据：
+    //    · 思考过程算进 max_tokens，给到 3000 仍被截断、content 始终为空
+    //      （finish_reason: length，reasoning_content 里只有分析没有 JSON）
+    //    · 单次耗时 22~50 秒，牌桌上一个人要等半分钟才能动
+    //    所以默认不推荐；保留是因为 key 已配、想试的人可以自己选，
+    //    选之前会看到下面这条提示。
+    warn: '该模型思考很慢（20 秒以上）且经常不返回结果，建议用 DeepSeek',
+  },
+}
+
 const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 12000)
 
-/** 没配 key 就等于功能关闭 */
+/** 模型 id → 配置。id 不存在返回 null */
+export function getModel(id) {
+  return MODELS[String(id)] ?? null
+}
+
+/** 给前端下拉用：只列配了 key 的模型 */
+export function availableModels() {
+  return Object.values(MODELS)
+    .filter((m) => m.key)
+    .map((m) => ({ id: m.id, label: m.label, model: m.model, warn: m.warn ?? '' }))
+}
+
+/** 有没有任何一个模型可用 */
 export function llmEnabled() {
-  return Boolean(API_KEY)
+  return Object.values(MODELS).some((m) => m.key)
+}
+
+/** 某个模型可用吗（配了 key） */
+export function modelReady(id) {
+  const m = getModel(id)
+  return Boolean(m?.key)
 }
 
 /** 阶段中文名 + 公共牌张数，给提示词用 */
@@ -241,49 +291,78 @@ export function parseDecision(text) {
 /**
  * 调一次 LLM 拿决策。
  *
- * @returns {Promise<{action, reason, ms, degraded, error?}>}
+ * @param {object} opts
+ *   modelId   用哪个模型（默认第一个可用的）
+ *   thinking  是否开深度思考（默认 false）
+ *   search    是否联网搜索（默认 false；当前两家都不支持，预留）
+ *
+ * @returns {Promise<{action, reason, ms, degraded, error?, model?}>}
  *   任何失败都返回 degraded:true 且 action:null，由调用方退回本地策略。
  */
-export async function llmDecide(obs, persona, recentHands) {
-  if (!llmEnabled()) {
-    return { action: null, degraded: true, error: '未配置 sk-key' }
+export async function llmDecide(obs, persona, recentHands, opts = {}) {
+  const cfg = getModel(opts.modelId) ?? Object.values(MODELS).find((m) => m.key)
+  if (!cfg?.key) {
+    return { action: null, degraded: true, error: '模型未配置 key' }
   }
-  const prompt = buildPrompt(obs, persona, recentHands)
-  const t0 = Date.now()
 
+  const thinking = opts.thinking === true
+  // 深度思考的实现方式各家不同：
+  //   DeepSeek 换模型（deepseek-reasoner）
+  //   StepFun  加 reasoning_effort 参数
+  const model = thinking && cfg.thinkingModel ? cfg.thinkingModel : cfg.model
+  const body = {
+    model,
+    messages: [{ role: 'user', content: buildPrompt(obs, persona, recentHands) }],
+    temperature: 0.7,
+    // ⚠️ StepFun 是推理模型，思考过程算在 max_tokens 里。
+    //    给 200 会把额度全用光在思考上、content 是空的（finish_reason:length），
+    //    实测踩过。所以它的下限给到 1200，够思考 + 输出 JSON。
+    max_tokens: cfg.id === 'stepfun' ? 1200 : (thinking ? 800 : 200),
+  }
+  if (thinking && cfg.thinkingParam) {
+    body[cfg.thinkingParam] = 'high'
+  }
+
+  const t0 = Date.now()
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  // 思考模型慢得多，超时放宽
+  const timer = setTimeout(() => ctrl.abort(), thinking ? TIMEOUT_MS * 3 : TIMEOUT_MS)
   try {
-    const res = await fetch(API_BASE + '/chat/completions', {
+    const res = await fetch(cfg.base + '/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + API_KEY,
+        Authorization: 'Bearer ' + cfg.key,
       },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 200,
-      }),
+      body: JSON.stringify(body),
       signal: ctrl.signal,
     })
     if (!res.ok) {
       // 429/5xx 都算降级，不重试 —— 牌桌上等不起
-      return { action: null, degraded: true, error: 'HTTP ' + res.status, ms: Date.now() - t0 }
+      return {
+        action: null, degraded: true, model: cfg.id,
+        error: 'HTTP ' + res.status, ms: Date.now() - t0,
+      }
     }
     const j = await res.json()
-    const text = j?.choices?.[0]?.message?.content ?? ''
+    const msg = j?.choices?.[0]?.message
+    // content 为空时退回 reasoning_content —— 推理模型有时把答案写在思考里
+    // （StepFun 实测：content 空、reasoning_content 有完整 JSON）
+    const text = msg?.content?.trim()
+      ? msg.content
+      : (msg?.reasoning_content ?? msg?.reasoning ?? '')
     const act = parseDecision(text)
     if (!act) {
-      return { action: null, degraded: true, error: '解析不出动作', ms: Date.now() - t0 }
+      return {
+        action: null, degraded: true, model: cfg.id,
+        error: '解析不出动作', ms: Date.now() - t0,
+      }
     }
-    return { action: act, reason: act.reason, degraded: false, ms: Date.now() - t0 }
+    return { action: act, reason: act.reason, degraded: false, model: cfg.id, ms: Date.now() - t0 }
   } catch (e) {
     const aborted = e?.name === 'AbortError'
     return {
-      action: null,
-      degraded: true,
+      action: null, degraded: true, model: cfg.id,
       error: aborted ? '超时' : (e?.message ?? String(e)),
       ms: Date.now() - t0,
     }
