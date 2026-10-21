@@ -31,13 +31,17 @@ const verifying = ref(true)
 
 const goldURI = svgToDataURI(goldenSeedSVG(20))
 
-/** 账号名规则：3-16 位，字母/数字/下划线/中文 */
-const ACCOUNT_RE = /^[A-Za-z0-9_\u4e00-\u9fa5]{3,16}$/
+/** 账号名：6-18 位英文或数字（和服务端 NAME_RE 一致） */
+const ACCOUNT_RE = /^[A-Za-z0-9]{6,18}$/
+/** 昵称：2-8 位中英文或数字（和服务端 NICK_RE 一致） */
+const NICK_RE = /^[A-Za-z0-9\u4e00-\u9fa5]{2,8}$/
+
 const accountValid = computed(() => ACCOUNT_RE.test(account.value.trim()))
+const nickValid = computed(() => NICK_RE.test(nickname.value.trim()))
 
 const canLogin = computed(() => accountValid.value && !busy.value)
 const canRegister = computed(
-  () => accountValid.value && nickname.value.trim().length >= 2 && !busy.value
+  () => accountValid.value && nickValid.value && !busy.value
 )
 
 /** 本机 uid 已经绑了账号 → 直接进大厅，不再问 */
@@ -56,15 +60,25 @@ onMounted(async () => {
   }
 })
 
-/** 登录：输账号名登上原号 */
+/**
+ * 登录：输账号名登上原号。
+ * 账号不存在 → 自动切到注册 tab（用户口径：不用自己发现要点注册）。
+ */
 async function doLogin() {
   if (!canLogin.value) return
   error.value = ''
   busy.value = true
   try {
     const r = await accountRepo.login(account.value.trim())
-    if (!r.ok) { error.value = r.error || '登录失败'; return }
-    writeIdentity({ nickname: r.data?.nickname || account.value.trim(), avatar: r.data?.avatar })
+    if (!r.ok) {
+      if (r.code === 'NOT_FOUND') {
+        tab.value = 'register'
+        error.value = '账号不存在，请先注册'
+        return
+      }
+      error.value = r.error || '登录失败'
+      return
+    }
     router.replace(String(route.query.redirect ?? '/lobby'))
   } catch (e) {
     error.value = '登录失败：' + (e?.message ?? e)
@@ -73,22 +87,26 @@ async function doLogin() {
   }
 }
 
-/** 注册：账号名未占用就按这个昵称建档 */
+/** 注册：账号名 + 昵称都查重 */
 async function doRegister() {
   if (!accountValid.value) {
-    error.value = '账号名需 3-16 位，可用字母、数字、下划线、中文'
+    error.value = '账号名需 6-18 位英文或数字'
     return
   }
-  if (nickname.value.trim().length < 2) {
-    error.value = '昵称至少 2 个字'
+  if (!nickValid.value) {
+    error.value = '昵称需 2-8 位中英文或数字'
     return
   }
   error.value = ''
   busy.value = true
   try {
-    const r = await accountRepo.login(account.value.trim(), nickname.value.trim())
-    if (!r.ok) { error.value = r.error || '注册失败'; return }
-    writeIdentity({ nickname: nickname.value.trim(), avatar: r.data?.avatar })
+    const r = await accountRepo.register(account.value.trim(), nickname.value.trim())
+    if (!r.ok) {
+      // TAKEN / NICK_TAKEN 都把账号名还留在输入框，用户改一下就能重试
+      error.value = r.error || '注册失败'
+      if (r.code === 'TAKEN') tab.value = 'login'
+      return
+    }
     router.replace(String(route.query.redirect ?? '/lobby'))
   } catch (e) {
     error.value = e?.message ?? String(e)
@@ -129,11 +147,11 @@ function submit() {
         v-model="account"
         class="input"
         type="text"
-        maxlength="16"
-        placeholder="3-16 位字母/数字/下划线/中文"
+        maxlength="18"
+        placeholder="6-18 位英文或数字"
         @keyup.enter="submit"
       />
-      <p v-if="account && !accountValid" class="error">格式不对：3-16 位，字母/数字/下划线/中文</p>
+      <p v-if="account && !accountValid" class="error">格式不对：6-18 位英文或数字</p>
 
       <template v-if="tab === 'register'">
         <label class="field-label">昵称</label>
@@ -142,9 +160,10 @@ function submit() {
           class="input"
           type="text"
           maxlength="8"
-          placeholder="牌桌上显示的名字"
+          placeholder="2-8 位，牌桌上显示的名字"
           @keyup.enter="submit"
         />
+        <p v-if="nickname && !nickValid" class="error">格式不对：2-8 位中英文或数字</p>
 
         <label class="field-label">选一只仓鼠</label>
         <div class="hamster-grid">

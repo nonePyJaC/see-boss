@@ -139,60 +139,104 @@ function migrate(d) {
 // ── 账号 ────────────────────────────────────────────────
 
 /** 账号名合法性：3-16 位字母数字下划线/中文 */
-const NAME_RE = /^[A-Za-z0-9_\u4e00-\u9fa5]{3,16}$/
+/**
+ * 账号名：6-18 位，仅英文 + 数字。
+ * 昵称：2-8 位，中英文 + 数字。
+ *
+ * 2026-09-24 改版（用户口径）：
+ *   · 账号名从「3-16 位含中文下划线」收紧成「6-18 位纯英文数字」——
+ *     中文账号名在扫码链接里要编码，URL 又长又容易出错。
+ *   · 登录和注册拆开：login 不再自动建号，账号不存在就报 NOT_FOUND，
+ *     由前端切到注册 tab。之前登录即注册，打错一个字就静默建个新号。
+ */
+const NAME_RE = /^[A-Za-z0-9]{6,18}$/
+const NICK_RE = /^[A-Za-z0-9\u4e00-\u9fa5]{2,8}$/
 
 function normAccount(name) {
   return String(name ?? '').trim()
 }
 
 /**
- * 注册或登录。
+ * 登录：账号必须已存在。
+ *
+ * 不再「登录即注册」—— 打错一个字符就静默建新号，桌上会出现两个
+ * 同名但不是同一个人的账号（实测踩过）。账号不存在返回
+ * { ok:false, code:'NOT_FOUND' }，由前端切到注册 tab。
  *
  * 朋友局设计：知道账号名即可登录，不设密码。
- * 已存在 → 直接登（并把 uid 绑到当前设备）；
- * 不存在 → 新建。
  *
- * @returns {{ok:true, account, isNew, goldenSeeds, totalGames} | {ok:false, error}}
+ * @returns {{ok:true, account, isNew:false, nickname, avatar, goldenSeeds, totalGames}
+ *           | {ok:false, error, code}}
  */
 export function loginAccount(name, uid, profile = {}) {
   const account = normAccount(name)
   if (!NAME_RE.test(account)) {
-    return { ok: false, error: '账号名需 3-16 位，可用字母/数字/下划线/中文' }
+    return { ok: false, error: '账号名需 6-18 位英文或数字' }
   }
   if (!uid) return { ok: false, error: '缺少设备身份' }
 
   const d = getDb()
   const existing = d.prepare('SELECT * FROM accounts WHERE account = ?').get(account)
-
-  if (existing) {
-    // 已存在 → 登录。如果这个账号被别的 uid 占着，允许接管
-    // （朋友局同一账号名即同一人，换设备也要能登）。
-    if (existing.uid !== uid) {
-      d.prepare(
-        `UPDATE accounts
-         SET uid = ?, nickname = COALESCE(NULLIF(?, ''), nickname),
-             avatar = COALESCE(?, avatar),
-             updated_at = datetime('now')
-         WHERE account = ?`
-      ).run(uid, profile.nickname ?? '', profile.avatar ?? 0, account)
-    } else if (profile.nickname || profile.avatar) {
-      d.prepare(
-        `UPDATE accounts
-         SET nickname = COALESCE(NULLIF(?, ''), nickname),
-             avatar = COALESCE(?, avatar),
-             updated_at = datetime('now')
-         WHERE account = ?`
-      ).run(profile.nickname ?? '', profile.avatar ?? 0, account)
-    }
-    const row = d.prepare('SELECT * FROM accounts WHERE account = ?').get(account)
-    return {
-      ok: true, account, isNew: false,
-      nickname: row.nickname, avatar: row.avatar,
-      goldenSeeds: row.golden_seeds, totalGames: row.total_games,
-    }
+  if (!existing) {
+    return { ok: false, code: 'NOT_FOUND', error: '账号不存在，请先注册' }
   }
 
-  // 新账号：占一个 uid。若这个 uid 已绑过别的账号（本机注册过第二个），
+  // 已存在 → 登录。如果这个账号被别的 uid 占着，允许接管
+  // （朋友局同一账号名即同一人，换设备也要能登）。
+  if (existing.uid !== uid) {
+    d.prepare(
+      `UPDATE accounts
+       SET uid = ?, nickname = COALESCE(NULLIF(?, ''), nickname),
+           avatar = COALESCE(?, avatar),
+           updated_at = datetime('now')
+       WHERE account = ?`
+    ).run(uid, profile.nickname ?? '', profile.avatar ?? 0, account)
+  } else if (profile.nickname || profile.avatar) {
+    d.prepare(
+      `UPDATE accounts
+       SET nickname = COALESCE(NULLIF(?, ''), nickname),
+           avatar = COALESCE(?, avatar),
+           updated_at = datetime('now')
+       WHERE account = ?`
+    ).run(profile.nickname ?? '', profile.avatar ?? 0, account)
+  }
+  const row = d.prepare('SELECT * FROM accounts WHERE account = ?').get(account)
+  return {
+    ok: true, account, isNew: false,
+    nickname: row.nickname, avatar: row.avatar,
+    goldenSeeds: row.golden_seeds, totalGames: row.total_games,
+  }
+}
+
+/**
+ * 注册：账号必须不存在。
+ *
+ * 昵称也查重 —— 桌上两个「小明」分不清是谁。
+ * 账号名已存在返回 { ok:false, code:'TAKEN' }，前端提示换一个。
+ *
+ * @returns {{ok:true, account, isNew:true, nickname, avatar, goldenSeeds, totalGames}
+ *           | {ok:false, error, code}}
+ */
+export function registerAccount(name, uid, profile = {}) {
+  const account = normAccount(name)
+  if (!NAME_RE.test(account)) {
+    return { ok: false, error: '账号名需 6-18 位英文或数字' }
+  }
+  const nickname = String(profile.nickname ?? '').trim()
+  if (!NICK_RE.test(nickname)) {
+    return { ok: false, error: '昵称需 2-8 位中英文或数字' }
+  }
+  if (!uid) return { ok: false, error: '缺少设备身份' }
+
+  const d = getDb()
+  if (d.prepare('SELECT 1 FROM accounts WHERE account = ?').get(account)) {
+    return { ok: false, code: 'TAKEN', error: '账号名已被占用' }
+  }
+  if (d.prepare('SELECT 1 FROM accounts WHERE nickname = ?').get(nickname)) {
+    return { ok: false, code: 'NICK_TAKEN', error: '昵称已被占用，换一个' }
+  }
+
+  // 新账号占一个 uid。若这个 uid 已绑过别的账号（本机注册过第二个），
   // 只解绑不删行 —— DELETE 会顺着 FK CASCADE 把对方账本里
   // 所有引用这个账号的行一起抹掉（金瓜子 + 账本双蒸发）。
   d.prepare(`UPDATE accounts SET uid = 'unbound:' || account WHERE uid = ?`).run(uid)
@@ -200,11 +244,11 @@ export function loginAccount(name, uid, profile = {}) {
   d.prepare(
     `INSERT INTO accounts (account, uid, nickname, avatar)
      VALUES (?, ?, ?, ?)`
-  ).run(account, uid, profile.nickname || account, profile.avatar ?? 1)
+  ).run(account, uid, nickname, profile.avatar ?? 1)
 
   return {
     ok: true, account, isNew: true,
-    nickname: profile.nickname || account, avatar: profile.avatar ?? 1,
+    nickname, avatar: profile.avatar ?? 1,
     goldenSeeds: 0, totalGames: 0,
   }
 }

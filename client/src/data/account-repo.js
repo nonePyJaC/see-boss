@@ -41,13 +41,28 @@ export function getUid() {
   }
 }
 
-/** 账号名登录 / 注册。已存在则直接登上，不存在就按这个昵称建档。 */
-export async function login(account, nickname) {
+/**
+ * 账号名登录。账号必须已存在。
+ * 不存在时返回 { ok:false, code:'NOT_FOUND' }，由调用方切到注册 tab。
+ */
+export async function login(account) {
   const uid = getUid()
-  const r = await request('/api/account/login', { uid, account, nickname })
+  const r = await request('/api/account/login', { uid, account })
   if (r.ok) {
-    const nick = r.data?.nickname || nickname || account
-    writeIdentity({ nickname: nick, avatar: r.data?.avatar })
+    writeIdentity({ nickname: r.data?.nickname || account, avatar: r.data?.avatar })
+  }
+  return r
+}
+
+/**
+ * 注册。账号名和昵称都查重。
+ * 账号名占用 → code 'TAKEN'；昵称占用 → code 'NICK_TAKEN'。
+ */
+export async function register(account, nickname) {
+  const uid = getUid()
+  const r = await request('/api/account/register', { uid, account, nickname })
+  if (r.ok) {
+    writeIdentity({ nickname: r.data?.nickname || nickname, avatar: r.data?.avatar })
   }
   return r
 }
@@ -98,6 +113,6 @@ export function cachedIdentity() {
 }
 
 export const accountRepo = {
-  login, me, updateProfile, logout, clear, clearUid,
+  login, register, me, updateProfile, logout, clear, clearUid,
   ledger, history, getUid, cachedIdentity,
 }

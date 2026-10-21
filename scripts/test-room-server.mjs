@@ -33,11 +33,18 @@ async function api(p, b = {}) {
 const uid = (n) => 'u-' + n + '-' + Math.random().toString(36).slice(2, 6)
 const me = (n = '测试') => ({ nickname: n, avatar: 1 })
 
+/**
+ * 建一个测试账号（注册 + 登录一步到位）。
+ *
+ * 账号名规则已改成 6-18 位纯英文数字，昵称 2-8 位且全局查重，
+ * 所以两者都加随机后缀，避免跨用例撞名。
+ */
 async function login(name) {
   const u = uid(name)
-  // 账号名 3-16 位，随机后缀只取 2 位，别超长
-  const acct = (name + Math.random().toString(36).slice(2, 4)).slice(0, 16)
-  const r = await api('/api/account/login', { uid: u, account: acct, nickname: name })
+  const acct = 'acct' + Math.random().toString(36).slice(2, 10)
+  // 昵称加 2 位随机后缀，保证全局唯一（服务端昵称查重）
+  const nick = String(name).slice(0, 4) + Math.random().toString(36).slice(2, 6)
+  const r = await api('/api/account/register', { uid: u, account: acct, nickname: nick })
   assert.equal(r.ok, true, r.error)
   return u
 }
@@ -64,12 +71,32 @@ function accountNameByUid(u) {
 
 // ── 账号 ────────────────────────────────────────────────
 
-test('账号登录/注册，无密码', async () => {
+test('账号注册 + 登录，无密码', async () => {
   const u = uid('x')
-  const r1 = await api('/api/account/login', { uid: u, account: 'alice', nickname: '爱丽丝' })
+  // 注册
+  const r1 = await api('/api/account/register', { uid: u, account: 'alice001', nickname: '爱丽丝' })
+  assert.equal(r1.ok, true, r1.error)
   assert.equal(r1.data.isNew, true)
-  const r2 = await api('/api/account/login', { uid: uid('y'), account: 'alice' })
+  // 同名再登：直接登入，不新建
+  const r2 = await api('/api/account/login', { uid: uid('y'), account: 'alice001' })
+  assert.equal(r2.ok, true, r2.error)
   assert.equal(r2.data.isNew, false, '同名再登直接登入')
+})
+
+test('登录不存在的账号 → NOT_FOUND', async () => {
+  const r = await api('/api/account/login', { uid: uid('z'), account: 'nosuchacct' })
+  assert.equal(r.ok, false)
+  assert.equal(r.code, 'NOT_FOUND')
+})
+
+test('注册查重：账号名和昵称', async () => {
+  await api('/api/account/register', { uid: uid('a'), account: 'dupacct01', nickname: '小明' })
+  const dupAcct = await api('/api/account/register', { uid: uid('b'), account: 'dupacct01', nickname: '小红' })
+  assert.equal(dupAcct.ok, false)
+  assert.equal(dupAcct.code, 'TAKEN')
+  const dupNick = await api('/api/account/register', { uid: uid('c'), account: 'dupacct02', nickname: '小明' })
+  assert.equal(dupNick.ok, false)
+  assert.equal(dupNick.code, 'NICK_TAKEN')
 })
 
 test('me 返回金瓜子与账本', async () => {
@@ -124,8 +151,11 @@ async function fourPlayerRoom() {
   const names = ['甲', '乙', '丙', '丁']
   const uids = names.map((n) => uid(n))
   for (let i = 0; i < uids.length; i++) {
-    const r = await api('/api/account/login', {
-      uid: uids[i], account: 'p' + Math.random().toString(36).slice(2, 6), nickname: names[i],
+    const r = await api('/api/account/register', {
+      uid: uids[i],
+      account: 'acct' + Math.random().toString(36).slice(2, 10),
+      // 昵称加随机后缀避开全局查重
+      nickname: names[i] + Math.random().toString(36).slice(2, 6),
     })
     assert.equal(r.ok, true, r.error)
   }
