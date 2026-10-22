@@ -15,6 +15,7 @@
 
 import { request } from './http.js'
 import { getUid } from './account-repo.js'
+import { captureSeatRequest, isCurrentSeatRequest } from '../lib/seat-state-request.mjs'
 
 export const POLL_INTERVAL = 2000
 export const ONLINE_POLL_INTERVAL = 500
@@ -225,8 +226,10 @@ export function watchRoom(roomId, onState, onError, cred, intervalMs = POLL_INTE
     if (stopped || inFlight) return
     inFlight = true
     try {
-      const r = await roomState(roomId, credOf())
-      if (stopped) return
+      const request = captureSeatRequest(roomId, credOf())
+      const r = await roomState(roomId, request.credential)
+      // 入座/换发令牌后，旧匿名或旧身份的响应即使 rev 更新也不能覆盖新座位。
+      if (stopped || !isCurrentSeatRequest(request, roomId, credOf())) return
       if (r.ok) failCount = 0
       else if (++failCount === 3) onError?.(r)
       onState(r)

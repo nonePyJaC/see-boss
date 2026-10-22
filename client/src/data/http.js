@@ -10,7 +10,7 @@
  *   3. 响应非 JSON（比如代理返回了 HTML 错误页）也不能 throw。
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? ''
+const API_BASE = import.meta.env?.VITE_API_BASE ?? ''
 
 async function request(path, body = {}) {
   try {

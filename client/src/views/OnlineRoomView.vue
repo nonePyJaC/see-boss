@@ -35,6 +35,7 @@ import {
 import { evaluate } from '@shared/logic/hand-evaluator.mjs'
 import { potLayerView } from '../lib/pot-layer-view.js'
 import { actionLabel } from '../lib/action-log-view.js'
+import { captureSeatRequest, isCurrentSeatRequest } from '../lib/seat-state-request.mjs'
 
 defineOptions({ name: 'OnlineRoomView' })
 
@@ -373,7 +374,9 @@ function onRoomGone() {
 }
 
 async function pull() {
-  const r = await onlineState(ROOM.value, cred.value)
+  const request = captureSeatRequest(ROOM.value, cred.value)
+  const r = await onlineState(request.roomId, request.credential)
+  if (!isCurrentSeatRequest(request, ROOM.value, cred.value)) return
   onState(r)
 }
 
@@ -383,14 +386,16 @@ async function joinOnce() {
   const canSeat = !d.value || d.value.finished || d.value.phase === 'idle'
   if (!canSeat) return
   joinBusy = true
+  const request = captureSeatRequest(ROOM.value, cred.value)
   try {
-    const r = await joinRoom(ROOM.value, {
+    const r = await joinRoom(request.roomId, {
       nickname: user.value?.nickname || user.value?.account || '匿名',
       avatar: user.value?.avatar ?? 1,
-    }, cred.value)
+    }, request.credential)
+    if (!isCurrentSeatRequest(request, ROOM.value, cred.value)) return
     if (r.ok && r.data?.seatToken) {
       cred.value = { seatId: r.data.seatId, seatToken: r.data.seatToken }
-      saveSeatCred(ROOM.value, r.data)
+      saveSeatCred(request.roomId, r.data)
       d.value = r.data
     } else if (r.code === 'ROOM_FULL' || r.code === 'ROOM_NOT_FOUND') {
       joinDenied.value = r.error || '无法入座'

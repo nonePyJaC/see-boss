@@ -5,7 +5,7 @@
  * 三块内容：
  *   1. 我的房间：本机有凭证/在座位的房（iAmIn）→ 回到房间；我建的（isMine）→ 解散
  *   2. 房间列表：当前存在的房间（含线上），显示人数/状态；满员禁加入；可解散自己的房
- *   3. 输房间号加入（线上进入页面自动入座，线下走 join 接口）
+ *   3. 输房间号加入（入座成功并保存凭证后再进入房间）
  *
  * 「解散/退出」全部走 leave 接口：房主离开 = 销毁房间，成员离开 = 退座。
  * 线上凭证由 listSeatCredRooms 回传服务端 authSeat 认证 —— 伪造不了别人房间的标记。
@@ -16,8 +16,8 @@ import { hamsterDataURI, getHamster } from '@shared/assets/hamsters.mjs'
 import { useUser } from '../stores/user.js'
 import { askConfirm } from '../composables/useConfirm.js'
 import {
-  listRooms, joinRoom, onlineState, onlineLeave, leaveRoom,
-  listSeatCredRooms, clearSeatCred,
+  listRooms, joinRoom, onlineLeave, leaveRoom,
+  listSeatCredRooms, loadSeatCred, saveSeatCred, clearSeatCred,
 } from '../data/room-repo.js'
 
 const props = defineProps({
@@ -65,8 +65,7 @@ async function joinByNo() {
   if (!/^\d{6}$/.test(no)) { joinError.value = '房间号是 6 位数字'; return }
   joinError.value = ''
   if (props.mode === 'online') {
-    // 线上：直接进房，页面自己处理入座/旁观
-    router.push({ path: roomPath(no), query: { room: no } })
+    await enterOnline(no)
     return
   }
   // 线下：先 join 再进
@@ -86,14 +85,7 @@ async function joinByNo() {
 async function joinListed(r) {
   if (r.full && !r.iAmIn) return
   if (props.mode === 'online') {
-    // 先探活：列表是 4s 缓存，房间可能刚解散 —— 别把人送到「房间不存在」挡屏
-    const st = await onlineState(r.roomNo)
-    if (!st.ok) {
-      joinError.value = '房间已不存在或刚解散'
-      await refresh()
-      return
-    }
-    enter(r)
+    await enterOnline(r.roomNo)
     return
   }
   busy.value = true
@@ -104,6 +96,31 @@ async function joinListed(r) {
     })
     if (j.ok) { enter(r); return }
     joinError.value = j.error || '加入失败'
+  } finally {
+    busy.value = false
+  }
+}
+
+/** 列表/房号入口都先完成真实入座，房间页首次拉状态即带新凭证。 */
+async function enterOnline(roomNo) {
+  if (busy.value) return
+  busy.value = true
+  joinError.value = ''
+  try {
+    const r = await joinRoom(roomNo, {
+      nickname: user.value?.nickname || user.value?.account || '匿名',
+      avatar: user.value?.avatar ?? 1,
+    }, loadSeatCred(roomNo))
+    if (r.ok) {
+      saveSeatCred(roomNo, r.data)
+      enter({ roomNo })
+    } else if (r.code === 'HAND_IN_PROGRESS') {
+      // 真正开局后到达的新玩家按规则旁观，本手结束后自动尝试入座。
+      enter({ roomNo })
+    } else {
+      joinError.value = r.error || '加入失败'
+      if (r.code === 'ROOM_NOT_FOUND') await refresh()
+    }
   } finally {
     busy.value = false
   }
@@ -188,7 +205,7 @@ onUnmounted(() => clearInterval(timer))
         </div>
       </div>
       <div class="r-actions">
-        <button class="btn primary sm" :disabled="busy || r.full" @click="joinListed(r)">加入</button>
+        <button class="btn primary sm" :disabled="busy || r.full" @click="joinListed(r)">{{ mode === 'online' && r.inProgress ? '旁观' : '加入' }}</button>
       </div>
     </div>
 
