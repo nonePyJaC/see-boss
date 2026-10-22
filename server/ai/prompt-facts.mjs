@@ -139,6 +139,8 @@ export function cardFacts(obs) {
 }
 
 export function priceFacts(obs) {
+  if (![obs.currentBet, obs.myBet, obs.mySeeds].every((v) => Number.isFinite(v) && v >= 0))
+    return ['跟注成本未知（当前注额、本人已下或后手数据不足）；不推断免费过牌或赔率门槛。']
   const pot = Math.max(0, obs.pot ?? 0)
   const owed = Math.max(0, (obs.currentBet ?? 0) - (obs.myBet ?? 0))
   const call = Math.min(owed, Math.max(0, obs.mySeeds ?? 0))
@@ -169,6 +171,28 @@ export function priceFacts(obs) {
   }
   if (last) facts.push(`本轮最近一次主动下注/加注：本次投入 ${last.amount} / 出手前底池 ${last.before} = ${percent(last.amount / last.before)}；加注时该投入包含补跟部分，不能当成纯加注增量。`)
   return facts
+}
+
+/** 仅从公开状态确认谁仍可支付，不用 actedSeatIds 排除已经响应过的对手。 */
+export function responseFacts(obs, seatLabel) {
+  const players = obs.publicPlayers
+  let targets = '未知（公开座位或本人身份不足）'
+  if (Array.isArray(players) && obs.mySeatId != null && players.some((p) => p.seatId === obs.mySeatId)) {
+    const known = [], unknown = []
+    for (const p of players) {
+      if (p.seatId === obs.mySeatId || p.folded === true || p.allIn === true || p.seeds === 0) continue
+      if (p.folded === false && p.allIn === false && Number.isFinite(p.seeds) && p.seeds > 0)
+        known.push(`${seatLabel(p.seatId)}（后手 ${p.seeds}）`)
+      else unknown.push(seatLabel(p.seatId))
+    }
+    targets = known.join('、') || (unknown.length ? '未知' : '无（0人）')
+    if (unknown.length) targets += (known.length ? '；另有未知' : '') + `（${unknown.join('、')}状态不足）`
+  }
+  const owed = [obs.currentBet, obs.myBet].every((v) => Number.isFinite(v) && v >= 0)
+    ? Math.max(0, obs.currentBet - obs.myBet) : '未知'
+  const check = !Array.isArray(obs.legalActions) ? '合法性未知'
+    : obs.legalActions.some((a) => a.type === 'check') ? '合法' : '不在合法列表'
+  return ['【可追加筹码对手】' + targets, `【我的当前付款义务】尚欠 ${owed}；check${check}`]
 }
 
 /** 按轮次汇总出价/跟注角色；当前响应义务只认引擎的公开 actedSeatIds。 */

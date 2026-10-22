@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { cardFacts, priceFacts, canonicalCard, cardText } from './prompt-facts.mjs'
+import { buildMessages } from './llm.mjs'
 
 // 匿名构造的牌型/赔率场景；不读写玩家复盘或线上数据。
 const cards = (myCards, board, gameType = 'long') => cardFacts({ myCards, board, gameType }).join('\n')
@@ -23,6 +24,35 @@ test('次对和最高踢脚明确给出，不由模型自行猜牌型', () => {
 test('两对和公共牌踢脚，以及七张中三对时的真正最佳五张', () => {
   assert.match(cards(['Ad', '5c'], ['2h', '9d', 'As', '9c', 'Kh']), /两对 A 和 9；踢脚 K/)
   assert.match(cards(['Ad', 'Ac'], ['Kh', 'Kd', 'Qs', 'Qh', '2c']), /两对 A 和 K；踢脚 Q/)
+  const trips = cards(['Qd', '4c'], ['9h', '9s', '9d', 'As', 'Kh'])
+  assert.match(trips, /三条 9；踢脚 A、K/)
+  assert.match(trips, /底牌未提高五张牌力/)
+})
+
+test('C2 构建输入区分公共两对踢脚、价格门槛与有对象的行动目的', () => {
+  const [system, user] = buildMessages({ gameType: 'long', phase: 'river', mySeatId: 'a',
+    myCards: ['Jc', '5d'], board: ['As', 'Ah', 'Ks', 'Kh', '2c'],
+    pot: 1800, currentBet: 300, myBet: 0, mySeeds: 1000, actedSeatIds: ['b'],
+    publicPlayers: [
+      { seatId: 'a', seeds: 1000, bet: 0, totalBet: 600, folded: false, allIn: false },
+      { seatId: 'b', seeds: 700, bet: 300, totalBet: 900, folded: false, allIn: false },
+      { seatId: 'c', seeds: 1000, bet: 0, totalBet: 300, folded: true, allIn: false },
+    ],
+    publicActions: [{ seatId: 'b', type: 'bet', amount: 300, betTotal: 300, phase: 'river' }],
+    legalActions: [{ type: 'fold' }, { type: 'call', amount: 300 }, { type: 'raise', min: 600, max: 1000 }],
+  }, {}, [])
+  assert.match(user.content, /两对 A 和 K；踢脚 J/)
+  assert.match(user.content, /静态盈亏平衡权益 14.29% = 300\/\(1800\+300\)/)
+  assert.match(user.content, /【可追加筹码对手】座2（后手 700）/)
+  assert.match(system.content, /公共牌配对、两对或三条时，看底牌是否改善最佳五张及实际踢脚/)
+  assert.match(system.content, /只是价格参考而非实际权益；跟注要判断能赢对手合理范围的哪部分/)
+  assert.match(system.content, /不因赔率好或有听牌自动跟注。无可信数值时定性判断/)
+  assert.match(system.content, /价值下注要有可支付的对手，并判断哪些较弱范围可能跟注/)
+  assert.match(system.content, /半诈唬\/诈唬要有仍能弃牌的对象及合理的弃牌机会/)
+  assert.match(system.content, /中等摊牌价值允许check\/call/)
+  assert.match(system.content, /大注或全压可用于有依据的价值或诈唬/)
+  assert.match(system.content, /遇危险新牌、较强反击或不合价格可改线或直接弃牌/)
+  assert.match(system.content, /首次决策也可零追加筹码fold，不必先跟一口或进入计划/)
 })
 
 test('两头顺子和轮子卡顺的补牌张数/概率，不冒充胜率', () => {

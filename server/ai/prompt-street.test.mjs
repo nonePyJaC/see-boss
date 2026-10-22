@@ -8,6 +8,54 @@ const observation = () => ({ phase: 'turn', mySeatId: 'a', currentBet: 0, actedS
   publicActions: [] })
 const summary = (obs) => streetFacts(obs).join('\n')
 
+test('C1 下注对象边界：免费check、仍欠注、第三方支付和状态缺失', () => {
+  const base = () => ({ ...observation(), gameType: 'long', myCards: ['As', 'Kd'],
+    board: ['2c', '7h', '9d', 'Js'], pot: 300, myBet: 0, mySeeds: 1000,
+    legalActions: [{ type: 'check' }, { type: 'raise', min: 20, max: 1000 }] })
+  const free = base()
+  Object.assign(free.publicPlayers[1], { allIn: true, seeds: 0 })
+  free.publicPlayers[2].folded = true
+  const owed = structuredClone(free)
+  Object.assign(owed, { pot: 400, currentBet: 300, myBet: 100,
+    legalActions: [{ type: 'fold' }, { type: 'call', amount: 200 }, { type: 'raise', min: 500, max: 1100 }] })
+  owed.publicPlayers[0].bet = 100
+  owed.publicPlayers[1].bet = 300
+  const third = structuredClone(free)
+  Object.assign(third, { currentBet: 100, myBet: 100, actedSeatIds: ['a', 'b', 'c'],
+    publicActions: [{ seatId: 'c', type: 'call', amount: 100, betTotal: 100, phase: 'turn' }] })
+  for (const p of third.publicPlayers) p.bet = 100
+  Object.assign(third.publicPlayers[2], { folded: false, seeds: 600 })
+  const missing = structuredClone(free)
+  Object.assign(missing.publicPlayers[1], { allIn: undefined, seeds: undefined })
+  delete missing.myBet
+
+  for (const [name, obs, payers, payment, legal] of [
+    ['免费check', free, /无（0人）/, /尚欠 0；check合法/, 'check / raise（加注到 20 ~ 1000）'],
+    ['仍欠注', owed, /无（0人）/, /尚欠 200；check不在合法列表/, 'fold / call（跟 200） / raise（加注到 500 ~ 1100）'],
+    ['第三方支付', third, /座3（后手 600）/, /尚欠 0；check合法/, 'check / raise（加注到 20 ~ 1000）'],
+    ['状态缺失', missing, /未知（座2状态不足）/, /尚欠 未知；check合法/, 'check / raise（加注到 20 ~ 1000）'],
+  ]) {
+    const before = structuredClone(obs)
+    const text = buildMessages(obs, {}, [])[1].content
+    const line = text.split('\n').find((s) => s.startsWith('【可追加筹码对手】'))
+    assert.ok(line, name + ' 应提供下注对象摘要（旧版输入契约red）')
+    assert.match(line, payers, name)
+    assert.match(text.split('\n').find((s) => s.startsWith('【我的当前付款义务】')), payment, name)
+    assert.ok(text.endsWith('【你可以做的动作】' + legal), name + ' 保留原合法列表')
+    assert.ok(text.indexOf(line) > text.indexOf('【当前决策】'), name + ' 事实位于动态后段')
+    assert.deepEqual(obs, before, name + ' 不改写观察或合法动作')
+    if (name === '第三方支付') assert.match(text, /待响应：无/)
+    if (name === '状态缺失') {
+      assert.match(text, /跟注成本未知/)
+      assert.ok(!text.includes('已平注') && !text.includes('本次过牌成本 0'))
+    }
+  }
+  assert.match(LLM_SYSTEM_PROMPT, /不等于待响应名单/)
+  assert.match(LLM_SYSTEM_PROMPT, /无人可追加筹码、本人不欠注且check合法时选择check/)
+  assert.match(LLM_SYSTEM_PROMPT, /仍欠注则评估call\/fold/)
+  assert.match(LLM_SYSTEM_PROMPT, /第三方仍能支付时可争取价值或边池/)
+})
+
 test('上一圈过牌不进入本圈曾过牌；新圈尚无人行动，不保证免费到下一圈', () => {
   const obs = observation()
   obs.publicActions = [
