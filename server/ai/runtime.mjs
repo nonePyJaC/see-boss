@@ -241,7 +241,7 @@ export function buildObservation({
   publicPlayers, publicActions, legalActions,
   // 下面几个是给 LLM 提示词用的，本地策略不读。
   // 都设成可选，老调用方不传也能照跑。
-  phase, smallBlind, myNickname, sbIndex, dealerSeatId, smallBlindSeatId, bigBlindSeatId,
+  phase, smallBlind, myNickname, sbIndex, dealerSeatId, smallBlindSeatId, bigBlindSeatId, actedSeatIds,
 }) {
   return {
     gameType,
@@ -260,6 +260,9 @@ export function buildObservation({
     dealerSeatId: dealerSeatId ?? null,
     smallBlindSeatId: smallBlindSeatId ?? null,
     bigBlindSeatId: bigBlindSeatId ?? null,
+    actedSeatIds: Array.isArray(actedSeatIds)
+      ? [...new Set(actedSeatIds.filter((id) => typeof id === 'string' && (publicPlayers ?? []).some((p) => p.seatId === id)))]
+      : null,
     publicPlayers: (publicPlayers ?? []).map((p) => ({
       seatId: p.seatId, nickname: p.nickname ?? null,
       bet: p.bet ?? 0, totalBet: Number.isFinite(p.totalBet) ? p.totalBet : null,

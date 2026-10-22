@@ -1181,6 +1181,7 @@ async function decideAiTurn(room, captured, job) {
     smallBlind: room.smallBlind,
     phase: st.phase,
     myNickname: seat.nickname,
+    actedSeatIds: st.actedUids,
     dealerSeatId: st.dealerUid,
     smallBlindSeatId: st.sbUid,
     bigBlindSeatId: st.bbUid,

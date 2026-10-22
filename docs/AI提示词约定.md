@@ -1,6 +1,6 @@
 # AI 提示词与输出约定
 
-当前提示词版本：`poker-cache-v3`，版本标识写在固定 system 消息内，供私有复盘区分。
+当前提示词版本：`poker-facts-v4`，版本标识写在固定 system 消息内，供私有复盘区分。
 
 ## 输入
 
@@ -11,6 +11,9 @@
 - 按钮、小盲、大盲身份来自当前手引擎的公开座位字段。原先多人桌即使剩两人，也不改用「按钮就是小盲」的双人桌规则。本轮座次顺序剔除弃牌/全下者，明确它不是「尚未行动者」列表。
 - `server/ai/prompt-facts.mjs` 仅接收安全 observation：自己的底牌、公共牌、公开座位/投入及行动。不得增加其他玩家底牌、牌堆、令牌、Key 或完整 Room。
 - 程序给出最佳五张、实际牌型和踢脚、与公共牌配成的顶对/次对、一张成顺或成花的未知牌张数。短牌使用36张牌堆和对应牌型规则。
+- 底牌结构在翻前和翻后都明确给出：同花/不同花、常规点数差、中间隔张数、连张/非连张。对子不当作连张；长牌A低位、短牌A低位的连接关系另列，不混同于常规高位点数差。
+- 动态后段增加分圈行动角色和当前响应摘要：逐圈分别统计主动下注/加注者与跟注者，仅当前圈统计曾过牌者、尚未行动者及最后出价者。待响应名单读取引擎的公开`actedUids`，经安全观察白名单转换为`actedSeatIds`，包括加注后需再次行动的人，并剔除弃牌/全下/无后手者。缺失引擎字段时明确未知，不能将曾行动等同于已经完成响应。
+- 角色摘要从完整本手行动重建，放在`【当前决策】`后，不破坏公共历史追加前缀。常用的听牌概率和静态赔率限制集中在固定system规则，动态段保留事实和数值。
 - 同花强度只比较同花的差异高张，不代表绝对坚果。听牌概率只指下一张成顺/成花，不是干净补牌或实际胜率，不能将重叠听牌直接相加。
 - 跟注成本按剩余筹码封顶；公开累计投入完整时排除自己无法争夺的超额池，保留弃牌者已经投入的死钱。权益门槛是无后续投入的静态参考；不同边池需分别评估对手，累计投入缺失时明确按全池简化。
 - 下注尺度使用该动作出手前的底池。加注的实际投入含补跟部分，与加注增量及累计加注到的金额分开说明。
@@ -23,6 +26,7 @@
 - `action` 必须是当前合法列表中的 `fold`、`check`、`call`、`raise` 或 `allin`。
 - `raise.amount` 是整数，表示本轮累计下注到的总额，位于合法范围；首次下注也使用 raise。其余动作不附 amount。
 - `reason` 要求一句不超过80字的简短决策依据，引用当前牌力、关键历史或成本，说明取值、半诈唬/诈唬、控池、跟注或弃牌的目的；加注说明尺度依据。
+- 引用行动时注明轮次和座号，输出前与程序底牌结构和角色摘要核对；不把对手下注说成跟注，不把上一圈过牌当作当前圈已过牌，不保证尚未发生的“免费到下一圈”。
 - 人设影响范围、频率和尺度，不能覆盖牌型事实。强牌可以合理慢打，有听牌也可以因价格不合适弃牌；不把某一种动作写成所有场景的固定答案。
 - 未知对手范围必须作为推测表述，不编造确定底牌或胜率，不输出详细内部推演。
 
@@ -35,7 +39,7 @@
 针对匿名构造场景运行：
 
 ```text
-node --test server/ai/prompt-facts.test.mjs server/ai/llm.test.mjs server/ai/llm-cache.test.mjs server/ai/llm-online.test.mjs server/ai/decision-review.test.mjs server/ai/ai.test.mjs server/ai/regression-v2.test.mjs
+node --test server/ai/prompt-facts.test.mjs server/ai/prompt-street.test.mjs server/ai/llm.test.mjs server/ai/llm-cache.test.mjs server/ai/llm-online.test.mjs server/ai/decision-review.test.mjs server/ai/ai.test.mjs server/ai/regression-v2.test.mjs
 npm run test:online
 npm run build
 ```

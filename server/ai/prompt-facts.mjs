@@ -81,6 +81,18 @@ function flushStrength(hand, board, unknown) {
     '；仍需结合公共牌检查同花顺、葫芦或四条风险'
 }
 
+function holeStructure(hole, gameType) {
+  const [a, b] = hole.map(parseCard)
+  const high = Math.max(a.value, b.value), low = Math.min(a.value, b.value)
+  if (high === low) return `口袋对 ${rankText(high)}；不同花，点数相同，非连张`
+  const gap = high - low
+  const aceLow = gameType === 'short' ? 5 : 1
+  const lowAce = high === 14 && low >= aceLow + 1 && low <= aceLow + 4
+    ? `；A低位时点数差 ${low - aceLow}（${low - aceLow === 1 ? '低位相连' : '低位隔' + (low - aceLow - 1) + '张'}）` : ''
+  return `${rankText(high)}${rankText(low)}，${a.suit === b.suit ? '同花' : '不同花'}；常规点数差 ${gap}，` +
+    (gap === 1 ? '连张' : `隔 ${gap - 1} 张，非连张`) + lowAce
+}
+
 export function cardFacts(obs) {
   const hole = (obs.myCards ?? []).map(canonicalCard)
   const board = (obs.board ?? []).map(canonicalCard)
@@ -90,19 +102,18 @@ export function cardFacts(obs) {
   if (hole.length !== 2 || cards.some((c) => !deck.includes(c)) || new Set(cards).size !== cards.length ||
       ![0, 3, 4, 5].includes(board.length)) return ['牌面数据不完整，无法提供确定性牌型事实；不要补造牌型或胜率。']
   if (!board.length) {
-    const [a, b] = hole.map(parseCard)
-    return [a.value === b.value ? `翻牌前口袋对 ${rankText(a.value)}` :
-      `翻牌前 ${rankText(Math.max(a.value, b.value))}${rankText(Math.min(a.value, b.value))}，${a.suit === b.suit ? '同花' : '不同花'}；尚未形成五张牌型`]
+    return [`底牌结构：${holeStructure(hole, gameType)}；翻牌前未形成五张牌型`]
   }
   const hand = bestFive(cards, gameType)
   const unknown = deck.filter((c) => !cards.includes(c))
-  const facts = [`当前最佳五张：${madeHandText(hand)}；组成 ${cardText(hand.cards)}`]
+  const facts = [`底牌结构：${holeStructure(hole, gameType)}`,
+    `当前最佳五张：${madeHandText(hand)}；组成 ${cardText(hand.cards)}`]
   if (hand.type === HAND.ONE_PAIR) {
     const pair = hand.kickers[0]
     const boardRanks = [...new Set(board.map((c) => parseCard(c).value))].sort((a, b) => b - a)
     if (hole.some((c) => parseCard(c).value === pair) && boardRanks.includes(pair)) {
       const order = boardRanks.indexOf(pair) + 1
-      facts.push(`与公共牌配成第 ${order} 对（${order === 1 ? '顶对' : order === 2 ? '次对' : '低于次对'}）；不能把低于牌面最高点数的对子叫顶对`)
+      facts.push(`与公共牌配成第 ${order} 对（${order === 1 ? '顶对' : order === 2 ? '次对' : '低于次对'}）`)
     }
   }
   if (board.length === 5 && compareHands(hand, bestFive(board, gameType)) === 0)
@@ -124,7 +135,6 @@ export function cardFacts(obs) {
     facts.push(`${SUIT[suit]}同花听牌：${outs.length} 张未知牌；下一张成花概率 ${percent(outs.length / unknown.length)}` +
       (higher.length ? `；未见的更高同色牌 ${cardText(higher)}，不能据此称为坚果同花听牌` : '；仍需检查同花顺及成对牌面风险'))
   }
-  facts.push('上述是下一张形成顺子/同花的张数，可能只改善公共牌、被更大牌压制或互相重叠；不是干净赢牌补牌数，也不是摊牌胜率。')
   return facts
 }
 
@@ -141,7 +151,6 @@ export function priceFacts(obs) {
   const facts = call ? [
     `当前底池 ${pot}（已包含对手下注）；平注尚欠 ${owed}，本次跟注实际投入 ${call}${call < owed ? '（只能短码全下，不能平齐）' : ''}`,
     `本次跟注可争夺底池 ${contestable}，跟注后 ${contestable + call}；底池赔率 ${Number((contestable / call).toFixed(3))}:1；静态盈亏平衡权益 ${percent(call / (contestable + call))} = ${call}/(${contestable}+${call})`,
-    '静态权益门槛假设之后无新增投入，不含隐含赔率、未来加注和弃牌率；不等于当前实际胜率。如有多层边池，需对各池不同对手分别评估，以可争夺池加权权益比较。',
   ] : ['本次过牌成本 0；不需为看下一步支付跟注。']
   if (call && !complete) facts.push('各座累计投入数据不足，以上按全池简化；如有边池不能当成精确权益门槛。')
   // 从完整本轮流水复原下注前底池，避免把「下注后的池子」错作尺度分母。
@@ -159,6 +168,56 @@ export function priceFacts(obs) {
     before += amount
   }
   if (last) facts.push(`本轮最近一次主动下注/加注：本次投入 ${last.amount} / 出手前底池 ${last.before} = ${percent(last.amount / last.before)}；加注时该投入包含补跟部分，不能当成纯加注增量。`)
+  return facts
+}
+
+/** 按轮次汇总出价/跟注角色；当前响应义务只认引擎的公开 actedSeatIds。 */
+export function streetFacts(obs, seatLabel = (id) => {
+  const i = (obs.publicPlayers ?? []).findIndex((p) => p.seatId === id)
+  return i >= 0 ? '座' + (i + 1) : '未知座位'
+}) {
+  const phases = ['preflop', 'flop', 'turn', 'river']
+  const names = ['翻牌前', '翻牌圈', '转牌圈', '河牌圈']
+  const current = phases.indexOf(obs.phase)
+  if (current < 0) return ['当前圈未知，不推断行动角色或待响应名单。']
+  const facts = []
+  let currentActions = [], currentChecks = [], lastAggressor = null
+  const add = (map, id) => map.set(id, (map.get(id) ?? 0) + 1)
+  const counted = (map) => [...map].map(([id, n]) => seatLabel(id) + '×' + n).join('、') || '无'
+  for (let i = 0; i <= current; i++) {
+    const actions = (obs.publicActions ?? []).filter((a) => a.phase === phases[i])
+    const aggressive = new Map(), calls = new Map(), unknownAllins = new Map()
+    const voluntary = [], checks = []
+    let highest = 0, last = null
+    for (const a of actions) {
+      const blind = a.type === 'blind' || a.type === 'blind_allin'
+      const total = Number.isFinite(a.betTotal) ? a.betTotal : blind && Number.isFinite(a.amount) ? a.amount : null
+      const raises = a.type === 'bet' || a.type === 'raise' ||
+        (a.type === 'allin' && total !== null && highest !== null && total > highest)
+      if (raises) { add(aggressive, a.seatId); last = a }
+      else if (a.type === 'call' || (a.type === 'allin' && total !== null && highest !== null && total <= highest)) add(calls, a.seatId)
+      else if (a.type === 'allin') add(unknownAllins, a.seatId)
+      if (['bet', 'raise', 'allin', 'call', 'fold', 'check'].includes(a.type)) voluntary.push(a)
+      if (a.type === 'check') checks.push(a)
+      if (total !== null && highest !== null) highest = Math.max(highest, total)
+      else if (raises || a.type === 'allin') highest = null
+    }
+    if (voluntary.length || i === current) facts.push(`${names[i]}：出价 ${counted(aggressive)}；跟注 ${counted(calls)}` +
+      (unknownAllins.size ? `；性质未知全下 ${counted(unknownAllins)}` : ''))
+    if (i === current) { currentActions = voluntary; currentChecks = checks; lastAggressor = last }
+  }
+  const active = (obs.publicPlayers ?? []).filter((p) => !p.folded && !p.allIn && p.seeds > 0)
+  const acted = new Set(currentActions.map((a) => a.seatId))
+  const labels = (players) => players.map((p) => seatLabel(p.seatId)).join('、') || '无'
+  facts.push(`本圈曾过牌：${[...new Set(currentChecks.map((a) => a.seatId))].map((id) => seatLabel(id)).join('、') || '无'}`)
+  if (!currentActions.length) facts.push('本圈尚无人主动行动（盲注不算主动行动）')
+  facts.push('本圈尚未行动：' + labels(active.filter((p) => !acted.has(p.seatId))))
+  if (lastAggressor) facts.push('本圈最后出价：' + seatLabel(lastAggressor.seatId) +
+    '，到 ' + (Number.isFinite(lastAggressor.betTotal) ? lastAggressor.betTotal : '未知'))
+  if (Array.isArray(obs.actedSeatIds)) {
+    const responded = new Set(obs.actedSeatIds)
+    facts.push('待响应：' + labels(active.filter((p) => !responded.has(p.seatId) || p.bet < obs.currentBet)))
+  } else facts.push('待响应：未提供引擎状态，以合法动作及完整历史为准')
   return facts
 }
 

@@ -221,6 +221,10 @@ test('输出约定要求合法整数总额、事实依据和目的，不强制�
   assert.match(LLM_SYSTEM_PROMPT, /不超过80字/)
   assert.match(LLM_SYSTEM_PROMPT, /选择慢打或控池应说明具体收益或风险/)
   assert.match(LLM_SYSTEM_PROMPT, /不输出详细内部推演/)
+  assert.match(LLM_SYSTEM_PROMPT, /隔张不能叫连张，不同花不能叫同花/)
+  assert.match(LLM_SYSTEM_PROMPT, /可能只改善公共牌/)
+  assert.match(LLM_SYSTEM_PROMPT, /静态跟注门槛假设无后续投入/)
+  assert.match(LLM_SYSTEM_PROMPT, /引用行动时注明轮次和座号/)
   for (const example of LLM_SYSTEM_PROMPT.split('\n').filter((line) => line.startsWith('{'))) {
     const decision = JSON.parse(example)
     assert.ok(parseDecision(example))

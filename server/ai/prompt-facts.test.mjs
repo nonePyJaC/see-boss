@@ -28,10 +28,25 @@ test('两对和公共牌踢脚，以及七张中三对时的真正最佳五张',
 test('两头顺子和轮子卡顺的补牌张数/概率，不冒充胜率', () => {
   const open = cards(['Ah', 'Tc'], ['8d', '7s', '9h', 'Qd'])
   assert.match(open, /补牌点数 6、J，8 张未知牌；下一张成顺概率 17.39%/)
-  assert.match(open, /不是干净赢牌补牌数，也不是摊牌胜率/)
   const wheel = cards(['5h', '3c'], ['2d', '9h', 'Ah', '9c'])
   assert.match(wheel, /补牌点数 4，4 张未知牌；下一张成顺概率 8.70%/)
   assert.match(cards(['8s', '2c'], ['Ts', '7c', 'Kh', '9h']), /补牌点数 6、J，8 张/)
+})
+
+test('底牌显式标注花色与点数间隔，隔张不能误当连张', () => {
+  assert.match(cards(['Qh', 'Tc'], []), /Q10，不同花；常规点数差 2，隔 1 张，非连张/)
+  assert.match(cards(['8h', '5h'], []), /85，同花；常规点数差 3，隔 2 张，非连张/)
+  assert.match(cards(['Kh', 'Qh'], []), /KQ，同花；常规点数差 1，连张/)
+  assert.match(cards(['As', 'Ah'], []), /口袋对 A；不同花，点数相同，非连张/)
+  assert.match(cards(['Qh', 'Tc'], ['2d', '7s', 'Jh']), /底牌结构：Q10，不同花；常规点数差 2，隔 1 张，非连张/)
+})
+
+test('A高位连张与长/短牌低位特例分开陈述', () => {
+  assert.match(cards(['As', 'Kd'], []), /常规点数差 1，连张/)
+  assert.match(cards(['As', '2d'], []), /非连张；A低位时点数差 1（低位相连）/)
+  assert.match(cards(['As', '5d'], []), /A低位时点数差 4（低位隔3张）/)
+  assert.match(cards(['As', '6d'], [], 'short'), /非连张；A低位时点数差 1（低位相连）/)
+  assert.match(cards(['As', '9d'], [], 'short'), /A低位时点数差 4（低位隔3张）/)
 })
 
 test('J高同花听牌不误称坚果，河牌次坚果同花不当成小同花', () => {

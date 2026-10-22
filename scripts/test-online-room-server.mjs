@@ -553,7 +553,8 @@ test('最近手牌记录保留行动与派彩，但绝不记录弃牌者底牌',
   const folded = record.result.hands.find((hand) => hand.uid === actor.seatId)
   assert.equal(folded.folded, true)
   assert.deepEqual(folded.hole, [])
-  for (const card of cardsBeforeFold) assert.equal(JSON.stringify(record).includes(card), false)
+  // 牌码只有两字符，可能碰巧出现在随机座位ID中；匹配完整JSON牌值。
+  for (const card of cardsBeforeFold) assert.equal(JSON.stringify(record).includes(JSON.stringify(card)), false)
   await closeRoom(host)
 })
 

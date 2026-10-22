@@ -164,11 +164,12 @@ test('安全观察只含白名单字段，剥离对手底牌等越权字段', ()
     ],
     publicActions: [{ seatId: 'opp', type: 'call', amount: 20, phase: 'preflop', secret: 'x' }],
     legalActions: [{ type: 'fold', label: '弃牌' }],
+    actedSeatIds: ['opp', 'PRIVATE_NOT_A_PUBLIC_SEAT', { secret: 'not-a-seat' }],
   })
   // 白名单含公开的阶段、盲注及按钮身份，不含对手私牌。
   assert.deepEqual(
     Object.keys(obs).sort(),
-    ['bigBlind', 'bigBlindSeatId', 'board', 'currentBet', 'dealerSeatId', 'gameType', 'legalActions', 'myBet', 'myCards',
+    ['actedSeatIds', 'bigBlind', 'bigBlindSeatId', 'board', 'currentBet', 'dealerSeatId', 'gameType', 'legalActions', 'myBet', 'myCards',
      'myNickname', 'mySeatId', 'mySeeds', 'phase', 'pot', 'publicActions', 'publicPlayers',
      'sbIndex', 'smallBlind', 'smallBlindSeatId'].sort(),
   )
@@ -177,6 +178,8 @@ test('安全观察只含白名单字段，剥离对手底牌等越权字段', ()
   assert.ok(!('secret' in obs.publicActions[0]))
   // 序列化后不得出现对手底牌字样
   assert.ok(!JSON.stringify(obs).includes('3h'))
+  assert.deepEqual(obs.actedSeatIds, ['opp'])
+  assert.ok(!JSON.stringify(obs).includes('PRIVATE_NOT_A_PUBLIC_SEAT'))
 })
 
 // ═══ 合法性 / 降级 ═══

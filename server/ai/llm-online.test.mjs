@@ -215,6 +215,13 @@ test('逐次请求动态更新：翻牌携带翻前全员动作，后续各轮�
     // 对每一次真正发给模型的内容校验，而不只看最后一份河牌提示词。
     assert.match(prompt, new RegExp('【当前阶段】' + phaseNames[st.phase]))
     assert.ok(prompt.includes('【公共池】' + st.pot + '\n'))
+    const pending = st.seats.filter((s) => !s.folded && !s.allIn && s.seeds > 0 &&
+      (!st.actedUids.includes(s.uid) || s.bet < st.currentBet))
+      .map((s) => '座' + (st.seats.indexOf(s) + 1)).join('、') || '无'
+    assert.ok(prompt.includes('待响应：' + pending + '\n'), '每次真正发出的请求都使用当前引擎的响应义务')
+    const checked = [...new Set(st.actionLog.filter((a) => a.phase === st.phase && a.type === 'check')
+      .map((a) => '座' + (st.seats.findIndex((s) => s.uid === a.uid) + 1)))].join('、') || '无'
+    assert.ok(prompt.includes('本圈曾过牌：' + checked + '\n'), '不得把上一圈过牌带进当前圈')
     assert.equal(lines.length, st.actionLog.length)
     for (const [i, action] of st.actionLog.entries()) {
       const who = '座' + (st.seats.findIndex((s) => s.uid === action.uid) + 1)
