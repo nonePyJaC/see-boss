@@ -49,3 +49,11 @@ C1先在v4运行：预期失败，明确缺少下注对象摘要，非import失�
 开工前已有、继续保留且不暂存：`scripts/test-online-ai-regressions.mjs`、`线上模式.md`、`线上模式AI优化开发计划.md`的修改，以及未跟踪的`nul`、`shared/logic/mahjong/`、`南京麻将规则.docx`、`南京麻将规则口径确认.md`。私有实战材料继续留在原忽略目录，没有入Git。
 
 仅本地提交，交owner review；不推送、不发布。后续由线上owner按根目录AGENTS唯一流程处理。
+
+## Owner review结论（2026-10-22）
+
+**pass，0 findings**。审查功能提交 `9a9b507462c7529109e948edbb8f0d3ed12f377f` / `poker-facts-v5`，符合本轮提示词与安全公开事实组织范围，无需返修。正式记录：[leader review](D:/dezhou/docs/plan/reviews/newpoker-agent-prompt-001-functional-1.md)。
+
+接受上述11项开发短控证据；review独立核对产品差异、调用者、源码身份及两文件语法，未重跑测试或调用真实模型。输入契约通过不代表模型实际行为已验收；已知引擎收街问题继续保持未修，后续用自然试玩私有日志确认v5表现。
+
+本次仅记录review，不推送、不发布。后续发布由线上owner按既有唯一流程处理；本地模型与试玩入口保持。
