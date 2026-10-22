@@ -102,6 +102,7 @@ const PHASE_LABEL = {
   turn: '转牌圈（4 张公共牌）',
   river: '河牌圈（5 张公共牌）',
 }
+const HISTORY_PHASE = { preflop: '翻牌前', flop: '翻牌圈', turn: '转牌圈', river: '河牌圈' }
 
 /** 性格参数 → 一句人话，塞进提示词让模型知道「我是谁」 */
 function personaText(persona) {
@@ -120,14 +121,15 @@ function personaText(persona) {
 }
 
 /** 上一手结果 → 一句人话。recentHands 是 unshift 的，[0] 是最新一手 */
-function lastHandText(recentHands, mySeatId, players) {
+function lastHandText(recentHands, players) {
   if (!Array.isArray(recentHands) || recentHands.length === 0) {
     return '这是本桌第一手，还没有历史。'
   }
   const last = recentHands[0]
   const winnings = last?.result?.winnings ?? []
   const winners = winnings.map((w) => {
-    const who = w.uid === mySeatId ? '我' : (w.nickname ?? players.find((p) => p.seatId === w.uid)?.nickname ?? '其他玩家')
+    const idx = players.findIndex((p) => p.seatId === w.uid)
+    const who = idx >= 0 ? '座' + (idx + 1) : '离桌玩家' + JSON.stringify(w.nickname ?? '未提供昵称')
     return who + '（' + (w.handName ?? w.hand ?? '牌型未提供') + '，分池 ' + (w.amount ?? 0) + '）'
   }).join('、')
   return '上一手赢家：' + (winners || '无人（平局或全弃）') +
@@ -156,19 +158,21 @@ function positionInfo(obs) {
   const start = obs.phase === 'preflop' ? bb : btn
   const order = start < 0 || n < 2 ? '未知' : Array.from({ length: n }, (_, step) => seats[(start + 1 + step) % n])
     .filter((s) => !s.folded && !s.allIn && s.seeds > 0)
-    .map((s) => s.seatId === obs.mySeatId ? '我' : (s.nickname ?? s.seatId)).join(' → ')
+    .map((s) => '座' + (seats.indexOf(s) + 1)).join(' → ')
   return { label, role, order, sb, bb }
 }
 
 /** 稳定规则放在请求最前面，便于供应商复用输入前缀；动态牌局始终完整重建。 */
-export const LLM_PROMPT_VERSION = 'poker-facts-v2'
+export const LLM_PROMPT_VERSION = 'poker-cache-v3'
 export const LLM_SYSTEM_PROMPT = [
   '提示词版本：' + LLM_PROMPT_VERSION,
   '你是熟悉长牌和短牌规则的专业德州扑克玩家，按给定性格参与牌局。目标是在信息不完全的条件下选择长期期望收益合理的一次合法行动。',
   '只使用提供的公开信息和自己的底牌，其他玩家的底牌未知，不猜造尚未发生的行动或尚未翻开的公共牌。',
   '用户消息每次包含最新阶段、公共牌、底池、位置、性格、筹码和截至当前的完整本手公开行动。',
+  '共享牌桌与完整历史统一用本手固定座号，当前决策段注明你的座号；不要把其他座位行动当成自己的行动。',
   '按动作标注的轮次区分翻牌前、翻牌圈、转牌圈、河牌圈，综合此前所有轮次的下注、跟注、过牌和弃牌。',
-  '筹码、需跟金额和合法动作以当前状态为准；历史动作中的本次投入与本轮累计下注额是两个不同的金额。',
+  '筹码、需跟金额和合法动作以当前状态为准；历史投入是当次支付，累计是该轮下注总额，未知金额不按0处理。',
+  '本轮座次为跳过弃牌/全下者的循环顺序，不代表尚未行动者，加注后可能再轮到。',
   '程序核对的最佳五张、踢脚、听牌张数、位置和赔率是事实依据。不得把次对叫顶对、两对叫一对，或把次坚果同花笼统当成弱同花。',
   '一张成顺/成花概率不是实际胜率，补牌未必干净，不能直接相加；未知的对手底牌、范围概率或胜率不得编造为确定数字。',
   '赔率以实际跟注成本及自己可争夺底池计算；下注比例使用出手前底池，不能用已经包含下注的底池作分母。',
@@ -219,16 +223,20 @@ export function buildPrompt(obs, persona, recentHands) {
   const phase = PHASE_LABEL[obs.phase] ?? obs.phase
   const players = obs.publicPlayers ?? []
   const pos = positionInfo(obs)
+  const seatLabel = (id, nickname) => {
+    const idx = players.findIndex((p) => p.seatId === id)
+    return idx >= 0 ? '座' + (idx + 1) : '未知座位' + JSON.stringify(nickname ?? '未提供昵称')
+  }
+  // 只包含本手不变的公开座次与身份，不放剩余筹码、弃牌状态或当前AI身份。
+  const roster = players.map((p, i) => `${seatLabel(p.seatId)}=${JSON.stringify(p.nickname ?? '未提供昵称')}` +
+    (pos.role(i) ? `（${pos.role(i)}）` : '')).join('；')
 
-  // 其他人：带上位置标签，按座位顺序列（不是随机顺序）
+  // 当前筹码与状态位于动态后段，座号引用前面的公开座位表。
   const others = players
     .filter((p) => p.seatId !== obs.mySeatId)
-    .map((p, i) => {
-      const idx = players.indexOf(p)
+    .map((p) => {
       const tag = p.folded ? '已弃牌' : p.allIn ? '已全下' : '在局'
-      const role = pos.role(idx)
-      const roleTxt = role ? '（' + role + '）' : ''
-      return `  ${i + 1}. ${p.nickname ?? p.seatId}${roleTxt}：后手 ${p.seeds}，本轮已下 ${p.bet}，本手累计 ${p.totalBet ?? '未知'}（${tag}）`
+      return `  ${seatLabel(p.seatId)}：后手 ${p.seeds}，本轮已下 ${p.bet}，本手累计 ${p.totalBet ?? '未知'}（${tag}）`
     })
     .join('\n')
 
@@ -257,43 +265,42 @@ export function buildPrompt(obs, persona, recentHands) {
     give: '划转',
   }
   const history = (obs.publicActions ?? []).map((a, i) => {
-    const who = a.seatId === obs.mySeatId ? '我' : (a.nickname ?? a.seatId)
+    const who = seatLabel(a.seatId, a.nickname)
     const hasTotal = Number.isFinite(a.betTotal)
     const isRaise = a.type === 'raise' || a.type === 'bet'
     const label = isRaise && hasTotal ? (a.type === 'raise' ? '加注到' : '下注到') : ACT_LABEL[a.type] ?? a.type
-    const amt = isRaise && hasTotal ? ' ' + a.betTotal + '（本次投入 ' + a.amount + '）'
-      : a.amount ? ' ' + a.amount : ''
+    const amt = isRaise && hasTotal ? ' ' + a.betTotal + '（投入 ' + (a.amount ?? '未知') + '）'
+      : ' 投入 ' + (a.amount ?? '未知')
     // 盲注要区分大小麦，否则两人都显示「下盲注」看不出结构
     const role = a.type === 'blind' || a.type === 'blind_allin'
       ? (a.seatId === players[pos.sb]?.seatId ? '（小盲）' : a.seatId === players[pos.bb]?.seatId ? '（大盲）' : '（盲位未知）')
       : ''
-    const total = !isRaise && hasTotal ? '；本轮累计 ' + a.betTotal : ''
-    return `  ${i + 1}. ${who} ${label}${role}${amt}${total}${a.allIn ? '（已全下）' : ''} [${PHASE_LABEL[a.phase] ?? a.phase ?? '未知轮次'}]`
+    const total = !isRaise && hasTotal ? '；累计 ' + a.betTotal : ''
+    return `  ${i + 1}. ${who} ${label}${role}${amt}${total}${a.allIn ? '（已全下）' : ''} [${HISTORY_PHASE[a.phase] ?? a.phase ?? '未知轮次'}]`
   }).join('\n')
 
   return [
-    '你是德州扑克牌桌上的一位玩家，现在轮到你行动。',
-    '',
     '【规则】' + (obs.gameType === 'short' ? '短牌36张，去掉2/3/4/5，同花大于葫芦，A6789是最小顺子' : '标准长牌52张，葫芦大于同花，A2345是最小顺子'),
+    '【盲注】小盲 ' + (obs.smallBlind ?? '?') + ' / 大盲 ' + (obs.bigBlind ?? '?'),
+    '【本手座位】' + roster,
+    '【上一手】' + lastHandText(recentHands, players),
+    '【本手已发生的行动】（完整本手，按发言顺序，含盲注；金额按各轮）',
+    history || '  （还没有人行动）',
+    '【当前决策】你是' + seatLabel(obs.mySeatId, obs.myNickname) + '，现在轮到你行动。',
     '【我的位置】' + pos.label,
-    '【本轮可行动座次】' + pos.order + '（固定循环顺序，跳过弃牌/全下者；不表示这些人都尚未行动，加注后可能再次轮到）',
+    '【本轮可行动座次】' + pos.order,
     '【我的底牌】' + cardText(obs.myCards),
+    '【我的性格】' + personaText(persona),
     '【当前阶段】' + phase,
     '【公共牌】' + cardText(obs.board),
     '【公共池】' + obs.pot,
-    '【盲注】小盲 ' + (obs.smallBlind ?? '?') + ' / 大盲 ' + (obs.bigBlind ?? obs.currentBet ?? '?'),
     '【当前注额】本轮最高下注 ' + obs.currentBet +
       '，我已下 ' + obs.myBet +
       (obs.currentBet > obs.myBet ? '，还需补 ' + (obs.currentBet - obs.myBet) + ' 才能平注' : '，已平注'),
     '【我的后手】' + obs.mySeeds,
     promptFacts(obs),
-    '【其他玩家】（按引擎座位顺序，按钮/盲注身份见标记）',
+    '【其他玩家当前状态】',
     others || '  （无）',
-    '【我的性格】' + personaText(persona),
-    '【上一手】' + lastHandText(recentHands, obs.mySeatId, players),
-    '【本手已发生的行动】（完整本手，按发言顺序，含盲注；每条标明轮次，注额均为该轮金额）',
-    history || '  （还没有人行动）',
-    '',
     '【你可以做的动作】' + acts,
   ].join('\n')
 }

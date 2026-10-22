@@ -178,7 +178,7 @@ test('河牌输入保留整手超过 20 条动作、四轮街名及真实加注�
   respond = passive
   await onAiTurn(captured(room))
   const prompt = userPrompt(requests.at(-1).body)
-  const historyText = prompt.split('【本手已发生的行动】')[1].split('【你可以做的动作】')[0]
+  const historyText = prompt.split('\n【本手已发生的行动】')[1].split('\n【当前决策】')[0]
   assert.equal((historyText.match(/^\s+\d+\./gm) ?? []).length, history.length)
   for (const label of ['翻牌前', '翻牌圈', '转牌圈', '河牌圈']) assert.ok(historyText.includes(label), label)
   for (const a of history.filter((a) => a.type === 'raise')) assert.ok(historyText.includes(`加注到 ${a.betTotal}`))
@@ -210,21 +210,25 @@ test('逐次请求动态更新：翻牌携带翻前全员动作，后续各轮�
   respond = (body) => {
     const st = room.state
     const prompt = userPrompt(body)
-    const historyText = prompt.split('【本手已发生的行动】')[1].split('【你可以做的动作】')[0]
+    const historyText = prompt.split('\n【本手已发生的行动】')[1].split('\n【当前决策】')[0]
     const lines = historyText.split('\n').filter((line) => /^\s+\d+\./.test(line))
     // 对每一次真正发给模型的内容校验，而不只看最后一份河牌提示词。
     assert.match(prompt, new RegExp('【当前阶段】' + phaseNames[st.phase]))
     assert.ok(prompt.includes('【公共池】' + st.pot + '\n'))
     assert.equal(lines.length, st.actionLog.length)
     for (const [i, action] of st.actionLog.entries()) {
-      const who = action.uid === st.turnUid ? '我' : action.nickname
+      const who = '座' + (st.seats.findIndex((s) => s.uid === action.uid) + 1)
       assert.ok(lines[i].startsWith(`  ${i + 1}. ${who} `))
       assert.ok(lines[i].includes(`[${phaseNames[action.phase]}`))
       if (action.type === 'raise' || action.type === 'bet') {
-        assert.ok(lines[i].includes(`到 ${action.betTotal}（本次投入 ${action.amount}）`))
+        assert.ok(lines[i].includes(`到 ${action.betTotal}（投入 ${action.amount}）`))
       }
     }
-    frames.push({ handId: room.handId, phase: st.phase, prompt,
+    assert.match(prompt, new RegExp('【当前决策】你是座' + (st.seats.findIndex((s) => s.uid === st.turnUid) + 1)))
+    const prefix = prompt.split('\n【当前决策】')[0] + '\n'
+    const prior = frames.at(-1)
+    if (prior?.handId === room.handId) assert.ok(prefix.startsWith(prior.prefix), '切换AI、加注和换轮次仍延长原有公开历史前缀')
+    frames.push({ handId: room.handId, phase: st.phase, prompt, prefix,
       history: structuredClone(st.actionLog), board: [...st.communityCards] })
     assert.deepEqual(body.messages[0], requests[0].body.messages[0], '所有座位/轮次/手牌使用相同固定规则前缀')
     const key = `${room.handId}:${st.phase}`

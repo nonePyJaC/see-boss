@@ -1,10 +1,12 @@
 # AI 提示词与输出约定
 
-当前提示词版本：`poker-facts-v2`，版本标识写在固定 system 消息内，供私有复盘区分。
+当前提示词版本：`poker-cache-v3`，版本标识写在固定 system 消息内，供私有复盘区分。
 
 ## 输入
 
 - `server/ai/llm.mjs` 组织固定 system 规则和逐次重建的 user 局面。固定前缀不随座位、牌面、阶段或人设变化，缓存命中仍以供应商 usage 为准。
+- user 按「规则和盲注 → 本手固定座位表 → 上一手公共结果 → 完整本手历史 → 当前AI身份/底牌/人设/最新局面/合法动作」排列。前半段不依赖当前AI视角；相同历史使用同一座号，不替换成「我」。昵称用JSON字符串转义，座号按引擎本手座位顺序分配，同名玩家也有不同编号。
+- 追加公开行动时保留已有历史逐字前缀，轮次标签只写短名；实际投入、累计下注、全下标记不省略。历史后面的最新状态仍每次重建，不能复用先前模型的决策或混入其他AI底牌。没有行动记录的首次请求不存在可追加的历史前缀保证。
 - 每次请求仍包含完整本手公开行动，保留轮次、本次投入、本轮累计下注及全下标记。不得为减少 token 省略翻牌前或此前轮次，下一手重新开始本手历史。
 - 按钮、小盲、大盲身份来自当前手引擎的公开座位字段。原先多人桌即使剩两人，也不改用「按钮就是小盲」的双人桌规则。本轮座次顺序剔除弃牌/全下者，明确它不是「尚未行动者」列表。
 - `server/ai/prompt-facts.mjs` 仅接收安全 observation：自己的底牌、公共牌、公开座位/投入及行动。不得增加其他玩家底牌、牌堆、令牌、Key 或完整 Room。
@@ -33,7 +35,7 @@
 针对匿名构造场景运行：
 
 ```text
-node --test server/ai/prompt-facts.test.mjs server/ai/llm.test.mjs server/ai/llm-online.test.mjs server/ai/decision-review.test.mjs server/ai/ai.test.mjs server/ai/regression-v2.test.mjs
+node --test server/ai/prompt-facts.test.mjs server/ai/llm.test.mjs server/ai/llm-cache.test.mjs server/ai/llm-online.test.mjs server/ai/decision-review.test.mjs server/ai/ai.test.mjs server/ai/regression-v2.test.mjs
 npm run test:online
 npm run build
 ```

@@ -77,7 +77,8 @@ test('提示词包含全部要求的信息', () => {
   assert.match(p, /大盲 20/)
   assert.match(p, /我的后手】2800/)
   // 别人后手
-  assert.match(p, /阿乙（大盲）：后手 1900/)
+  assert.match(p, /座2="阿乙"（大盲）/)
+  assert.match(p, /座2：后手 1900/)
   assert.match(p, /已全下/)
   // 性格
   assert.match(p, /我的性格】/)
@@ -93,17 +94,17 @@ test('提示词带上上一手结果', () => {
     result: { winnings: [{ uid: 'p-2', nickname: '阿乙', amount: 450, handName: '两对' }] },
   }]
   const p = buildPrompt(obs, persona, recent)
-  assert.match(p, /上一手赢家：阿乙（两对，分池 450）/)
+  assert.match(p, /上一手赢家：座2（两对，分池 450）/)
   assert.match(p, /公共牌 ♠K/)
 })
 
-test('自己赢的时候说「我」', () => {
+test('上一手赢家使用统一座号，不随当前AI视角改变', () => {
   const recent = [{
     communityCards: [],
     result: { winnings: [{ uid: 'ai-1', nickname: '沉稳', amount: 200, handName: '一对' }] },
   }]
   const p = buildPrompt(obs, persona, recent)
-  assert.match(p, /上一手赢家：我（一对，分池 200）/)
+  assert.match(p, /上一手赢家：座1（一对，分池 200）/)
 })
 
 test('没有历史时说第一手', () => {
@@ -141,7 +142,7 @@ test('位置：按钮位', () => {
   // sb=0 → bb=1 → 按钮 = 4（我）
   const p = buildPrompt(fivePlayer(4, 0), persona, [])
   assert.match(p, /【我的位置】按钮位/)
-  assert.match(p, /【本轮可行动座次】阿甲 → 阿乙 → 阿丙 → 阿丁 → 我/)
+  assert.match(p, /【本轮可行动座次】座1 → 座2 → 座3 → 座4 → 座5/)
 })
 
 test('位置：小盲位', () => {
@@ -166,14 +167,14 @@ test('位置：关煞位不再用固定距离误标前后位', () => {
   assert.ok(!p.includes('距按钮'))
 })
 
-test('其他人按座位顺序列，并标出小盲/大盲', () => {
+test('公开座位表按固定顺序列，并标出按钮/小盲/大盲', () => {
   const p = buildPrompt(fivePlayer(4, 0), persona, [])
-  assert.match(p, /1\. 阿甲（小盲）/)
-  assert.match(p, /2\. 阿乙（大盲）/)
-  assert.match(p, /3\. 阿丙：/)
-  const i1 = p.indexOf('阿甲（小盲）')
-  const i2 = p.indexOf('阿乙（大盲）')
-  const i3 = p.indexOf('3. 阿丙')
+  assert.match(p, /座1="阿甲"（小盲）/)
+  assert.match(p, /座2="阿乙"（大盲）/)
+  assert.match(p, /座5="阿戊"（按钮）/)
+  const i1 = p.indexOf('座1="阿甲"')
+  const i2 = p.indexOf('座2="阿乙"')
+  const i3 = p.indexOf('座3="阿丙"')
   assert.ok(i1 < i2 && i2 < i3, '应按座位顺序排列')
 })
 
@@ -187,10 +188,10 @@ test('多人弃到两人保留大盲身份，当前轮次顺序跳过弃牌与�
   o.publicPlayers[4].folded = true
   const p = buildPrompt(o, persona, [])
   assert.match(p, /【我的位置】大盲位；本手起始 5 人，当前未弃牌 2 人；多人局剩两人/)
-  assert.match(p, /【本轮可行动座次】阿甲 → 我/)
+  assert.match(p, /【本轮可行动座次】座1 → 座2/)
   assert.ok(!p.includes('（后位）'))
   o.publicPlayers[0].allIn = true
-  assert.match(buildPrompt(o, persona, []), /【本轮可行动座次】我（固定循环顺序/)
+  assert.match(buildPrompt(o, persona, []), /【本轮可行动座次】座2\n/)
 })
 
 test('真实双人桌明确自己的盲注身份，且翻前与翻后顺序不同', () => {
@@ -200,8 +201,8 @@ test('真实双人桌明确自己的盲注身份，且翻前与翻后顺序不�
   o.phase = 'preflop'
   const pre = buildPrompt(o, persona, [])
   assert.match(pre, /【我的位置】小盲位兼按钮位/)
-  assert.match(pre, /【本轮可行动座次】我 → 阿乙/)
-  assert.match(buildPrompt({ ...o, phase: 'flop' }, persona, []), /【本轮可行动座次】阿乙 → 我/)
+  assert.match(pre, /【本轮可行动座次】座1 → 座2/)
+  assert.match(buildPrompt({ ...o, phase: 'flop' }, persona, []), /【本轮可行动座次】座2 → 座1/)
 })
 
 test('按钮翻前不标成最后发言，短码大盲按身份标记而不按金额猜测', () => {
@@ -209,8 +210,8 @@ test('按钮翻前不标成最后发言，短码大盲按身份标记而不按�
   o.phase = 'preflop'
   o.publicActions = [{ seatId: 'seat-1', nickname: '阿乙', type: 'blind_allin', amount: 5, phase: 'preflop' }]
   const p = buildPrompt(o, persona, [])
-  assert.match(p, /【本轮可行动座次】阿丙 → 阿丁 → 我 → 阿甲 → 阿乙/)
-  assert.match(p, /阿乙 盲注全下（大盲） 5/)
+  assert.match(p, /【本轮可行动座次】座3 → 座4 → 座5 → 座1 → 座2/)
+  assert.match(p, /座2 盲注全下（大盲） 投入 5/)
   assert.ok(!p.includes('最后发言，最占优'))
 })
 
@@ -241,10 +242,10 @@ test('行动记录按发言顺序编号', () => {
   ]
   const p = buildPrompt(o, persona, [])
   assert.match(p, /【本手已发生的行动】（完整本手，按发言顺序，含盲注/)
-  assert.match(p, /1\. 阿甲 过牌/)
-  assert.match(p, /2\. 阿乙 过牌/)
-  assert.match(p, /3\. 阿丙 过牌/)
-  assert.match(p, /4\. 阿丁 弃牌/)
+  assert.match(p, /1\. 座1 过牌/)
+  assert.match(p, /2\. 座2 过牌/)
+  assert.match(p, /3\. 座3 过牌/)
+  assert.match(p, /4\. 座4 弃牌/)
 })
 
 test('牌面：T 渲染成 10', () => {
@@ -277,14 +278,14 @@ test('单挑时位置说 heads-up', () => {
 
 test('盲注进行动流水，且区分大小盲', () => {
   const o = fivePlayer(4, 0)
-  // obs 的 smallBlind 是 10，所以 10=小盲、20=大盲
+  // 盲注身份由本手座位决定，不按实际支付额猜测。
   o.publicActions = [
     { seatId: 'seat-0', nickname: '阿甲', type: 'blind', amount: 10, phase: 'preflop' },
     { seatId: 'seat-1', nickname: '阿乙', type: 'blind', amount: 20, phase: 'preflop' },
   ]
   const p = buildPrompt(o, persona, [])
-  assert.match(p, /1\. 阿甲 下盲注（小盲） 10/)
-  assert.match(p, /2\. 阿乙 下盲注（大盲） 20/)
+  assert.match(p, /1\. 座1 下盲注（小盲） 投入 10/)
+  assert.match(p, /2\. 座2 下盲注（大盲） 投入 20/)
 })
 
 test('当前注额结构单独一行，说明还差多少平注', () => {
@@ -310,7 +311,7 @@ test('加注显示成「加注到 N」', () => {
     { seatId: 'seat-2', nickname: '阿丙', type: 'raise', amount: 120, betTotal: 180, phase: 'preflop' },
   ]
   const p = buildPrompt(o, persona, [])
-  assert.match(p, /阿丙 加注到 180（本次投入 120）.*翻牌前/)
+  assert.match(p, /座3 加注到 180（投入 120）.*翻牌前/)
 })
 
 test('动作名翻成人话', () => {
@@ -322,10 +323,10 @@ test('动作名翻成人话', () => {
     { seatId: 'seat-0', nickname: '阿甲', type: 'allin', amount: 3000, phase: 'flop' },
   ]
   const p = buildPrompt(o, persona, [])
-  assert.match(p, /阿丙 过牌/)
-  assert.match(p, /阿丁 弃牌/)
-  assert.match(p, /阿乙 跟注 40/)
-  assert.match(p, /阿甲 全下 3000/)
+  assert.match(p, /座3 过牌/)
+  assert.match(p, /座4 弃牌/)
+  assert.match(p, /座2 跟注 投入 40/)
+  assert.match(p, /座1 全下 投入 3000/)
 })
 
 test('性格参数翻成人话', () => {
