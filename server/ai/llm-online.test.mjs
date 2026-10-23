@@ -135,7 +135,7 @@ test('实际在线请求包含核对后的次对、免费行动和原始按钮/�
 
 test('私有复盘保存实际输入、简短理由、执行结果和真实缓存字段，公共日志不泄漏正文', async () => {
   const { room } = await fixture()
-  respond = () => reply({ action: 'raise', amount: 80, reason: '位置靠后，选择小额加注' })
+  respond = () => reply({ action: 'raise', amount: 80, reason: '位置靠后，选择小额加注', nextStyle: 'pressure' })
   const turn = captured(room)
   await onAiTurn(turn)
   const dir = path.join(process.env.HAMSTER_DATA_DIR, 'ai-reviews')
@@ -145,6 +145,8 @@ test('私有复盘保存实际输入、简短理由、执行结果和真实缓�
   assert.ok(record)
   assert.deepEqual(record.input, requests[0].body)
   assert.equal(record.output.briefReason, '位置靠后，选择小额加注')
+  assert.equal(record.output.nextStyle, 'pressure')
+  assert.deepEqual(record.execution.styleChange, { from: 'base', to: 'pressure' })
   assert.equal(record.output.requestId, 'test-request')
   assert.equal(record.usage.cacheHitTokens, 192)
   assert.equal(record.usage.cacheMissTokens, 808)
@@ -193,13 +195,74 @@ test('模型失败或返回非法加注时安全降级，并区分请求数和�
   assert.equal(room.aiStats.llmAttempts, 1)
   assert.equal(room.aiStats.llmFails, 1)
   assert.equal(room.aiStats.llmUsed, 0)
-  respond = () => reply({ action: 'raise', amount: 1 })
+  const rejectedSeat = room.state.turnUid
+  respond = () => reply({ action: 'raise', amount: 1, nextStyle: 'pressure' })
   before = room.turnSeq
   await onAiTurn(captured(room))
   assert.equal(room.turnSeq, before + 1)
   assert.equal(room.aiStats.llmAttempts, 2)
   assert.equal(room.aiStats.llmUsed, 0)
   assert.equal(room.aiStats.degraded, 2)
+  assert.equal(room.aiRuntime.llmSelf.get(rejectedSeat).style, 'base', '非法动作降级不能改变风格')
+})
+
+test('同一AI下次输入采用模型选定风格，跨手累计自己打法；重置后清空且不影响本地人设', async () => {
+  const { room, host } = await fixture()
+  const first = captured(room)
+  const seatId = first.turnSeatId
+  const persona = room.aiRuntime.personas.get(seatId)
+  const basePersona = structuredClone(persona)
+  respond = (body) => {
+    const content = userPrompt(body)
+    assert.match(content, /当前base/)
+    assert.match(content, /暂无已完成手牌/)
+    return reply({ action: content.includes('还需补') ? 'call' : 'check', nextStyle: 'pressure', reason: '价格合适，选择继续；后续考虑更主动取值' })
+  }
+  await onAiTurn(first)
+  assert.equal(room.aiRuntime.llmSelf.get(seatId).style, 'pressure')
+  respond = passive
+  while (!room.state.finished && room.state.turnUid !== seatId) await onAiTurn(captured(room))
+  assert.equal(room.state.finished, false)
+  await onAiTurn(captured(room))
+  assert.match(userPrompt(requests.at(-1).body), /偏主动争取底池（当前pressure）/)
+  assert.equal(room.aiRuntime.llmSelf.get(seatId).style, 'pressure', '省略nextStyle保持原风格')
+  // 另一AI未提出变更，不能继承第一名AI的选择。
+  const other = room.seats.find(s => s.kind === 'ai' && s.uid !== seatId)
+  assert.equal(room.aiRuntime.llmSelf.get(other.uid).style, 'base')
+  while (!room.state.finished) await onAiTurn(captured(room))
+  const mine = room.aiRuntime.llmSelf.get(seatId)
+  assert.equal(mine.hands.filter(h => h.completed).length, 1)
+  assert.ok(mine.hands[0].calls > 0)
+  assert.deepEqual(persona, basePersona)
+
+  await api('/api/room/start', host)
+  while (!room.state.finished && room.state.turnUid !== seatId) {
+    if (room.state.turnUid === host.seatId) await api('/api/room/action', { ...host, handId: room.handId, turnSeq: room.turnSeq, type: 'fold' })
+    else await onAiTurn(captured(room))
+  }
+  assert.equal(room.state.turnUid, seatId)
+  respond = (body) => {
+    assert.match(userPrompt(body), /近1手：弃0、连弃0/)
+    assert.match(userPrompt(body), /当前pressure/)
+    return reply({ action: 'fold', nextStyle: 'base' })
+  }
+  await onAiTurn(captured(room))
+  assert.equal(mine.style, 'base')
+  respond = () => reply({ action: 'fold' })
+  while (!room.state.finished) {
+    if (room.state.turnUid === host.seatId) await api('/api/room/action', { ...host, handId: room.handId, turnSeq: room.turnSeq, type: 'fold' })
+    else await onAiTurn(captured(room))
+  }
+  assert.equal(mine.hands.at(-1).folded, true)
+  const data = await api('/api/room/reset-online', { ...host, startAfterReset: true, handId: room.handId })
+  assert.equal(data.finished, false)
+  const fresh = room.aiRuntime.llmSelf.get(seatId)
+  assert.equal(fresh.style, 'base')
+  assert.equal(fresh.hands.length, 1)
+  assert.equal(fresh.hands[0].completed, false)
+  const publicState = await api('/api/room/state', host)
+  assert.ok(!JSON.stringify(publicState).match(/nextStyle|llmSelf|consecutiveFolds|pressure/))
+  assert.ok(!audit.join('\n').match(/nextStyle|偏主动|后续考虑更主动/))
 })
 
 test('逐次请求动态更新：翻牌携带翻前全员动作，后续各轮累积历史，下一手重新开始', async () => {
@@ -294,10 +357,11 @@ test('同一回合并发回调只请求一次，过期回复不执行', async ()
   // 即使同一座位再次轮到，也不能使用旧 turnSeq 的结果。
   room.turnSeq += 2
   const before = room.state.actionLog.length
-  release(reply({ action: 'raise', amount: 200 }))
+  release(reply({ action: 'raise', amount: 200, nextStyle: 'pressure' }))
   await pending
   assert.equal(room.state.actionLog.length, before)
   assert.equal(room.aiStats.decisions, 0)
+  assert.equal(room.aiRuntime.llmSelf.get(turn.turnSeatId).style, 'base')
 })
 
 test('弃牌/全下/失格/非本手/非当前行动者不生成模型请求', async () => {

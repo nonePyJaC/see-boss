@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { normalizeUsage } from './llm.mjs'
+import { normalizeNextStyle } from './llm-self.mjs'
 
 const MAX_FILE_BYTES = 16 * 1024 * 1024
 const MAX_RECORD_BYTES = 512 * 1024
@@ -32,6 +33,7 @@ export function writeDecisionReview(dataDir, { trace, input, result, execution =
         error: result.error ?? null, ms: result.ms ?? null,
         providerModel: result.providerModel ?? null, requestId: result.requestId ?? null,
         finishReason: result.finishReason ?? null,
+        nextStyle: normalizeNextStyle(result.action?.nextStyle),
       },
       usage: Object.fromEntries(Object.keys(normalizeUsage(null)).map((key) => [key,
         Number.isSafeInteger(result.usage?.[key]) && result.usage[key] >= 0 ? result.usage[key] : null])),
@@ -39,6 +41,8 @@ export function writeDecisionReview(dataDir, { trace, input, result, execution =
         status: execution.status, source: execution.source ?? null,
         action: execution.action ?? null, paidAmount: execution.paidAmount ?? null,
         betTotal: execution.betTotal ?? null, fallbackReason: execution.fallbackReason ?? null,
+        styleChange: normalizeNextStyle(execution.styleChange?.from) && normalizeNextStyle(execution.styleChange?.to)
+          ? { from: normalizeNextStyle(execution.styleChange.from), to: normalizeNextStyle(execution.styleChange.to) } : null,
       } : null,
     }
     const line = JSON.stringify(record) + '\n'

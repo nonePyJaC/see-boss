@@ -10,10 +10,11 @@ function record(at = '2026-10-21T08:30:00Z') {
     seatToken: 'SECRET_TOKEN' },
   input: { model: 'deepseek-chat', messages: [{ role: 'system', content: '固定规则' }, { role: 'user', content: '最新输入' }],
     temperature: 0.7, max_tokens: 200, Authorization: 'SECRET_KEY' },
-  result: { action: { type: 'call' }, reason: '成本合适，选择跟注',
+  result: { action: { type: 'call', nextStyle: 'pressure' }, reason: '成本合适，选择跟注',
     usage: { promptTokens: 1000, cacheHitTokens: 0, cacheMissTokens: 1000, secret: 'SECRET_USAGE' },
     reasoning_content: 'RAW_REASONING', userKeys: { deepseek: 'SECRET_KEY' } },
-  execution: { status: 'applied', source: 'llm', action: 'call', paidAmount: 60, betTotal: 120 } }
+  execution: { status: 'applied', source: 'llm', action: 'call', paidAmount: 60, betTotal: 120,
+    styleChange: { from: 'base', to: 'pressure', secret: 'SECRET_STYLE' } } }
 }
 
 test('私有文件字段白名单及权限；缺失计量仍为未知', () => {
@@ -24,6 +25,8 @@ test('私有文件字段白名单及权限；缺失计量仍为未知', () => {
     const body = fs.readFileSync(file, 'utf8')
     const r = JSON.parse(body)
     assert.equal(r.output.briefReason, '成本合适，选择跟注')
+    assert.equal(r.output.nextStyle, 'pressure')
+    assert.deepEqual(r.execution.styleChange, { from: 'base', to: 'pressure' })
     assert.equal(r.usage.cacheHitTokens, 0)
     assert.equal(r.usage.completionTokens, null)
     assert.ok(!body.match(/SECRET_|RAW_REASONING|Authorization|seatToken|userKeys/))

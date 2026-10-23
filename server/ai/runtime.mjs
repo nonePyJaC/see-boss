@@ -30,6 +30,8 @@ export function createRuntime() {
     emotions: new Map(),
     /** seatId -> { handId, slowPlaying } 本手标记 */
     handFlags: new Map(),
+    /** seatId -> 自身最近8手公开动作与LLM辅助风格；不跨房、不落库 */
+    llmSelf: new Map(),
   }
 }
 
@@ -49,6 +51,7 @@ export function removeSeat(rt, seatId) {
   rt.models.delete(seatId)
   rt.emotions.delete(seatId)
   rt.handFlags.delete(seatId)
+  rt.llmSelf?.delete(seatId)
   for (const m of rt.models.values()) m.delete(seatId)
 }
 
@@ -58,6 +61,7 @@ export function clearRuntime(rt) {
   rt.models.clear()
   rt.emotions.clear()
   rt.handFlags.clear()
+  rt.llmSelf?.clear()
 }
 
 /** 本手标记：换 handId 自动重置 */

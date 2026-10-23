@@ -443,9 +443,17 @@ async function createRoom() {
 }
 
 // ── 开局 / 动作 / 续时 / 重置 / 离开 ──
+const handControlBusy = ref(false)
 async function startHand() {
-  const r = await startRoom(ROOM.value, undefined, cred.value)
-  if (r.ok) d.value = r.data
+  if (handControlBusy.value || !cred.value) return
+  handControlBusy.value = true
+  const request = captureSeatRequest(ROOM.value, cred.value)
+  try {
+    const r = await startRoom(request.roomId, undefined, request.credential)
+    if (!isCurrentSeatRequest(request, ROOM.value, cred.value)) return
+    if (r.ok) d.value = r.data
+    else toast(r.error || '开局失败')
+  } finally { handControlBusy.value = false }
 }
 
 async function act(type, amount) {
@@ -494,11 +502,18 @@ async function removeAiSeat(seat) {
   toast(r.error || '移除失败')
 }
 
-/** 终局重开：全员筹码回默认（两手之间、仅房主） */
+/** 每手结算后：全员筹码回默认并直接开局（仅房主） */
 async function resetTable() {
-  const r = await onlineReset(ROOM.value, cred.value)
-  if (r.ok) { d.value = r.data; return }
-  toast(r.error || '重置失败')
+  if (handControlBusy.value || !isHost.value || !handFinished.value || !cred.value) return
+  handControlBusy.value = true
+  const request = captureSeatRequest(ROOM.value, cred.value)
+  try {
+    const r = await onlineReset(request.roomId, request.credential, { startAfterReset: true, handId: d.value.handId })
+    if (!isCurrentSeatRequest(request, ROOM.value, cred.value)) return
+    if (r.ok) { d.value = r.data; return }
+    if (r.code === 'STALE_HAND') await pull()
+    toast(r.error || '重置失败')
+  } finally { handControlBusy.value = false }
 }
 
 function leave() {
@@ -737,7 +752,7 @@ onUnmounted(() => {
       </div>
       <!-- 归零座位：终局前不再参与，只能等房主重置整桌 -->
       <div v-else-if="mySeat && mySeat.seeds <= 0 && !mySeat.allIn" class="spec-banner">
-        筹码归零 · 旁观中（等房主终局重开或解散）
+        筹码归零 · 旁观中（可请房主在结算后重置筹码开局）
       </div>
       <!-- 超时弃牌/本手失格：folded 但看不到自己底牌 = 本手旁观，下一手正常回座 -->
       <div v-else-if="inHand && mySeat && mySeat.folded && !myCards.length" class="spec-banner">
@@ -777,7 +792,7 @@ onUnmounted(() => {
         </div>
 
         <div class="wait-actions">
-          <button v-if="isHost" class="btn" :disabled="aliveCount < 2" @click="startHand">
+          <button v-if="isHost" class="btn" :disabled="handControlBusy || aliveCount < 2" @click="startHand">
             {{ d.handId > 0 ? '开始下一手' : '开始对局' }}（{{ seats.length }} 人）
           </button>
           <p v-else class="wait-hint text-sm text-light">等待房主开始（退出点左上角 ✕）</p>
@@ -994,6 +1009,13 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <div class="card" v-if="isHost" style="margin-top: 16px; text-align: center">
+          <button class="btn" data-testid="reset-and-start" :disabled="handControlBusy || seats.length < 2" @click="resetTable">
+            {{ handControlBusy ? '正在开局…' : '重置筹码并开局' }}
+          </button>
+          <p class="text-sm text-light" style="margin-top: 8px">全员恢复建房时的 {{ d.initialSeeds }} 瓜子，保留当前座位，按原设置直接开新手</p>
+        </div>
+
         <!-- 终局：只剩 ≤1 个有筹码座位 → 房主选重开或解散 -->
         <div class="final-panel card" v-if="matchOver">
           <h3 class="dlg-title">本局结束</h3>
@@ -1001,7 +1023,6 @@ onUnmounted(() => {
             {{ aliveCount === 1 ? `胜者：${seats.find(s => s.seeds > 0)?.nickname}` : '无人有剩余筹码' }}
           </p>
           <template v-if="isHost">
-            <button class="btn" @click="resetTable">重置筹码再开一局</button>
             <button class="btn btn--ghost" @click="leave">解散房间</button>
           </template>
           <p v-else class="wait-hint text-sm text-light">等待房主重开或解散</p>
@@ -1014,7 +1035,7 @@ onUnmounted(() => {
               + 加一个 AI（{{ seats.length }}/8）
             </button>
           </div>
-          <button v-if="isHost" class="btn" @click="startHand">开始下一手</button>
+          <button v-if="isHost" class="btn" :disabled="handControlBusy" @click="startHand">开始下一手</button>
           <p v-else-if="!isSpectator" class="wait-hint text-sm text-light">等待房主开始下一手</p>
         </div>
       </template>

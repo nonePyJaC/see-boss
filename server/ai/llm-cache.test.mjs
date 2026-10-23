@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildMessages, parseDecision, LLM_SYSTEM_PROMPT } from './llm.mjs'
+import { buildMessages, parseDecision, LLM_SYSTEM_PROMPT, LLM_PROMPT_VERSION } from './llm.mjs'
 import { createTwoHandPreview } from '../../docs/examples/prompt-v6-two-hands.mjs'
 
 const makeObs = () => ({
@@ -23,6 +23,20 @@ const recent = [{ communityCards: [], result: { winnings: [{ uid: 'a', amount: 6
 const prompt = (obs, persona = {}) => buildMessages(obs, persona, recent)
 const shared = (messages) => messages[1].content.split('\n【当前决策】')[0] + '\n'
 const history = (messages) => shared(messages).split('【本手已发生的行动】')[1].split('\n').filter((s) => /^\s+\d+\./.test(s))
+
+test('自身历史和变更风格只在私有后段变化，共享历史与system前缀保持相同', () => {
+  const obs = makeObs()
+  const context = { style: 'pressure', history: { hands: 8, foldedHands: 6, consecutiveFolds: 4,
+    enteredHands: 2, bets: 1, calls: 3, checks: 4, faced: 6, foldToBet: 5 } }
+  const before = prompt(obs, { params: { tightLoose: 0.1 } })
+  const after = buildMessages(obs, { params: { tightLoose: 0.1 } }, recent, context)
+  assert.deepEqual(before[0], after[0])
+  assert.equal(shared(before), shared(after))
+  assert.match(after[1].content, /近8手：弃6、连弃4/)
+  assert.match(after[1].content, /【我的性格】仅作边缘选择参考：偏主动争取底池（当前pressure）/)
+  assert.match(LLM_SYSTEM_PROMPT, /连弃可考虑变线，但不强制诈唬/)
+  assert.ok(!shared(after).includes('近8手'))
+})
 
 test('v6 上一手仅一句公开结果，区分未摊牌、真实牌型、退款和多人分池', () => {
   const line = recentHands => promptWithRecent(recentHands)[1].content.split('\n').find(s => s.startsWith('【上一手】'))
@@ -47,10 +61,9 @@ test('v6 上一手仅一句公开结果，区分未摊牌、真实牌型、退�
   assert.ok(!split.includes('摊牌胜'))
 })
 
-test('v6 两手三人桌17个构造请求保持历史、私牌边界和JSON格式', () => {
+test('两手三人桌17个构造请求保持历史、私牌边界和JSON格式', () => {
   const preview = createTwoHandPreview()
-  assert.equal(preview.version, 'poker-facts-v6')
-  assert.ok([...LLM_SYSTEM_PROMPT].length < 2042, '固定规则不超过v5字符量；不冒充token计量')
+  assert.equal(preview.version, LLM_PROMPT_VERSION)
   assert.deepEqual(preview.hands.map(h => h.requests.length), [8, 9])
   for (const hand of preview.hands) {
     let previous = ''

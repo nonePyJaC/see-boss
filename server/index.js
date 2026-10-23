@@ -78,6 +78,7 @@ import { decideAction, fallbackAction } from './ai/policy.mjs'
 import { assertProductionLayout } from './production-layout.mjs'
 import { llmDecide, llmEnabled, modelReady, availableModels } from './ai/llm.mjs'
 import { writeDecisionReview } from './ai/decision-review.mjs'
+import { beginSelfHand, recordSelfAction, finishSelfHand, llmSelfContext, applyNextStyle } from './ai/llm-self.mjs'
 import {
   openDb, DB_PATH,
   loginAccount, registerAccount, accountByUid, updateMyAccount, logoutAccount,
@@ -655,6 +656,7 @@ function handleStart(body, uid) {
         const pIds = participants.map((p) => p.uid)
         for (const s of room.seats) {
           if (s.kind !== 'ai') continue
+          if (room.handParticipants.has(s.uid)) beginSelfHand(room.aiRuntime, s.uid, room.handId)
           for (const t of pIds) {
             // enteredPot 不在此记：vpip 由 recordAction 按翻前自愿动作去重统计
             if (t !== s.uid) recordHandJoined(room.aiRuntime, s.uid, t, { enteredPot: false })
@@ -1238,6 +1240,7 @@ async function decideAiTurn(room, captured, job) {
       userKeys,
       signal: job.controller.signal,
       onRequest: (input) => { reviewInput = input },
+      selfContext: llmSelfContext(rt, seat.uid),
     })
     reviewResult = r
     // 网络等待期间可能换手、离开、重置或销毁房间。
@@ -1309,13 +1312,14 @@ async function decideAiTurn(room, captured, job) {
   }
   if (usedLLM && r.ok) room.aiStats.llmUsed = (room.aiStats.llmUsed ?? 0) + 1
   const appliedAction = r.ok ? room.state.actionLog.at(-1) : null
+  const styleChange = usedLLM && r.ok ? applyNextStyle(rt, seat.uid, act.nextStyle) : null
   console.info('[ai] decision ' + JSON.stringify({ ...trace, source: usedLLM ? 'llm' : 'local',
     action: appliedAction?.type ?? act.type, amount: act.amount ?? null,
     paidAmount: appliedAction?.amount ?? null, betTotal: appliedAction?.betTotal ?? null,
     applied: r.ok, fallbackReason, ms }))
   saveReview({ status: r.ok ? 'applied' : 'rejected', source: usedLLM ? 'llm' : 'local',
     action: appliedAction?.type ?? act.type, paidAmount: appliedAction?.amount,
-    betTotal: appliedAction?.betTotal, fallbackReason })
+    betTotal: appliedAction?.betTotal, fallbackReason, styleChange })
   if (degraded) room.aiStats.degraded += 1
 }
 
@@ -1323,6 +1327,7 @@ async function decideAiTurn(room, captured, job) {
 function recordAiObservation(room, actorSeatId, action) {
   const rt = room.aiRuntime
   if (!rt || !action) return
+  if (room.seats.some(s => s.uid === actorSeatId && s.kind === 'ai')) recordSelfAction(rt, actorSeatId, action)
   for (const s of room.seats) {
     if (s.kind !== 'ai' || s.uid === actorSeatId) continue
     recordAction(rt, s.uid, actorSeatId, action)
@@ -1337,6 +1342,7 @@ function recordAiHandResults(room) {
   for (const s of room.seats) {
     if (s.kind !== 'ai' || !room.handParticipants?.has(s.uid)) continue
     const h = res.hands?.find((x) => x.uid === s.uid)
+    finishSelfHand(rt, s.uid, room.handId, h?.folded === true)
     recordHandResult(rt, s.uid, {
       won: !!h?.isWinner,
       potSize: res.pot ?? 0,
@@ -1618,7 +1624,7 @@ function handlePause(body, uid) {
 
 /**
  * 线上重置牌桌（§6.4）：仅房主、仅两手之间。
- * 所有在座座位恢复默认筹码，清 AI 的公开统计/情绪/计时，但保留座位和人设。
+ * 所有在座座位恢复默认筹码、保留座位，清 AI 统计/风格/情绪/计时并重新生成人设。
  * 不碰账号金币、账本、局数、历史 —— 那些是线下的东西。
  */
 function handleResetOnline(body, uid) {
@@ -1628,9 +1634,11 @@ function handleResetOnline(body, uid) {
   const seat = authSeat(room, body, uid)
   if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
   if (seat.uid !== room.hostUid) return fail('只有房主可以重置牌桌', 'NOT_HOST')
+  if ((body.startAfterReset === true || body.handId != null) && body.handId !== room.handId) return fail('牌局已更新，请刷新后再操作', 'STALE_HAND')
   if (room.state && !room.state.finished) {
     return fail('本手进行中，结束后才能重置', 'HAND_IN_PROGRESS')
   }
+  if (body.startAfterReset === true && room.seats.length < 2) return fail('至少需要 2 名玩家才能重新开局', 'NOT_ENOUGH_PLAYERS')
   for (const s of room.seats) {
     s.seeds = room.initialSeeds
     s.bet = 0
@@ -1657,6 +1665,7 @@ function handleResetOnline(body, uid) {
     }
   }
   touch(room)
+  if (body.startAfterReset === true) return handleStart(body, uid)
   return ok(publicState(room, seat.uid))
 }
 

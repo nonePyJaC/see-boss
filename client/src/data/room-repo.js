@@ -107,8 +107,9 @@ export function onlineExtendTurn(roomId, cred, handId, turnSeq) {
 }
 
 /** 线上重置牌桌：仅房主、仅两手之间 */
-export function onlineReset(roomId, cred) {
-  return request('/api/room/reset-online', { uid: getUid(), roomId, ...cred })
+export function onlineReset(roomId, cred, options = {}) {
+  return request('/api/room/reset-online', { uid: getUid(), roomId, ...cred,
+    ...(options.startAfterReset === true ? { startAfterReset: true, handId: options.handId } : {}) })
 }
 
 /** 线上离房：需座位令牌；房主离开 = 解散房间 */

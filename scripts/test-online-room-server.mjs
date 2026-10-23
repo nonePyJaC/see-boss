@@ -715,6 +715,56 @@ test('线上重置：仅房主、两手之间、筹码回默认、不影响资�
   await closeRoom(host)
 })
 
+test('结算页一键重置并开局：输光真人重新发牌、保留座位与规则、旧请求不能重置新手', async () => {
+  const host = await createOnline('重开房主')
+  const guest = await joinOnline(host.roomId, '输光客人')
+  const third = await joinOnline(host.roomId, '另一客人')
+  await api('/api/room/start', host)
+  let state
+  for (let i = 0; i < 40; i++) {
+    state = await actForTurn([host, guest, third], host.roomId)
+    if (state.finished) break
+  }
+  assert.equal(state.finished, true)
+  const room = rooms.get(host.roomId)
+  // 构造已结束、两人尚有筹码但一名真人归零的结算状态，独立验证重置入口。
+  for (const [id, seeds] of [[host.seatId, 1500], [guest.seatId, 0], [third.seatId, 1500]]) {
+    room.seats.find(s => s.uid === id).seeds = seeds
+    room.state.seats.find(s => s.uid === id).seeds = seeds
+  }
+  const accountBefore = rawDb().prepare('SELECT * FROM accounts ORDER BY account').all()
+  const ledgerBefore = rawDb().prepare('SELECT * FROM account_ledger ORDER BY id').all()
+  const before = { smallBlind: room.smallBlind, bigBlind: room.bigBlind, gameType: room.gameType,
+    useLLM: room.useLLM, llmModel: room.llmModel, llmThinking: room.llmThinking }
+  const request = { ...host, startAfterReset: true, handId: room.handId }
+  assert.equal((await api('/api/room/reset-online', { ...request, ...guest })).code, 'NOT_HOST')
+  assert.equal((await api('/api/room/reset-online', { ...request, seatToken: 'forged' })).code, 'AUTH_FAILED')
+  const reset = await api('/api/room/reset-online', request)
+  assert.equal(reset.ok, true, reset.error)
+  assert.equal(reset.data.handId, request.handId + 1)
+  assert.equal(reset.data.finished, false)
+  assert.equal(room.state.seats.length, 3)
+  for (const p of [host, guest, third]) {
+    const mine = await api('/api/room/state', p)
+    assert.equal(mine.ok, true)
+    assert.equal(mine.data.myCards.length, 2, '原座位令牌仍有效，归零客人也重新拿牌')
+    const s = room.state.seats.find(s => s.uid === p.seatId)
+    assert.equal(s.seeds + s.totalBet, ONLINE_CFG.initialSeeds, '初始筹码扣除自动盲注')
+    assert.ok(room.handParticipants.has(p.seatId))
+  }
+  assert.deepEqual({ smallBlind: room.smallBlind, bigBlind: room.bigBlind, gameType: room.gameType,
+    useLLM: room.useLLM, llmModel: room.llmModel, llmThinking: room.llmThinking }, before)
+  const currentHand = room.handId
+  const turn = room.turnSeq
+  assert.equal((await api('/api/room/reset-online', request)).code, 'STALE_HAND')
+  assert.equal((await api('/api/room/reset-online', { ...request, handId: currentHand })).code, 'HAND_IN_PROGRESS')
+  assert.equal(room.handId, currentHand)
+  assert.equal(room.turnSeq, turn)
+  assert.deepEqual(rawDb().prepare('SELECT * FROM accounts ORDER BY account').all(), accountBefore)
+  assert.deepEqual(rawDb().prepare('SELECT * FROM account_ledger ORDER BY id').all(), ledgerBefore)
+  await closeRoom(host)
+})
+
 // ── T3：重连、离开与行动时钟 ──────────────────────────
 
 test('令牌重连：/state 恢复座位不新增，join 持令牌幂等', async () => {
