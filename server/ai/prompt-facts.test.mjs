@@ -21,6 +21,14 @@ test('次对和最高踢脚明确给出，不由模型自行猜牌型', () => {
   assert.match(cards(['Ah', '9c'], ['9s', '6c', 'Qh']), /第 2 对（次对）/)
 })
 
+test('v6 踢脚来源与超对明确，公共踢脚不冒充底牌优势', () => {
+  assert.match(cards(['Kd', 'Qd'], ['Ks', 'Th', '2d', 'Qc']), /踢脚来源：底牌 无；公共牌 10/)
+  assert.match(cards(['Kc', 'Tc'], ['Kh', 'As', '6h']), /踢脚来源：底牌 10；公共牌 A、6/)
+  assert.match(cards(['Jc', 'Jh'], ['Td', '7c', '2h', '4s']), /口袋对 J 高于公共牌最高点数 10（超对）/)
+  assert.ok(!cards(['Jc', 'Jh'], ['Td', '7c', '2h', '4s', 'Ah']).includes('（超对）'))
+  assert.match(cards(['Qd', '4c'], ['9h', '9s', '9d', 'As', 'Kh']), /踢脚来源：底牌 无；公共牌 A、K/)
+})
+
 test('两对和公共牌踢脚，以及七张中三对时的真正最佳五张', () => {
   assert.match(cards(['Ad', '5c'], ['2h', '9d', 'As', '9c', 'Kh']), /两对 A 和 9；踢脚 K/)
   assert.match(cards(['Ad', 'Ac'], ['Kh', 'Kd', 'Qs', 'Qh', '2c']), /两对 A 和 K；踢脚 Q/)

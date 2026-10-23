@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildMessages } from './llm.mjs'
+import { buildMessages, parseDecision, LLM_SYSTEM_PROMPT } from './llm.mjs'
+import { createTwoHandPreview } from '../../docs/examples/prompt-v6-two-hands.mjs'
 
 const makeObs = () => ({
   gameType: 'long', phase: 'flop', smallBlind: 10, bigBlind: 20,
@@ -22,6 +23,56 @@ const recent = [{ communityCards: [], result: { winnings: [{ uid: 'a', amount: 6
 const prompt = (obs, persona = {}) => buildMessages(obs, persona, recent)
 const shared = (messages) => messages[1].content.split('\n【当前决策】')[0] + '\n'
 const history = (messages) => shared(messages).split('【本手已发生的行动】')[1].split('\n').filter((s) => /^\s+\d+\./.test(s))
+
+test('v6 上一手仅一句公开结果，区分未摊牌、真实牌型、退款和多人分池', () => {
+  const line = recentHands => promptWithRecent(recentHands)[1].content.split('\n').find(s => s.startsWith('【上一手】'))
+  const promptWithRecent = recentHands => buildMessages(makeObs(), {}, recentHands)
+  const uncontested = { actionLog: [
+    { uid: 'b', type: 'bet', phase: 'river' }, { uid: 'a', type: 'fold' }, { uid: 'c', type: 'fold' },
+  ], result: { winnings: [{ uid: 'b', amount: 1200 }],
+    hands: [{ uid: 'a', folded: true }, { uid: 'b', folded: false, hand: { name: '高牌' } }, { uid: 'c', folded: true }],
+    potLayers: [{ isUncalledReturn: true, contributorUids: ['b'], awards: [{ uid: 'b', amount: 200 }] }],
+  } }
+  const text = line([uncontested, { result: { winnings: [{ uid: 'a', amount: 99999, handName: '皇家同花顺' }] } }])
+  assert.equal(text, '【上一手】上一手赢家：座2（河牌圈下注后2人弃牌，未摊牌，分池 1000）')
+  assert.ok(!text.includes('高牌') && !text.includes('皇家同花顺'))
+  const contested = { result: { winnings: [{ uid: 'a', amount: 900 }], hands: [
+    { uid: 'a', folded: false, hand: { name: '两对' } }, { uid: 'b', folded: false }, { uid: 'c', folded: false },
+  ] } }
+  assert.equal(line([contested]), '【上一手】上一手赢家：座1（两对，摊牌胜2人，分池 900）')
+  contested.result.winnings = [{ uid: 'a', amount: 450 }, { uid: 'b', amount: 450 }]
+  const split = line([contested])
+  assert.match(split, /座1（两对，摊牌分池，分池 450）/)
+  assert.match(split, /座2（牌型未提供，摊牌分池，分池 450）/)
+  assert.ok(!split.includes('摊牌胜'))
+})
+
+test('v6 两手三人桌17个构造请求保持历史、私牌边界和JSON格式', () => {
+  const preview = createTwoHandPreview()
+  assert.equal(preview.version, 'poker-facts-v6')
+  assert.ok([...LLM_SYSTEM_PROMPT].length < 2042, '固定规则不超过v5字符量；不冒充token计量')
+  assert.deepEqual(preview.hands.map(h => h.requests.length), [8, 9])
+  for (const hand of preview.hands) {
+    let previous = ''
+    assert.equal(new Set(hand.requests.map(r => r.phase)).size, 4)
+    for (const r of hand.requests) {
+      assert.ok(shared(r.messages).startsWith(previous))
+      previous = shared(r.messages)
+      assert.equal(history(r.messages).length, r.obs.publicActions.length)
+      assert.deepEqual(r.messages, buildMessages(r.obs, r.persona, r.recentHands))
+      const myLine = r.messages[1].content.split('\n').find(s => s.startsWith('【我的底牌】'))
+      assert.ok(myLine)
+      assert.ok(r.obs.publicPlayers.every(p => !('hole' in p) && !('cards' in p) && !('hand' in p)))
+      assert.ok(!('deck' in r.obs) && !('hands' in r.obs))
+      assert.ok(parseDecision(JSON.stringify(r.illustrativeOutput)))
+      assert.ok([...r.illustrativeOutput.reason].length <= 80)
+      assert.equal(r.illustrativeOutput.action === 'raise', Object.hasOwn(r.illustrativeOutput, 'amount'))
+      if (hand.number === 2) assert.match(shared(r.messages), /座2（两对，摊牌胜1人，分池 6850）/)
+    }
+    assert.ok(!hand.requests.some(r => r.uid === 'ai-b' && r.sequence > hand.steps.find(s => s.uid === 'ai-b' && s.action === 'fold').sequence))
+  }
+  assert.deepEqual(preview.hands[1].nextSeeds, { human: 5050, 'ai-a': 6900, 'ai-b': 3050 })
+})
 
 test('不同AI共享逐字相同的牌桌/历史前缀，身份、底牌与人设留在后段', () => {
   const a = makeObs()

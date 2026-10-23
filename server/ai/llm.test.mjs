@@ -95,7 +95,7 @@ test('提示词带上上一手结果', () => {
   }]
   const p = buildPrompt(obs, persona, recent)
   assert.match(p, /上一手赢家：座2（两对，分池 450）/)
-  assert.match(p, /公共牌 ♠K/)
+  assert.ok(!p.split('\n').find(s => s.startsWith('【上一手】')).includes('公共牌'))
 })
 
 test('上一手赢家使用统一座号，不随当前AI视角改变', () => {
@@ -335,13 +335,13 @@ test('动作名翻成人话', () => {
 
 test('性格参数翻成人话', () => {
   const tight = buildPrompt(obs, { params: { tightLoose: 0.1, passiveAggressive: 0.1 } }, [])
-  assert.match(tight, /起手紧/)
-  assert.match(tight, /打法被动/)
+  assert.match(tight, /起手范围偏紧/)
+  assert.match(tight, /边缘局面偏稳健/)
 
   const loose = buildPrompt(obs, { params: { tightLoose: 0.9, passiveAggressive: 0.9, bluffFrequency: 0.8 } }, [])
-  assert.match(loose, /起手松/)
-  assert.match(loose, /打法激进/)
-  assert.match(loose, /爱诈唬/)
+  assert.match(loose, /起手范围偏松/)
+  assert.match(loose, /边缘局面偏主动/)
+  assert.match(loose, /诈唬意愿偏高/)
 })
 
 // ── 解析 ────────────────────────────────────────────────

@@ -8,6 +8,20 @@ const observation = () => ({ phase: 'turn', mySeatId: 'a', currentBet: 0, actedS
   publicActions: [] })
 const summary = (obs) => streetFacts(obs).join('\n')
 
+test('v6 牌力和行动优先于风格，不将下注、控池或人设写成自动动作', () => {
+  const obs = { ...observation(), gameType: 'long', myCards: ['Js', 'Jd'], board: ['Ts', '7c', '2h', '4s'],
+    pot: 600, myBet: 0, mySeeds: 1000, legalActions: [{ type: 'check' }, { type: 'raise', min: 20, max: 1000 }] }
+  const [system, user] = buildMessages(obs, { params: { tightLoose: 0.1, passiveAggressive: 0.1, callTendency: 0.1 } }, [])
+  assert.match(system.content, /实际牌力与牌面→对手公开行动及合理范围→价格、位置和有效后手→风格参考/)
+  assert.match(system.content, /不能单独作为弃牌、跟注或控池理由/)
+  assert.match(system.content, /对手下注不等于必有强牌，过牌不等于弱牌/)
+  assert.match(system.content, /顶对好踢脚、超对等不能仅因对手下注就自动弃牌，也不强制跟注/)
+  assert.match(system.content, /不能只写人设、后手深或对手可能埋伏/)
+  assert.match(system.content, /本圈已过牌者仍可待响应，不能称为未行动/)
+  assert.match(user.content, /【我的性格】仅作边缘选择参考：起手范围偏紧、边缘局面偏稳健、边缘跟注意愿偏低/)
+  assert.ok(user.content.indexOf('【我的性格】') > user.content.indexOf('【其他玩家当前状态】'))
+})
+
 test('C1 下注对象边界：免费check、仍欠注、第三方支付和状态缺失', () => {
   const base = () => ({ ...observation(), gameType: 'long', myCards: ['As', 'Kd'],
     board: ['2c', '7h', '9d', 'Js'], pot: 300, myBet: 0, mySeeds: 1000,

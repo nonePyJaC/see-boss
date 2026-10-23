@@ -108,6 +108,12 @@ export function cardFacts(obs) {
   const unknown = deck.filter((c) => !cards.includes(c))
   const facts = [`底牌结构：${holeStructure(hole, gameType)}`,
     `当前最佳五张：${madeHandText(hand)}；组成 ${cardText(hand.cards)}`]
+  const kickerRanks = hand.type === HAND.ONE_PAIR || hand.type === HAND.THREE_OF_A_KIND ? hand.kickers.slice(1)
+    : hand.type === HAND.TWO_PAIR ? hand.kickers.slice(2) : hand.type === HAND.FOUR_OF_A_KIND ? hand.kickers.slice(1) : []
+  if (kickerRanks.length) {
+    const from = (source) => kickerRanks.filter((r) => source.some((c) => hand.cards.includes(c) && parseCard(c).value === r)).map(rankText).join('、') || '无'
+    facts.push(`踢脚来源：底牌 ${from(hole)}；公共牌 ${from(board)}`)
+  }
   if (hand.type === HAND.ONE_PAIR) {
     const pair = hand.kickers[0]
     const boardRanks = [...new Set(board.map((c) => parseCard(c).value))].sort((a, b) => b - a)
@@ -115,6 +121,8 @@ export function cardFacts(obs) {
       const order = boardRanks.indexOf(pair) + 1
       facts.push(`与公共牌配成第 ${order} 对（${order === 1 ? '顶对' : order === 2 ? '次对' : '低于次对'}）`)
     }
+    if (hole.every((c) => parseCard(c).value === pair) && pair > boardRanks[0])
+      facts.push(`口袋对 ${rankText(pair)} 高于公共牌最高点数 ${rankText(boardRanks[0])}（超对）`)
   }
   if (board.length === 5 && compareHands(hand, bestFive(board, gameType)) === 0)
     facts.push('最佳牌力等于公共牌，底牌未提高五张牌力；不能据此假定独赢')
