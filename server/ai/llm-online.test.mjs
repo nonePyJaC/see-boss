@@ -122,7 +122,7 @@ test('实际在线请求包含核对后的次对、免费行动和原始按钮/�
     const prompt = userPrompt(body)
     assert.match(prompt, /当前最佳五张：一对 10；踢脚 A、K、7/)
     assert.match(prompt, /与公共牌配成第 2 对（次对）/)
-    assert.match(prompt, /本次过牌成本 0/)
+    assert.match(prompt, /本次跟注成本 0/)
     assert.match(prompt, /本手起始 3 人，当前未弃牌 2 人；多人局剩两人/)
     assert.match(prompt, new RegExp('【我的位置】' + (turn.turnSeatId === room.state.sbUid ? '小盲位' : '大盲位')))
     assert.ok(!prompt.includes('OPPONENT_PRIVATE'))
@@ -343,6 +343,45 @@ test('关闭大模型或缺少对应 Key 不发送请求；缺 Key 的回退可�
   await onAiTurn(captured(room))
   assert.equal(requests.length, 0)
   assert.equal(room.aiStats.llmSkipped, 1)
+})
+
+test('v8线上买牌输入给出真实价格，模拟模型跟注成功，保持风格不新增调用或改预算', async () => {
+  const { room } = await fixture()
+  respond = () => reply({ action: 'raise', amount: 40, nextStyle: 'base' })
+  await onAiTurn(captured(room))
+  respond = passive
+  await onAiTurn(captured(room))
+  assert.equal(room.state.phase, 'flop')
+  assert.equal(room.state.pot, 80)
+  room.state.communityCards = ['2s', '7s', '9h']
+  const bettor = room.state.turnUid
+  room.hands[bettor] = ['Qd', 'Qc']
+  const buyer = room.state.seats.find(s => s.uid !== bettor && !s.folded).uid
+  room.hands[buyer] = ['As', 'Ks']
+  respond = () => reply({ action: 'raise', amount: 20, nextStyle: 'base' })
+  await onAiTurn(captured(room))
+  assert.equal(room.state.pot, 100)
+  assert.equal(room.state.turnUid, buyer)
+  respond = body => {
+    const content = userPrompt(body)
+    assert.match(body.messages[0].content, /价格合适、听牌质量及权益实现支持时，应考虑call/)
+    assert.match(body.messages[0].content, /nextStyle每次必填/)
+    assert.match(content, /公共牌花色：♠2张、♥1张/)
+    assert.match(content, /同花听牌：9 张未知牌；下一张成花概率 19.15%/)
+    assert.match(content, /静态盈亏平衡权益 16.67%/)
+    assert.equal(body.temperature, 0.7)
+    assert.equal(body.max_tokens, 200)
+    return reply({ action: 'call', nextStyle: 'base', reason: '坚果同花听牌，跟20的价格合适，继续争夺底池' })
+  }
+  const before = requests.length
+  await onAiTurn(captured(room))
+  assert.equal(requests.length, before + 1)
+  assert.equal(room.state.actionLog.at(-1).uid, buyer)
+  assert.equal(room.state.actionLog.at(-1).type, 'call')
+  assert.equal(room.state.actionLog.at(-1).amount, 20)
+  assert.equal(room.state.phase, 'turn')
+  assert.equal(room.aiRuntime.llmSelf.get(buyer).style, 'base')
+  assert.equal(room.aiStats.llmUsed, 4)
 })
 
 test('同一回合并发回调只请求一次，过期回复不执行', async () => {

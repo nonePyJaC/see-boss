@@ -15,8 +15,8 @@ test('v6 牌力和行动优先于风格，不将下注、控池或人设写成�
   assert.match(system.content, /实际牌力与牌面→对手公开行动及合理范围→价格、位置和有效后手→风格参考/)
   assert.match(system.content, /不能单独作为弃牌、跟注或控池理由/)
   assert.match(system.content, /对手下注不等于必有强牌，过牌不等于弱牌/)
-  assert.match(system.content, /顶对好踢脚、超对等不能仅因对手下注就自动弃牌，也不强制跟注/)
-  assert.match(system.content, /不能只写人设、后手深或对手可能埋伏/)
+  assert.match(system.content, /顶对好踢脚、超对不因下注自动弃，也不强制跟注/)
+  assert.match(system.content, /check需具体范围、风险或诱导收益/)
   assert.match(system.content, /本圈已过牌者仍可待响应，不能称为未行动/)
   assert.match(user.content, /【我的性格】仅作边缘选择参考：起手范围偏紧、边缘局面偏稳健、边缘跟注意愿偏低/)
   assert.ok(user.content.indexOf('【我的性格】') > user.content.indexOf('【其他玩家当前状态】'))
@@ -61,7 +61,7 @@ test('C1 下注对象边界：免费check、仍欠注、第三方支付和状态
     if (name === '第三方支付') assert.match(text, /待响应：无/)
     if (name === '状态缺失') {
       assert.match(text, /跟注成本未知/)
-      assert.ok(!text.includes('已平注') && !text.includes('本次过牌成本 0'))
+      assert.ok(!text.includes('已平注') && !text.includes('本次跟注成本 0'))
     }
   }
   assert.match(LLM_SYSTEM_PROMPT, /不等于待响应名单/)
@@ -82,7 +82,7 @@ test('上一圈过牌不进入本圈曾过牌；新圈尚无人行动，不保�
   assert.match(text, /本圈尚无人主动行动/)
   assert.match(text, /本圈尚未行动：座1、座2、座3/)
   assert.match(text, /待响应：座1、座2、座3/)
-  assert.match(LLM_SYSTEM_PROMPT, /不能声称已保证免费看到后续公共牌/)
+  assert.match(LLM_SYSTEM_PROMPT, /翻牌普通跟注按下一张机会并考虑后续收费/)
 })
 
 test('分圈明确对手下注、自己跟注，不将两圈行动者颠倒', () => {

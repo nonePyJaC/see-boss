@@ -52,15 +52,15 @@ test('C2 构建输入区分公共两对踢脚、价格门槛与有对象的行�
   assert.match(user.content, /两对 A 和 K；踢脚 J/)
   assert.match(user.content, /静态盈亏平衡权益 14.29% = 300\/\(1800\+300\)/)
   assert.match(user.content, /【可追加筹码对手】座2（后手 700）/)
-  assert.match(system.content, /公共牌配对、两对或三条时，看底牌是否改善最佳五张及实际踢脚/)
-  assert.match(system.content, /只是价格参考而非实际权益；跟注要判断能赢对手合理范围的哪部分/)
-  assert.match(system.content, /不因赔率好或有听牌自动跟注。无可信数值时定性判断/)
-  assert.match(system.content, /价值下注要有可支付的对手，并判断哪些较弱范围可能跟注/)
-  assert.match(system.content, /半诈唬\/诈唬要有仍能弃牌的对象及合理的弃牌机会/)
-  assert.match(system.content, /中等摊牌价值允许check\/call/)
-  assert.match(system.content, /大注或全压可用于有依据的价值或诈唬/)
+  assert.match(system.content, /区分公共牌与底牌贡献/)
+  assert.match(system.content, /是价格参考而非实际权益；结合可赢范围/)
+  assert.match(system.content, /不因便宜自动跟，也不凭空放大风险/)
+  assert.match(system.content, /价值下注要有可支付对手及可能跟注的较弱范围/)
+  assert.match(system.content, /半诈唬\/诈唬须有可弃对象及合理弃牌机会/)
+  assert.match(system.content, /不欠注只说明价格，不代表check优于下注/)
+  assert.match(system.content, /大注或全压不作统一禁令/)
   assert.match(system.content, /遇危险新牌、较强反击或不合价格可改线或直接弃牌/)
-  assert.match(system.content, /首次决策也可零追加筹码fold，不必先跟一口或进入计划/)
+  assert.match(system.content, /弱不同花断张不必硬跟/)
 })
 
 test('两头顺子和轮子卡顺的补牌张数/概率，不冒充胜率', () => {
@@ -135,7 +135,7 @@ test('短码全下只计算可争夺部分，保留弃牌者已投入的死钱',
   assert.ok(!text.includes('按全池简化'))
 })
 
-test('免费过牌不虚构跟注成本；缺失边池数据明确说明近似', () => {
-  assert.match(price({ pot: 500 }), /过牌成本 0/)
+test('零跟注成本只给中性价格事实；缺失边池数据明确说明近似', () => {
+  assert.equal(price({ pot: 500 }), '本次跟注成本 0。')
   assert.match(price({ pot: 500, currentBet: 100 }), /累计投入数据不足/)
 })

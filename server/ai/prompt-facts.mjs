@@ -108,6 +108,9 @@ export function cardFacts(obs) {
   const unknown = deck.filter((c) => !cards.includes(c))
   const facts = [`底牌结构：${holeStructure(hole, gameType)}`,
     `当前最佳五张：${madeHandText(hand)}；组成 ${cardText(hand.cards)}`]
+  facts.push('公共牌花色：' + Object.entries(SUIT).map(([suit, label]) =>
+    [label, board.filter(c => c[1] === suit).length]).filter(([, n]) => n > 0)
+    .map(([label, n]) => `${label}${n}张`).join('、'))
   const kickerRanks = hand.type === HAND.ONE_PAIR || hand.type === HAND.THREE_OF_A_KIND ? hand.kickers.slice(1)
     : hand.type === HAND.TWO_PAIR ? hand.kickers.slice(2) : hand.type === HAND.FOUR_OF_A_KIND ? hand.kickers.slice(1) : []
   if (kickerRanks.length) {
@@ -161,7 +164,7 @@ export function priceFacts(obs) {
   const facts = call ? [
     `当前底池 ${pot}（已包含对手下注）；平注尚欠 ${owed}，本次跟注实际投入 ${call}${call < owed ? '（只能短码全下，不能平齐）' : ''}`,
     `本次跟注可争夺底池 ${contestable}，跟注后 ${contestable + call}；底池赔率 ${Number((contestable / call).toFixed(3))}:1；静态盈亏平衡权益 ${percent(call / (contestable + call))} = ${call}/(${contestable}+${call})`,
-  ] : ['本次过牌成本 0；不需为看下一步支付跟注。']
+  ] : ['本次跟注成本 0。']
   if (call && !complete) facts.push('各座累计投入数据不足，以上按全池简化；如有边池不能当成精确权益门槛。')
   // 从完整本轮流水复原下注前底池，避免把「下注后的池子」错作尺度分母。
   const actions = (obs.publicActions ?? []).filter((a) => a.phase === obs.phase)
