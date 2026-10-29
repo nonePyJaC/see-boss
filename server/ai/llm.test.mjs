@@ -221,7 +221,7 @@ test('输出约定要求合法整数总额、事实依据和目的，不强制�
   assert.match(LLM_SYSTEM_PROMPT, /不超过80字/)
   assert.match(LLM_SYSTEM_PROMPT, /check需具体范围、风险或诱导收益/)
   assert.match(LLM_SYSTEM_PROMPT, /不输出详细内部推演/)
-  assert.match(LLM_SYSTEM_PROMPT, /以程序牌型、最佳五张、踢脚、底牌结构为准/)
+  assert.match(LLM_SYSTEM_PROMPT, /以程序牌力、底牌结构及价格为准/)
   assert.match(LLM_SYSTEM_PROMPT, /只改善公共牌/)
   assert.match(LLM_SYSTEM_PROMPT, /静态跟注门槛假设无后续投入/)
   assert.match(LLM_SYSTEM_PROMPT, /引用行动时注明轮次和座号/)

@@ -345,7 +345,7 @@ test('关闭大模型或缺少对应 Key 不发送请求；缺 Key 的回退可�
   assert.equal(room.aiStats.llmSkipped, 1)
 })
 
-test('v8线上买牌输入给出真实价格，模拟模型跟注成功，保持风格不新增调用或改预算', async () => {
+test('线上买牌输入给出真实价格，模拟模型跟注成功，保持风格不新增调用或改预算', async () => {
   const { room } = await fixture()
   respond = () => reply({ action: 'raise', amount: 40, nextStyle: 'base' })
   await onAiTurn(captured(room))

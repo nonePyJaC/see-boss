@@ -15,7 +15,7 @@ test('v6 牌力和行动优先于风格，不将下注、控池或人设写成�
   assert.match(system.content, /实际牌力与牌面→对手公开行动及合理范围→价格、位置和有效后手→风格参考/)
   assert.match(system.content, /不能单独作为弃牌、跟注或控池理由/)
   assert.match(system.content, /对手下注不等于必有强牌，过牌不等于弱牌/)
-  assert.match(system.content, /顶对好踢脚、超对不因下注自动弃，也不强制跟注/)
+  assert.match(system.content, /顶对\/超对不自动弃或强制跟/)
   assert.match(system.content, /check需具体范围、风险或诱导收益/)
   assert.match(system.content, /本圈已过牌者仍可待响应，不能称为未行动/)
   assert.match(user.content, /【我的性格】仅作边缘选择参考：起手范围偏紧、边缘局面偏稳健、边缘跟注意愿偏低/)
