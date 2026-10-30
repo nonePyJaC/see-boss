@@ -10,7 +10,8 @@
  * 口径（2026-10-07 与牌桌确认，见《南京麻将规则口径确认.md》）：
  *   - 中发白与梅兰竹菊春夏秋冬都是硬花，不参与组型
  *   - 门清 = 没有碰；直杠/暗杠/花杠都不算开门（碰后补杠记为 pongkong，属于碰）
- *   - 七对 / 双七对必须门清无副露；双七对 = 五对 + 一个四张（14 张）
+ *   - 七对 / 双七对不能有手牌碰杠；14张全成对，含1~3组四张均为双七对（2026-10-30确认）
+ *   - 自动花杠属于花牌，不占手牌面子，不破坏七对资格
  *   - 全球独钓 = 四副露（碰/杠）+ 手上只剩一对（含胡牌）
  *   - 无花果 = 无硬花且门清
  *   - 押档（软花 1）= 胡的那张牌是嵌张（如 1、3 胡 2）
@@ -138,7 +139,7 @@ function isAllTriplets(counts) {
 function sevenPairsShape(counts) {
   const vals = Object.values(counts)
   if (vals.some((v) => v !== 2 && v !== 4)) return null
-  if (vals.filter((v) => v === 4).length === 1 && vals.filter((v) => v === 2).length === 5) return 'double_seven_pairs'
+  if (vals.some((v) => v === 4)) return 'double_seven_pairs'
   return vals.length === 7 ? 'seven_pairs' : null
 }
 

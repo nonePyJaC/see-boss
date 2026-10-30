@@ -19,6 +19,27 @@ test('标准型、含副露、七对和双七对向听距离', () => {
   assert.equal(mahjongShanten(doubleSeven), -1)
   assert.equal(mahjongShanten(doubleSeven.slice(0, -1)), 0)
 })
+
+test('两组和三组四张都按双七对计算成牌、听牌和有效进张', () => {
+  for (const hand of [
+    ['1m','1m','1m','1m','2p','2p','2p','2p','4s','4s','6s','6s','E','E'],
+    ['1m','1m','1m','1m','2p','2p','2p','2p','4s','4s','4s','4s','E','E'],
+  ]) {
+    assert.equal(mahjongShanten(hand), -1)
+    for (const missing of new Set(hand)) {
+      const ready = hand.slice(); ready.splice(ready.indexOf(missing), 1)
+      const visible = mahjongVisibleCounts({ myHand: ready, players: [] })
+      assert.equal(mahjongShanten(ready), 0)
+      assert.ok(mahjongEffectiveTiles(ready, 0, visible).draws.some((d) => d.tile === missing && d.left === 5 - hand.filter((t) => t === missing).length))
+    }
+    const players = Array.from({ length: 4 }, () => ({ discards: [], flowers: [], melds: [], binding: null, ready: false }))
+    const waiting = [...hand.slice(0, -1), '9p']
+    const action = safeMahjongAction({ seat: 0, phase: 'turn', myHand: waiting, players,
+      balances: [1000,1000,1000,1000], wallCount: 50,
+      myActions: [...new Set(waiting)].map((tile) => ({ type: 'discard', tile })) })
+    assert.deepEqual(action, { type: 'discard', tile: '9p' })
+  }
+})
 test('只统计未见进张，已见弃牌、明杠和暗杠均按公开张数计', () => {
   const players = Array.from({ length: 4 }, () => ({ discards: [], flowers: [], melds: [] }))
   players[1].discards = ['E', 'E']

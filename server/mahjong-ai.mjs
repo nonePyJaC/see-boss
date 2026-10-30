@@ -65,18 +65,18 @@ export function mahjongShanten(hand, meldCount = 0) {
   }
   dfs(meldCount, 0, 0)
   if (meldCount === 0) {
-    // 以缺失张数精确计算七对和一个四张加五对；不把两个四张当双七对。
-    let dp = Array.from({ length: 8 }, () => [Infinity, Infinity])
-    dp[0][0] = 0
+    // 每种牌可贡献一对或四张（两对）；14张全成对，1~3组四张均算双七对。
+    let dp = Array(8).fill(Infinity)
+    dp[0] = 0
     for (const n of counts) {
-      const next = dp.map((v) => v.slice())
-      for (let pairs = 0; pairs <= 7; pairs++) for (let quad = 0; quad <= 1; quad++) {
-        if (pairs < 7) next[pairs + 1][quad] = Math.min(next[pairs + 1][quad], dp[pairs][quad] + Math.max(0, 2 - n))
-        if (!quad && pairs <= 5) next[pairs + 2][1] = Math.min(next[pairs + 2][1], dp[pairs][quad] + Math.max(0, 4 - n))
+      const next = dp.slice()
+      for (let pairs = 0; pairs < 7; pairs++) {
+        next[pairs + 1] = Math.min(next[pairs + 1], dp[pairs] + Math.max(0, 2 - n))
+        if (pairs <= 5) next[pairs + 2] = Math.min(next[pairs + 2], dp[pairs] + Math.max(0, 4 - n))
       }
       dp = next
     }
-    best = Math.min(best, dp[7][0] - 1, dp[7][1] - 1)
+    best = Math.min(best, dp[7] - 1)
   }
   if (globalCache.size >= 50000) globalCache.clear()
   globalCache.set(cacheKey, best)
