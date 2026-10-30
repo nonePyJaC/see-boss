@@ -24,8 +24,9 @@ const meldLabel = (type) => ({ ankong: '暗杠', huagang: '花杠', pong: '碰',
 <style scoped>
 .groups { display: flex; justify-content: flex-end; align-items: flex-end; flex-wrap: wrap; gap: 3px; max-width: 100%; }
 .meld, .flowers { display: inline-flex; align-items: flex-end; white-space: nowrap; gap: 0; }
+.flowers { max-width: 100%; flex-wrap: wrap; }
 .meld--labelled { position: relative; margin-top: 15px; }
 .meld--labelled::before { position: absolute; left: 2px; top: -15px; content: attr(data-kind); color: #86765c; font-size: 10px; font-weight: 700; }
 .groups--vertical { flex-direction: column; flex-wrap: nowrap; align-items: flex-end; }
-.groups--vertical .meld, .groups--vertical .flowers { flex-direction: column; }
+.groups--vertical .meld, .groups--vertical .flowers { flex-direction: column; flex-wrap: nowrap; }
 </style>

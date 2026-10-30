@@ -49,8 +49,8 @@ async function main() {
     const state = (await stateResponse.json()).data
     const pong = (tile, from) => ({ type: 'pong', from, tiles: [tile, tile, tile] })
     const kong = (tile, type, from) => ({ type, from, tiles: [tile, tile, tile, tile] })
-    const first = { concealed: ['E', 'E'], melds: [pong('1m', 1), pong('2s', 2), kong('3p', 'ankong'), pong('4m', 3), kong('Z', 'huagang')], flowers: ['F'] }
-    const second = { concealed: ['1m','1m','2m','2m','3m','3m','4s','4s','5s','5s','6p','6p','7p','7p'], melds: [], flowers: [] }
+    const first = { concealed: ['E', 'E'], winTile: 'E', melds: [pong('1m', 1), pong('2s', 2), kong('3p', 'ankong'), pong('4m', 3), kong('Z', 'huagang')], flowers: ['F'] }
+    const second = { concealed: ['7p','1m','4s','6p','1m','2m','2m','3m','3m','4s','5s','5s','6p','7p'], winTile: '3m', melds: [], flowers: [] }
     let response = { ok: true, data: { ...state, rev: state.rev + 10000, phase: 'finished', myActions: [], double: true,
       revealedHands: [first.concealed, ['1s'], second.concealed, ['2s']],
       result: { type: 'win', matchOver: false, winners: [{ seat: 0, hand: first, score: scoreHand(first) }, { seat: 2, hand: second, score: scoreHand(second) }] },
@@ -61,19 +61,39 @@ async function main() {
     await page.locator('.result-card').waitFor()
     assert.ok(Date.now() - revealStart < 2000, '摊牌未在约 1 秒后进入结算')
     const winners = page.locator('.result-card .winner')
-    assert.equal(await winners.count(), 2)
-    assert.equal(await winners.nth(0).locator('.winner-tiles .tile').count(), 2)
-    assert.equal(await winners.nth(0).locator('.meld').count(), 5)
-    assert.equal(await winners.nth(0).locator('.flowers .tile').count(), 1)
-    assert.match(await winners.nth(0).innerText(), /全球独钓/)
-    assert.match(await winners.nth(0).innerText(), /硬花 5 张/)
-    assert.match(await winners.nth(0).innerText(), /当局倍率\s*× 2/)
-    assert.match(await winners.nth(1).innerText(), /硬花 0 张/)
-    assert.match(await winners.nth(1).innerText(), /软花小计\s*0 花/)
+    assert.equal(await winners.count(), 1)
+    assert.equal(await winners.locator('.winner-tiles .tile').count(), 2)
+    assert.equal(await winners.locator('.meld').count(), 5)
+    assert.equal(await winners.locator('.flowers .tile').count(), 1)
+    assert.equal(await winners.locator('.result-tile--win').count(), 1)
+    assert.match(await winners.innerText(), /全球独钓/)
+    assert.match(await winners.innerText(), /硬花 5 张/)
+    assert.match(await winners.innerText(), /×2 · 每份/)
+    for (const [width, height] of [[568, 320], [667, 375], [844, 390]]) {
+      await page.setViewportSize({ width, height })
+      const visible = await page.evaluate(() => {
+        const within = (child, parent) => { const a = child.getBoundingClientRect(), b = parent.getBoundingClientRect(); return a.left >= b.left - 1 && a.right <= b.right + 1 && a.top >= b.top - 1 && a.bottom <= b.bottom + 1 }
+        return { flowers: within(document.querySelector('.winner-groups .flowers'), document.querySelector('.winner-tiles-panel')),
+          total: within(document.querySelector('.score-summary'), document.querySelector('.result-card')),
+          actions: [...document.querySelectorAll('.result-actions button')].every((e) => within(e, document.querySelector('.result-card'))) }
+      })
+      assert.deepEqual(visible, { flowers: true, total: true, actions: true }, `${width}x${height} 首屏内容`)
+    }
+    await page.locator('.winner-tabs button').nth(1).click()
+    assert.match(await winners.innerText(), /硬花 0 张/)
+    assert.match(await winners.innerText(), /软花小计\s*0 花/)
+    assert.equal(await winners.locator('.result-tile--win').getAttribute('aria-label'), '三万，胡牌张')
+    assert.equal(await winners.locator('.result-tile').last().getAttribute('aria-label'), '三万，胡牌张')
+    await page.getByRole('button', { name: '流水', exact: true }).click()
     assert.match(await page.locator('.result-card').innerText(), /实付 9（应付 20）/)
     if (process.env.MAHJONG_UI_SCREENSHOT) await page.screenshot({ path: process.env.MAHJONG_UI_SCREENSHOT })
     await page.getByRole('button', { name: '返回牌桌' }).click()
     assert.ok(await page.locator('.opponent .back-row img[alt="背面"]').count() > 0)
+    response = { ok: true, data: { ...response.data, rev: response.data.rev + 1, result: { type: 'draw', matchOver: false, winners: [] } } }
+    await page.waitForFunction(() => document.querySelector('.board')?.dataset.resultType === 'draw')
+    await page.getByRole('button', { name: '本手结果', exact: true }).click()
+    assert.equal(await page.locator('.result-empty').innerText(), '本手流局')
+    assert.equal(await page.locator('.result-card .winner').count(), 0)
     response = { ok: false, code: 'ROOM_NOT_FOUND', error: '房间不存在' }
     await page.getByText('房间不存在或已结束').waitFor()
     assert.equal(await page.locator('.board').count(), 0)

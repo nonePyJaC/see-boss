@@ -1,13 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { resultBreakdown } from './mahjong-result.mjs'
+import { resultBreakdown, resultNetTransfers } from './mahjong-result.mjs'
 import { scoreHand } from '../../../shared/logic/mahjong/score.mjs'
 
 const pong = (tile) => ({ type: 'pong', tiles: [tile, tile, tile] })
 const kong = (tile, type = 'ankong') => ({ type, tiles: [tile, tile, tile, tile] })
 function check(score) {
   const display = resultBreakdown(score)
-  assert.equal(display.typeTotal + display.hard + display.softTotal, score.flowers.total)
+  assert.equal(display.typeTotal + display.bonusTotal + display.hard + display.softTotal, score.flowers.total)
   assert.equal(display.soft.reduce((sum, item) => sum + item.value, 0), score.flowers.soft)
   return display
 }
@@ -33,6 +33,11 @@ test('门清、天地胡及花开杠开的已计项目保留服务端明细', ()
   for (const flag of ['tianhu', 'dihu', 'huakai', 'gangkai']) {
     const score = scoreHand(hand, { [flag]: true })
     const display = check(score)
-    assert.ok(display.types.some((item) => ({ tianhu:'天胡', dihu:'地胡', huakai:'花开', gangkai:'杠开' })[flag] === item.label))
+    assert.ok(display.bonuses.some((item) => ({ tianhu:'天胡', dihu:'地胡', huakai:'花开', gangkai:'杠开' })[flag] === item.label))
   }
+})
+test('净收付根据每笔实付计算，包含封顶和反向付款', () => {
+  assert.deepEqual(resultNetTransfers([{ transfers: [
+    { from: 0, to: 1, amount: 30, paid: 8 }, { from: 1, to: 2, amount: 5, paid: 5 },
+  ] }]), [-8, 3, 5, 0])
 })

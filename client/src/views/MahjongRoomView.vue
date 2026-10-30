@@ -8,24 +8,31 @@ import { createOnlineRoom, joinRoom, onlineState, onlineLeave, addAi, removeAi, 
   loadSeatCred, saveSeatCred, clearSeatCred, ONLINE_POLL_INTERVAL } from '../data/room-repo.js'
 import { mahjongReady, mahjongStart, mahjongAction, mahjongReset } from '../data/mahjong-repo.js'
 import { captureSeatRequest, isCurrentSeatRequest } from '../lib/seat-state-request.mjs'
-import { sortedHand, tileInfo, tileUrl } from '../lib/mahjong-view.mjs'
+import { sortedHand, tileInfo } from '../lib/mahjong-view.mjs'
+import { createTileTapTracker, DISCARD_RECHECK_MS } from '../lib/mahjong-taps.mjs'
+import { resultNetTransfers } from '../lib/mahjong-result.mjs'
 import { wallLayoutStacks } from '@shared/logic/mahjong/online-wall.mjs'
 import JoinRoomPanel from '../components/JoinRoomPanel.vue'
 import RoomQR from '../components/RoomQR.vue'
 import MahjongTile from '../components/MahjongTile.vue'
 import MahjongMelds from '../components/MahjongMelds.vue'
 import MahjongResultWinner from '../components/MahjongResultWinner.vue'
+import MahjongWallStack from '../components/MahjongWallStack.vue'
 
 const route = useRoute(), router = useRouter(), { user, refresh } = useUser()
 const roomId = computed(() => String(route.query.room || route.query.join || '').trim())
 const data = ref(null), cred = ref(null), error = ref(''), connected = ref(true), busy = ref(false)
 const setupTab = ref('create'), createCode = ref(''), seeds = ref(100), createBusy = ref(false)
 const menuOpen = ref(false), inviteOpen = ref(false), resultOpen = ref(false), selected = ref(null), revealActive = ref(false)
+const resultWinnerIndex = ref(0), ledgerOpen = ref(false)
 const openingProgress = ref(null)
 const now = ref(Date.now()), toast = ref(''), profileReady = ref(false)
 const animationEnabled = ref(true)
+const tileTaps = createTileTapTracker()
 let watcher = null, tickTimer = null, toastTimer = null, revealTimer = null, openingTimer = null, joining = false, joinAttempted = false
+let pendingDiscardTimer = null
 let openedFullscreen = false, lockedOrientation = false
+let orientationMedia = null
 
 const me = computed(() => data.value?.seats?.findIndex((s) => s.isMe) ?? -1)
 const viewer = computed(() => me.value >= 0 ? me.value : 0)
@@ -34,12 +41,14 @@ const phase = computed(() => data.value?.phase ?? 'waiting')
 const hand = computed(() => sortedHand(data.value?.myHand ?? [], data.value?.myContext?.lastDraw))
 const actions = computed(() => data.value?.myActions ?? [])
 const selectedCode = computed(() => selected.value?.code ?? '')
-const selectedCanDiscard = computed(() => actions.value.some((a) => a.type === 'discard' && a.tile === selectedCode.value))
 const specialActions = computed(() => actions.value.filter((a) => a.type !== 'discard'))
 const countdown = computed(() => data.value?.deadlineAt == null ? null : Math.max(0, Math.ceil((data.value.deadlineAt - now.value) / 1000)))
 const canReady = computed(() => me.value >= 0 && (phase.value === 'waiting' || (phase.value === 'finished' && !data.value?.result?.matchOver)))
 const allReady = computed(() => data.value?.seats?.length === 4 && data.value?.ready?.every(Boolean))
 const ownReady = computed(() => me.value >= 0 && !!data.value?.ready?.[me.value])
+const resultWinners = computed(() => data.value?.result?.winners ?? [])
+const selectedWinner = computed(() => resultWinners.value[resultWinnerIndex.value] ?? resultWinners.value[0])
+const resultNets = computed(() => resultNetTransfers(data.value?.ledger, data.value?.seats?.length ?? 4))
 const seats = computed(() => [0, 1, 2, 3].map((offset) => {
   const seat = (viewer.value + offset) % 4
   return { seat, side: ['bottom', 'right', 'top', 'left'][offset], info: data.value?.seats?.[seat], player: data.value?.players?.[seat] }
@@ -61,8 +70,6 @@ const wallSegments = computed(() => {
   }
   return seats.value.map((s) => ({ side: s.side, seat: s.seat, stacks: stacks?.[s.seat] ?? [] }))
 })
-const wallDice = computed(() => data.value?.wallLayout?.dice ?? null)
-const dicePips = [[], [5], [1, 9], [1, 5, 9], [1, 3, 7, 9], [1, 3, 5, 7, 9], [1, 3, 4, 6, 7, 9]]
 const latestDiscard = computed(() => {
   const events = data.value?.events ?? []
   const i = events.findLastIndex((e) => e.type === 'discard')
@@ -98,15 +105,16 @@ function applyState(r) {
   if (data.value && Number(r.data.rev ?? 0) < Number(data.value.rev ?? 0)) return
   const previousHand = JSON.stringify(data.value?.myHand ?? [])
   const previousKey = `${data.value?.matchId ?? ''}:${data.value?.handId ?? ''}`
+  const previousWindow = data.value?.windowId
   const wasWaiting = !!data.value && (data.value.phase === 'waiting' || data.value.phase === 'finished')
   data.value = r.data; connected.value = true; error.value = ''
-  if (previousHand !== JSON.stringify(r.data?.myHand ?? []) || previousKey !== `${r.data?.matchId ?? ''}:${r.data?.handId ?? ''}`) selected.value = null
+  if (previousHand !== JSON.stringify(r.data?.myHand ?? []) || previousKey !== `${r.data?.matchId ?? ''}:${r.data?.handId ?? ''}` || previousWindow !== r.data?.windowId) { selected.value = null; clearTileGesture() }
   const currentKey = `${r.data.matchId ?? ''}:${r.data.handId ?? ''}`
   if (previousKey !== currentKey || r.data.phase === 'finished') { clearInterval(openingTimer); openingProgress.value = null }
   if (previousKey !== currentKey && wasWaiting && r.data.phase !== 'finished' && r.data.wallLayout) startOpening()
   if (previousKey !== currentKey || r.data.phase !== 'finished') {
     clearTimeout(revealTimer); revealActive.value = false
-    if (previousKey !== currentKey) resultOpen.value = false
+    if (previousKey !== currentKey) { resultOpen.value = false; resultWinnerIndex.value = 0; ledgerOpen.value = false }
   }
   if (r.data.phase === 'finished' && (previousKey !== currentKey || phaseBefore.value !== 'finished')) {
     revealActive.value = true; resultOpen.value = false
@@ -118,6 +126,7 @@ function applyState(r) {
 }
 const phaseBefore = ref('')
 function roomGone() {
+  clearTileGesture()
   watcher?.stop(); clearSeatCred(roomId.value); cred.value = null
   clearTimeout(revealTimer); clearInterval(openingTimer)
   data.value = null; selected.value = null; revealActive.value = false; openingProgress.value = null
@@ -137,14 +146,20 @@ async function tryJoin() {
   joining = false
 }
 watch(roomId, (id) => {
+  clearTileGesture()
   watcher?.stop(); watcher = null; data.value = null; selected.value = null; error.value = ''; phaseBefore.value = ''
   clearTimeout(revealTimer); revealActive.value = false; clearInterval(openingTimer); openingProgress.value = null
-  menuOpen.value = false; inviteOpen.value = false; resultOpen.value = false; joinAttempted = false
+  menuOpen.value = false; inviteOpen.value = false; resultOpen.value = false; resultWinnerIndex.value = 0; ledgerOpen.value = false; joinAttempted = false
   cred.value = id ? loadSeatCred(id) : null
   if (id) watcher = watchRoom(id, applyState, () => { connected.value = false }, () => cred.value, ONLINE_POLL_INTERVAL)
 }, { immediate: true })
 
 onMounted(async () => {
+  onOrientationChange()
+  orientationMedia = window.matchMedia('(orientation: portrait)')
+  if (orientationMedia.addEventListener) orientationMedia.addEventListener('change', onOrientationChange)
+  else orientationMedia.addListener?.(onOrientationChange)
+  window.addEventListener('resize', onOrientationChange)
   try { animationEnabled.value = localStorage.getItem('hamster-poker:mahjong-animation') !== 'off' } catch { /* 本地设置不可用时使用默认值 */ }
   tickTimer = setInterval(() => { now.value = Date.now() }, 250)
   await refresh(); profileReady.value = true
@@ -154,7 +169,11 @@ onMounted(async () => {
   if (roomId.value && !cred.value && data.value?.phase === 'waiting') void tryJoin()
 })
 onUnmounted(() => {
+  if (orientationMedia?.removeEventListener) orientationMedia.removeEventListener('change', onOrientationChange)
+  else orientationMedia?.removeListener?.(onOrientationChange)
+  window.removeEventListener('resize', onOrientationChange)
   watcher?.stop(); clearInterval(tickTimer); clearTimeout(toastTimer); clearTimeout(revealTimer); clearInterval(openingTimer)
+  clearTileGesture()
   if (lockedOrientation) screen.orientation?.unlock?.()
   if (openedFullscreen && document.fullscreenElement) void document.exitFullscreen().catch(() => {})
 })
@@ -175,6 +194,7 @@ async function create() {
 }
 async function requestChange(call) {
   if (busy.value || !cred.value || !data.value) return
+  clearTileGesture()
   const request = captureSeatRequest(roomId.value, cred.value), state = data.value
   busy.value = true
   try {
@@ -185,10 +205,6 @@ async function requestChange(call) {
   } finally { busy.value = false }
 }
 function sendAction(action) { return requestChange((id, c, state) => mahjongAction(id, c, state, action)) }
-function discard() {
-  if (!selectedCanDiscard.value) return
-  return sendAction({ type: 'discard', tile: selectedCode.value })
-}
 function actionText(action) {
   if (action.type === 'win') return riskText.value ? '胡 · 需赔付' : '胡'
   if (action.type === 'ready') return '报听'
@@ -196,11 +212,38 @@ function actionText(action) {
   const label = { pong: '碰', kong: '杠', ankong: '暗杠', bukong: '补杠' }[action.type] ?? action.type
   return action.tile ? `${label} ${tileInfo(action.tile).name}` : label
 }
+let lastPortrait = null
+function onOrientationChange(event) {
+  const portrait = typeof event?.matches === 'boolean' ? event.matches : window.matchMedia('(orientation: portrait)').matches
+  if (event?.type === 'resize' || event?.type === 'change' || (lastPortrait !== null && lastPortrait !== portrait)) { clearTileGesture(); selected.value = null }
+  lastPortrait = portrait
+}
+function clearTileGesture() {
+  tileTaps.reset(); clearTimeout(pendingDiscardTimer); pendingDiscardTimer = null
+}
+function canDiscardTile(tile) {
+  return !!data.value && !busy.value && connected.value && phase.value === 'turn' && data.value.turn === me.value && !!cred.value &&
+    openingProgress.value === null && !revealActive.value && !resultOpen.value && !window.matchMedia('(orientation: portrait)').matches &&
+    actions.value.some((action) => action.type === 'discard' && action.tile === tile.code)
+}
 function selectTile(tile) {
-  selected.value = selected.value?.index === tile.index && selected.value?.code === tile.code ? null : { index: tile.index, code: tile.code }
+  if (!data.value || pendingDiscardTimer !== null || openingProgress.value !== null || revealActive.value || resultOpen.value || window.matchMedia('(orientation: portrait)').matches) return
+  const state = data.value
+  const legal = canDiscardTile(tile)
+  const scope = `${roomId.value}:${state.matchId}:${state.handId}:${state.windowId}`
+  const decision = tileTaps.tap({ index: tile.index, code: tile.code, scope, now: performance.now(), canDiscard: legal })
+  if (decision === 'ignore') return
+  selected.value = { index: tile.index, code: tile.code }
+  if (decision === 'discard') pendingDiscardTimer = setTimeout(() => {
+    pendingDiscardTimer = null
+    const current = data.value
+    if (!current || scope !== `${roomId.value}:${current.matchId}:${current.handId}:${current.windowId}` ||
+        current.myHand?.[tile.index] !== tile.code || selected.value?.index !== tile.index || !canDiscardTile(tile)) return
+    void sendAction({ type: 'discard', tile: tile.code })
+  }, DISCARD_RECHECK_MS)
 }
 function showResult() {
-  clearTimeout(revealTimer); revealActive.value = false
+  clearTimeout(revealTimer); revealActive.value = false; ledgerOpen.value = false
   if (phase.value === 'finished') resultOpen.value = true
 }
 function startOpening() {
@@ -267,9 +310,8 @@ async function tryLandscape() {
     <div v-if="error && !data" class="loading-overlay"><p>{{ error }}</p><button @click="router.replace('/lobby')">返回大厅</button></div>
     <div v-else-if="!data" class="loading-overlay">正在进入牌桌…</div>
     <template v-else>
-      <div class="board" :class="{ 'board--opening': openingProgress !== null }" :inert="openingProgress !== null || undefined">
+      <div class="board" :class="{ 'board--opening': openingProgress !== null }" :inert="openingProgress !== null || undefined" :data-window-id="data.windowId" :data-result-type="data.result?.type">
         <div class="board-grain"></div>
-        <div class="room-tag"><span class="room-tag-dot"></span> 南京麻将 <b>{{ data.id }}</b></div>
         <div v-if="!connected" class="connection">连接中断，正在重连…</div>
         <div class="corner">
           <button class="menu-trigger" aria-label="房间菜单" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">•••</button>
@@ -296,23 +338,12 @@ async function tryLandscape() {
         </template>
 
         <template v-else>
-          <div v-if="openingProgress !== null" class="opening-message" role="status">{{ openingProgress === 0 ? '洗牌理墙 · 庄家掷骰' : '按骰子开墙发牌' }}</div>
+          <div v-if="openingProgress !== null" class="opening-message" role="status">正在发牌</div>
           <div v-for="wall in wallSegments" :key="wall.seat" class="tile-wall" :class="`tile-wall--${wall.side}`" :aria-label="`座位 ${wall.seat + 1} 的牌墙`">
-            <span v-for="(count, n) in wall.stacks" :key="n" class="wall-stack">
-              <template v-if="wall.side === 'left' || wall.side === 'right'">
-                <svg v-if="count === 2" class="wall-back wall-back--lower" viewBox="0 0 104 76" preserveAspectRatio="none" aria-hidden="true"><image :href="tileUrl('back')" width="76" height="104" transform="translate(104 0) rotate(90)" /></svg>
-                <svg v-if="count > 0" class="wall-back wall-back--upper" viewBox="0 0 104 76" preserveAspectRatio="none" aria-hidden="true"><image :href="tileUrl('back')" width="76" height="104" transform="translate(104 0) rotate(90)" /></svg>
-              </template>
-              <template v-else>
-                <img v-if="count === 2" class="wall-back wall-back--lower" :src="tileUrl('back')" alt="" draggable="false" />
-                <img v-if="count > 0" class="wall-back wall-back--upper" :src="tileUrl('back')" alt="" draggable="false" />
-              </template>
-            </span>
+            <MahjongWallStack v-for="(count, n) in wall.stacks" :key="n" :count="count" :side="wall.side" />
           </div>
-          <div v-if="wallDice && !revealActive" :key="`${data.matchId}:${data.handId}`" class="wall-dice" :aria-label="`庄家掷骰 ${wallDice[0]} 和 ${wallDice[1]}`"><span>庄家掷骰</span><b v-for="(die, i) in wallDice" :key="i" class="die" aria-hidden="true"><i v-for="dot in dicePips[die]" :key="dot" :style="{ gridRow: Math.floor((dot - 1) / 3) + 1, gridColumn: (dot - 1) % 3 + 1 }"></i></b><small>{{ data.seats?.[data.wallLayout.breakSeat]?.nickname ?? '玩家' }}处开墙{{ data.wallLayout.version === 2 ? ` · 留${Math.min(...wallDice)}墩` : ' · 旧规则' }}</small></div>
-          <div v-else-if="!wallDice" class="wall-legacy">旧牌局未记录开墙位置，下一手起显示牌墙</div>
           <div v-for="s in seats.filter(x => x.side !== 'bottom')" :key="s.seat" class="opponent" :class="`opponent--${s.side}`">
-            <div class="player-badge"><img v-if="s.info" :src="hamsterDataURI(getHamster(s.info.avatar), 36)" alt="" /><div><b>{{ s.info?.nickname ?? '空位' }}</b><small>{{ s.info?.isAI ? 'AI · ' : '' }}{{ data.balances?.[s.seat] ?? '—' }} 瓜子 <em v-if="data.dealer === s.seat">庄</em><em v-if="s.info?.left">托管</em></small></div></div>
+            <div class="player-badge" :class="{ 'player-badge--acting': phase === 'turn' && data.turn === s.seat }"><span class="avatar-chip" :class="{ 'avatar-chip--dealer': data.dealer === s.seat }"><img v-if="s.info" :src="hamsterDataURI(getHamster(s.info.avatar), 36)" alt="" /><em v-if="data.dealer === s.seat">庄</em></span><div><b>{{ s.info?.nickname ?? '空位' }}</b><small>{{ s.info?.isAI ? 'AI · ' : '' }}{{ data.balances?.[s.seat] ?? '—' }} 瓜子 <em v-if="s.info?.left">托管</em></small><small v-if="phase === 'turn' && data.turn === s.seat" class="seat-timer">行动中<template v-if="countdown != null"> {{ countdown }}秒</template></small></div></div>
             <div class="back-row" :class="{ 'reveal-tiles': revealActive }" :aria-label="`${s.info?.nickname ?? '玩家'} ${s.player?.handCount ?? 0} 张手牌`"><template v-if="revealActive && data.revealedHands?.[s.seat]"><MahjongTile v-for="tile in sortedHand(data.revealedHands[s.seat])" :key="tile.index" :code="tile.code" :sideways="s.side === 'left' || s.side === 'right'" /></template><template v-else><MahjongTile v-for="n in (s.player?.handCount ?? 0)" :key="n" code="back" :sideways="s.side === 'left' || s.side === 'right'" /></template></div>
           </div>
           <template v-for="s in seats" :key="`groups-${s.seat}`">
@@ -320,23 +351,23 @@ async function tryLandscape() {
             <MahjongMelds v-if="s.player?.melds?.length" class="seat-melds" :class="`seat-melds--${s.side}`" :melds="s.player.melds" :owner="s.seat" :selected="selectedCode" :vertical="s.side === 'left' || s.side === 'right'" />
           </template>
 
-          <div v-for="s in seats" :key="`river-${s.seat}`" class="river" :class="`river--${s.side}`" :aria-label="`${s.info?.nickname ?? '玩家'}出牌区`">
+          <div v-for="s in seats" :key="`river-${s.seat}`" class="river" :class="[`river--${s.side}`, { 'river--dense': (s.player?.discards?.length ?? 0) > 24 }]" :aria-label="`${s.info?.nickname ?? '玩家'}出牌区`">
             <MahjongTile v-for="(tile, i) in (s.player?.discards ?? [])" :key="i" :code="tile"
               :highlight="tile === selectedCode || (latestDiscard?.seat === s.seat && latestDiscard?.tile === tile && i === s.player.discards.length - 1)" />
           </div>
 
-          <div class="table-center"><span>{{ data.double ? '翻倍局' : '南京麻将' }}</span><strong>余 {{ data.wallCount }} 张</strong><small>{{ statusText }}<template v-if="countdown != null"> · {{ countdown }}秒</template></small></div>
+          <div class="table-center"><strong>余 {{ data.wallCount }} 张</strong><span v-if="data.double" class="double-badge">×2</span><small v-if="phase !== 'turn'">{{ statusText }}<template v-if="countdown != null"> · {{ countdown }}秒</template></small></div>
           <div v-if="me < 0" class="spectator-tag">旁观中</div>
-          <div class="own-badge player-badge"><img v-if="data.seats?.[viewer]" :src="hamsterDataURI(getHamster(data.seats[viewer].avatar), 42)" alt="" /><div><b>{{ me >= 0 ? data.seats[me].nickname : '旁观视角' }}</b><small v-if="me >= 0">{{ data.balances?.[me] }} 瓜子 <em v-if="data.dealer === me">庄</em></small></div></div>
+          <div class="own-badge player-badge" :class="{ 'player-badge--acting': phase === 'turn' && data.turn === viewer }"><span class="avatar-chip" :class="{ 'avatar-chip--dealer': data.dealer === viewer }"><img v-if="data.seats?.[viewer]" :src="hamsterDataURI(getHamster(data.seats[viewer].avatar), 42)" alt="" /><em v-if="data.dealer === viewer">庄</em></span><div><b>{{ me >= 0 ? data.seats[me].nickname : '旁观视角' }}</b><small v-if="me >= 0">{{ data.balances?.[me] }} 瓜子</small><small v-if="phase === 'turn' && data.turn === viewer" class="seat-timer">行动中<template v-if="countdown != null"> {{ countdown }}秒</template></small></div></div>
           <div v-if="revealActive && data.revealedHands?.[viewer]" class="my-hand revealed-bottom reveal-tiles" aria-label="本家摊牌"><MahjongTile v-for="tile in sortedHand(data.revealedHands[viewer])" :key="tile.index" :code="tile.code" /></div>
-          <div v-else-if="me >= 0" class="my-hand" aria-label="我的手牌">
+          <div v-else-if="me >= 0" class="my-hand" aria-label="我的手牌，快速点击同一张两次出牌">
             <button v-for="tile in hand" :key="tile.index" class="hand-button" :class="{ 'hand-button--selected': selected?.index === tile.index && selected?.code === tile.code, 'hand-button--drawn': tile.drawn }" :aria-label="`${tileInfo(tile.code).name}${selected?.index === tile.index ? '，已选中' : ''}`" :aria-pressed="selected?.index === tile.index" @click="selectTile(tile)"><MahjongTile :code="tile.code" :highlight="selected?.index === tile.index && selected?.code === tile.code" /></button>
           </div>
           <div v-else class="spectator-hand">旁观不会显示其他玩家手牌</div>
 
-          <div v-if="specialActions.length || selectedCanDiscard" class="action-area">
+          <div v-if="specialActions.length" class="action-area">
             <div v-if="riskText" class="risk-note">{{ riskText }}</div>
-            <div class="action-buttons"><button v-for="(action, i) in specialActions" :key="`${action.type}-${action.tile ?? i}`" class="action-btn" :class="{ 'action-btn--gold': action.type === 'win' }" :disabled="busy" @click="sendAction(action)">{{ actionText(action) }}</button><button v-if="selectedCanDiscard" class="action-btn action-btn--gold" :disabled="busy" @click="discard">打出 {{ tileInfo(selectedCode).name }}</button></div>
+            <div class="action-buttons"><button v-for="(action, i) in specialActions" :key="`${action.type}-${action.tile ?? i}`" class="action-btn" :class="{ 'action-btn--gold': action.type === 'win' }" :disabled="busy" @click="sendAction(action)">{{ actionText(action) }}</button></div>
           </div>
           <div v-if="revealActive" class="reveal-message"><span>四家摊牌</span><button @click="showResult">查看结算 ›</button></div>
           <div v-if="phase === 'finished' && !resultOpen && !revealActive" class="finished-controls"><button class="action-btn" @click="showResult">本手结果</button><button v-if="canReady" class="action-btn" :disabled="busy" @click="requestChange((id,c,s) => mahjongReady(id,c,s,!ownReady))">{{ ownReady ? '取消准备' : '准备' }}</button><button v-if="isHost && !data.result?.matchOver" class="action-btn action-btn--gold" :disabled="busy || !allReady" @click="requestChange(mahjongStart)">下一手</button><button v-if="isHost && data.result?.matchOver" class="action-btn action-btn--gold" :disabled="busy" @click="requestChange(mahjongReset)">重新开场</button></div>
@@ -344,11 +375,12 @@ async function tryLandscape() {
       </div>
 
       <div v-if="inviteOpen" class="modal-shade" @click.self="inviteOpen = false"><div class="invite-card"><button class="modal-close" aria-label="关闭" @click="inviteOpen = false">×</button><span class="modal-kicker">一起入座</span><h2>邀请好友</h2><p>扫码或输入房间号</p><RoomQR :room-no="data.id" mode="online" game="nanjing" :size="150" /><strong class="invite-number">{{ data.id }}</strong><button class="entry-primary" @click="copyInvite">复制邀请链接</button></div></div>
-      <div v-if="phase === 'finished' && resultOpen" class="modal-shade"><div class="result-card"><button class="modal-close" aria-label="关闭结果" @click="resultOpen = false">×</button><span class="modal-kicker">{{ data.result?.matchOver ? '本场结束' : '本手结束' }}</span><h2>{{ data.result?.type === 'win' ? '胡牌结算' : data.result?.type === 'draw' ? '流局' : '本场结算' }}</h2>
-        <MahjongResultWinner v-for="winner in (data.result?.winners ?? [])" :key="winner.seat" :winner="winner" :nickname="data.seats?.[winner.seat]?.nickname ?? '玩家'" :double="!!data.double" />
-        <div class="result-balances"><span v-for="(amount, i) in data.balances" :key="i">{{ data.seats?.[i]?.nickname }} <b>{{ amount }}</b></span></div>
-        <details v-if="data.ledger?.length" open><summary>本手实际收付流水</summary><div v-for="(entry, ei) in data.ledger" :key="ei" class="ledger"><b>{{ entry.event }}</b><span v-for="transfer in entry.transfers" :key="transfer.id">{{ data.seats?.[transfer.from]?.nickname }} → {{ data.seats?.[transfer.to]?.nickname }}：实付 {{ transfer.paid }}<template v-if="transfer.amount !== transfer.paid">（应付 {{ transfer.amount }}）</template> · {{ transfer.reason }}</span><span v-if="!entry.transfers?.length">无实际转账</span></div></details>
-        <div class="result-actions"><button v-if="canReady" class="action-btn" :disabled="busy" @click="requestChange((id,c,s) => mahjongReady(id,c,s,!ownReady))">{{ ownReady ? '取消准备' : '准备下一手' }}</button><button v-if="isHost && !data.result?.matchOver" class="action-btn action-btn--gold" :disabled="busy || !allReady" @click="requestChange(mahjongStart)">开始下一手</button><button v-if="isHost && data.result?.matchOver" class="action-btn action-btn--gold" :disabled="busy" @click="requestChange(mahjongReset)">重新开场</button><button class="action-btn action-btn--ghost" @click="resultOpen = false">返回牌桌</button></div>
+      <div v-if="phase === 'finished' && resultOpen" class="modal-shade"><div class="result-card">
+        <header class="result-header"><h2>{{ data.result?.type === 'win' ? '胡牌结算' : data.result?.type === 'draw' ? '流局' : '本场结算' }}</h2><div v-if="resultWinners.length > 1" class="winner-tabs" aria-label="切换胡家"><button v-for="(winner, i) in resultWinners" :key="winner.seat" :class="{ active: i === resultWinnerIndex && !ledgerOpen }" @click="resultWinnerIndex = i; ledgerOpen = false">{{ data.seats?.[winner.seat]?.nickname ?? '玩家' }}</button></div><button v-if="data.ledger?.length" class="ledger-toggle" @click="ledgerOpen = !ledgerOpen">{{ ledgerOpen ? '返回牌组' : '流水' }}</button><button class="modal-close" aria-label="关闭结果" @click="resultOpen = false">×</button></header>
+        <div class="result-body"><div v-if="ledgerOpen" class="result-ledger"><b>本手实际收付流水</b><div v-for="(entry, ei) in data.ledger" :key="ei" class="ledger"><b>{{ entry.event }}</b><span v-for="transfer in entry.transfers" :key="transfer.id">{{ data.seats?.[transfer.from]?.nickname }} → {{ data.seats?.[transfer.to]?.nickname }}：实付 {{ transfer.paid }}<template v-if="transfer.amount !== transfer.paid">（应付 {{ transfer.amount }}）</template> · {{ transfer.reason }}</span><span v-if="!entry.transfers?.length">无实际转账</span></div></div><MahjongResultWinner v-else-if="selectedWinner" :winner="selectedWinner" :nickname="data.seats?.[selectedWinner.seat]?.nickname ?? '玩家'" :double="!!data.double" /><div v-else class="result-empty">{{ data.result?.type === 'draw' ? '本手流局' : '本场结束' }}</div></div>
+        <footer class="result-footer"><div class="result-balances" aria-label="本手实际净收付"><strong>本手净收付</strong><span v-for="(amount, i) in data.balances" :key="i">{{ data.seats?.[i]?.nickname }} <b :class="{ positive: resultNets[i] > 0, negative: resultNets[i] < 0 }">{{ resultNets[i] > 0 ? '+' : '' }}{{ resultNets[i] }}</b> <small>余{{ amount }}</small></span></div>
+          <div class="result-actions"><button v-if="canReady" class="action-btn" :disabled="busy" @click="requestChange((id,c,s) => mahjongReady(id,c,s,!ownReady))">{{ ownReady ? '取消准备' : '准备下一手' }}</button><button v-if="isHost && !data.result?.matchOver" class="action-btn action-btn--gold" :disabled="busy || !allReady" @click="requestChange(mahjongStart)">开始下一手</button><button v-if="isHost && data.result?.matchOver" class="action-btn action-btn--gold" :disabled="busy" @click="requestChange(mahjongReset)">重新开场</button><button class="action-btn action-btn--ghost" @click="resultOpen = false">返回牌桌</button></div>
+        </footer>
       </div></div>
     </template>
     <div v-if="toast" class="mj-toast" role="status">{{ toast }}</div>
@@ -374,33 +406,18 @@ async function tryLandscape() {
 .entry-primary:disabled { opacity: .5; }
 
 .mj-screen { position: relative; width: 100%; height: 100dvh; min-height: 0; overflow: hidden; background: #162b25; color: #f8f6e7; }
-.board { position: absolute; inset: var(--sat) var(--sar) var(--sab) var(--sal); overflow: hidden; border: clamp(4px, 1vw, 12px) solid #4d3424; border-radius: clamp(9px, 2vw, 24px); box-shadow: inset 0 0 0 2px #c19150, inset 0 0 32px #00190d; background: radial-gradient(ellipse at 50% 38%, #2b8059 0%, #1e6746 55%, #145037 100%); }
+.board { --hand-tile-w: clamp(16px, min(4vw, 8vh), 46px); position: absolute; inset: var(--sat) var(--sar) var(--sab) var(--sal); overflow: hidden; border: clamp(4px, 1vw, 12px) solid #4d3424; border-radius: clamp(9px, 2vw, 24px); box-shadow: inset 0 0 0 2px #c19150, inset 0 0 32px #00190d; background: radial-gradient(ellipse at 50% 38%, #2b8059 0%, #1e6746 55%, #145037 100%); }
 .board-grain { position: absolute; inset: 2%; border: 1px solid #c9dbb427; border-radius: 12px; pointer-events: none; }
 .board--opening .back-row, .board--opening .seat-flowers, .board--opening .seat-melds, .board--opening .river, .board--opening .my-hand, .board--opening .action-area, .board--opening .table-center { visibility: hidden; }
 .opening-message { position: absolute; z-index: 8; left: 50%; top: 48%; transform: translate(-50%, -50%); padding: 7px 14px; border: 1px solid #e2c87e; border-radius: 18px; color: #ffe7ab; background: #153f2df0; font-size: clamp(11px, 2vw, 16px); font-weight: 900; white-space: nowrap; }
 .tile-wall { position: absolute; z-index: 1; display: flex; pointer-events: none; filter: drop-shadow(1px 2px 1px #062b20aa); }
-.tile-wall--top, .tile-wall--bottom { left: 24%; width: 52%; height: clamp(16px, 7vh, 36px); }
+.tile-wall--top, .tile-wall--bottom { left: 24%; width: 52%; height: clamp(14px, 6vh, 30px); }
 .tile-wall--top { top: 22%; }
 .tile-wall--top { flex-direction: row-reverse; }
 .tile-wall--bottom { bottom: 20%; }
-.tile-wall--left, .tile-wall--right { top: 25%; height: 49%; width: clamp(16px, 3vw, 34px); flex-direction: column; }
-.tile-wall--left { left: 23%; }
-.tile-wall--right { right: 23%; flex-direction: column-reverse; }
-.wall-stack { position: relative; display: block; flex: 0 0 calc(100% / 18); min-width: 0; min-height: 0; }
-.wall-back { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
-.wall-back--lower { transform: translateY(3px); filter: brightness(.7); }
-.wall-back--upper { transform: translateY(-2px); }
-.tile-wall--left .wall-back--lower, .tile-wall--right .wall-back--lower { transform: translateX(3px); }
-.tile-wall--left .wall-back--upper, .tile-wall--right .wall-back--upper { transform: translateX(-2px); }
-.wall-dice { position: absolute; z-index: 4; left: 2%; bottom: 15%; display: flex; align-items: center; gap: 3px; color: #f6e3b2; font-size: clamp(8px, 1.1vw, 11px); }
-.wall-dice .die { display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); place-items: center; width: clamp(15px, 3vh, 22px); height: clamp(15px, 3vh, 22px); padding: 2px; border-radius: 4px; background: #fff9e9; box-shadow: 0 2px 2px #092b1a99; animation: dice-roll .5s ease-out; }
-.die i { width: 70%; height: 70%; border-radius: 50%; background: #75402c; }
-.wall-dice small { font-size: inherit; }
-.wall-legacy { position: absolute; left: 2%; bottom: 16%; font-size: 10px; color: #d4e8d4; }
-@keyframes dice-roll { from { opacity: .2; transform: rotate(-100deg) scale(.6); } to { opacity: 1; transform: none; } }
-.room-tag { position: absolute; z-index: 4; top: 2%; left: 2%; display: flex; align-items: center; gap: 5px; font-size: clamp(9px, 1.7vw, 14px); color: #dbebd9; letter-spacing: .05em; }
-.room-tag b { color: #fff4cc; letter-spacing: .08em; }
-.room-tag-dot { width: 6px; height: 6px; border-radius: 50%; background: #ffd36a; box-shadow: 0 0 8px #ffd36a; }
+.tile-wall--left, .tile-wall--right { top: 28%; height: 46%; width: clamp(14px, 2.4vw, 26px); flex-direction: column; }
+.tile-wall--left { left: 21.5%; }
+.tile-wall--right { right: 21.5%; flex-direction: column-reverse; }
 .corner { position: absolute; z-index: 12; top: 2%; right: 2%; }
 .menu-trigger { border: 1px solid #ecddb27d; border-radius: 10px; width: clamp(34px, 5vw, 48px); height: clamp(29px, 4.4vw, 42px); background: #143c2bd9; color: #fff5d3; font-size: 18px; font-weight: 900; line-height: 1; }
 .menu-panel { position: absolute; right: 0; top: calc(100% + 6px); width: 156px; border-radius: 13px; padding: 7px; background: #fffdf4; color: #4f4a38; box-shadow: 0 9px 25px #09271980; }
@@ -409,43 +426,53 @@ async function tryLandscape() {
 .menu-panel button span { float: right; color: #aab6a7; }
 .connection { position: absolute; z-index: 15; left: 50%; top: 3%; transform: translateX(-50%); padding: 4px 10px; border-radius: 9px; background: #9b4929; font-size: 11px; white-space: nowrap; }
 .player-badge { display: flex; align-items: center; gap: 4px; min-width: 0; text-shadow: 0 1px 2px #0d3425; }
-.player-badge img { width: clamp(22px, 4.5vh, 42px); height: clamp(22px, 4.5vh, 42px); border: 1px solid #ffe6a177; border-radius: 50%; background: #f8e1aa; }
+.avatar-chip { position: relative; flex: none; border: 2px solid transparent; border-radius: 50%; display: flex; }
+.avatar-chip img { width: clamp(22px, 4.5vh, 42px); height: clamp(22px, 4.5vh, 42px); border-radius: 50%; background: #f8e1aa; }
+.avatar-chip--dealer { border-color: #ffd878; box-shadow: 0 0 6px #e9c05caa; }
+.player-badge--acting .avatar-chip { outline: 2px solid #8fe6d1; outline-offset: 2px; }
+.avatar-chip em { position: absolute; right: -6px; bottom: -4px; }
 .player-badge div { min-width: 0; display: flex; flex-direction: column; }
 .player-badge b { max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: clamp(9px, 1.7vw, 14px); }
 .player-badge small { color: #cbe3d0; white-space: nowrap; font-size: clamp(8px, 1.3vw, 11px); }
+.player-badge .seat-timer { color: #b1f7df; font-weight: 900; }
 .player-badge em { display: inline-block; font-style: normal; color: #684612; background: #f3ce76; border-radius: 4px; padding: 0 3px; font-size: 9px; }
 .opponent { position: absolute; z-index: 2; display: flex; gap: 3px; align-items: center; --tile-w: clamp(7px, 1.28vw, 14px); --tile-h: calc(var(--tile-w) * 1.37); }
 .opponent--top { top: 2%; left: 25%; width: 50%; height: 17%; flex-direction: column; justify-content: flex-start; }
-.opponent--left { left: 1.4%; top: 17%; width: 15%; height: 56%; flex-direction: column; align-items: flex-start; }
-.opponent--right { right: 1.4%; top: 17%; width: 15%; height: 56%; flex-direction: column; align-items: flex-end; }
+.opponent--left { left: 1.4%; top: 18%; width: 10.5%; height: 56%; flex-direction: column; align-items: flex-start; }
+.opponent--right { right: 1.4%; top: 18%; width: 10.5%; height: 56%; flex-direction: column; align-items: flex-end; }
 .back-row { display: flex; align-items: center; justify-content: center; max-height: 52%; }
-.opponent--left .back-row, .opponent--right .back-row { flex-direction: column; }
+.opponent--left .back-row, .opponent--right .back-row { flex-direction: column; flex: none; max-height: none; margin-top: 6px; }
 .opponent--left .back-row { align-self: flex-end; margin-right: 4px; }
 .opponent--right .back-row { align-self: flex-start; margin-left: 4px; }
-.seat-flowers, .seat-melds { --tile-w: clamp(9px, min(1.65vw, 3.7vh), 19px); --tile-h: calc(var(--tile-w) * 1.37); position: absolute; z-index: 3; }
-.seat-flowers--bottom { right: 2%; bottom: 21%; max-width: 21%; }
+.seat-flowers, .seat-melds { --tile-w: clamp(7px, min(1.3vw, 2.8vh), 13px); --tile-h: calc(var(--tile-w) * 1.37); position: absolute; z-index: 3; }
+.seat-flowers--bottom { right: 24%; bottom: calc(3% + var(--hand-tile-w) * 1.37 + 4px); max-width: 23%; }
 .seat-melds--bottom { right: 1.5%; bottom: 3%; max-width: 23%; }
-.seat-flowers--top { left: 17%; top: 14%; max-width: 17%; }
+.seat-flowers--top { left: 30%; top: 14%; max-width: 17%; }
 .seat-melds--top { right: 17%; top: 14%; max-width: 18%; }
-.seat-flowers--left { left: 2%; top: 25%; max-height: 50%; }
-.seat-melds--left { left: 7%; top: 25%; max-height: 55%; }
-.seat-flowers--right { right: 2%; top: 25%; max-height: 50%; }
-.seat-melds--right { right: 7%; top: 25%; max-height: 55%; }
+.seat-flowers--left { left: 12.5%; top: 31%; max-height: 48%; }
+.seat-melds--left { left: 16%; top: 31%; max-height: 48%; }
+.seat-flowers--right { right: 12.5%; top: 31%; max-height: 48%; }
+.seat-melds--right { right: 16%; top: 31%; max-height: 48%; }
 .river { --tile-w: clamp(10px, min(2vw, 4.1vh), 21px); --tile-h: calc(var(--tile-w) * 1.37); position: absolute; z-index: 2; display: grid; grid-template-columns: repeat(8, var(--tile-w)); grid-auto-rows: var(--tile-h); justify-content: center; align-content: start; gap: 1px; }
+.river--dense { --tile-w: clamp(9px, min(1.8vw, 3.2vh), 16px); }
 .river--top { top: 28%; left: 36%; width: 28%; }
 .river--bottom { bottom: 30%; left: 36%; width: 28%; }
 .river--left { left: 25%; top: 32%; width: 10%; grid-template-columns: repeat(4, var(--tile-w)); }
 .river--right { right: 25%; top: 32%; width: 10%; grid-template-columns: repeat(4, var(--tile-w)); }
-.table-center { position: absolute; z-index: 3; left: 2%; top: 8%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 5px; width: 22%; min-width: 100px; color: #d8e7d4; pointer-events: none; text-shadow: 0 1px 3px #15432b; }
+.table-center { position: absolute; z-index: 3; left: 2%; top: 2%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 5px; width: 22%; min-width: 100px; color: #d8e7d4; pointer-events: none; text-shadow: 0 1px 3px #15432b; }
 .table-center span { color: #f5d897; font-size: clamp(9px, 1.35vw, 13px); letter-spacing: .08em; }
 .table-center strong { font-size: clamp(12px, 2vw, 20px); }
+.double-badge { border-radius: 5px; padding: 1px 4px; color: #654616 !important; background: #f4d684; font-weight: 900; }
 .table-center small { flex-basis: 100%; white-space: nowrap; font-size: clamp(8px, 1.15vw, 11px); }
 .own-badge { position: absolute; z-index: 3; left: 2%; bottom: 4%; }
-.my-hand { --tile-w: clamp(18px, min(4.15vw, 9vh), 50px); --tile-h: calc(var(--tile-w) * 1.37); position: absolute; z-index: 5; bottom: 3%; left: 13%; width: 62%; display: flex; justify-content: center; align-items: end; }
-.hand-button { display: inline-flex; flex: 0 1 var(--tile-w); width: var(--tile-w); height: var(--tile-h); min-width: 0; padding: 0; border: 0; background: transparent; transition: transform .14s ease, filter .14s ease; }
+.own-badge b { max-width: max(32px, 7vw); }
+.my-hand { --tile-w: var(--hand-tile-w); --tile-h: calc(var(--tile-w) * 1.37); position: absolute; z-index: 5; bottom: 3%; left: 16%; width: 59%; display: flex; justify-content: center; align-items: end; }
+.hand-button { display: inline-flex; flex: 0 1 var(--tile-w); width: var(--tile-w); height: var(--tile-h); min-width: 0; padding: 0; border: 0; background: transparent; touch-action: manipulation; user-select: none; -webkit-tap-highlight-color: transparent; }
+.hand-button :deep(.tile) { transition: transform .14s ease, filter .14s ease; }
 .hand-button--drawn { margin-left: clamp(3px, .7vw, 9px); }
-.hand-button--selected { transform: translateY(-10px); filter: drop-shadow(0 2px 5px #ffdf6f); z-index: 4; }
-.no-motion .hand-button { transition: none; }
+.hand-button--selected { z-index: 4; }
+.hand-button--selected :deep(.tile) { transform: translateY(-10px); filter: drop-shadow(0 2px 5px #ffdf6f); }
+.no-motion .hand-button :deep(.tile) { transition: none; }
 .revealed-bottom { --tile-w: clamp(15px, min(3.3vw, 7vh), 40px); }
 .reveal-tiles { animation: reveal-hand .65s ease-out both; }
 @keyframes reveal-hand { from { opacity: .25; transform: perspective(400px) rotateX(70deg) translateY(-7px); } to { opacity: 1; transform: none; } }
@@ -480,17 +507,25 @@ async function tryLandscape() {
 .invite-card .modal-kicker, .result-card .modal-kicker { color: #bc8c39; }
 .invite-number { color: #286b49; font-size: 23px; letter-spacing: .15em; }
 .modal-close { position: absolute; right: 10px; top: 7px; border: 0; background: transparent; color: #897d6d; font-size: 25px; line-height: 1; }
-.result-card { width: min(90vw, 640px); padding: 16px 20px; text-align: center; }
-.result-card h2 { color: #275f43; margin: 4px 0 10px; font-size: 21px; }
-.winner { padding: 8px; border-radius: 10px; background: #f5f1df; text-align: left; font-size: 12px; }
-.winner + .winner { margin-top: 5px; }
-.winner small { display: block; margin-top: 3px; color: #887861; }
-.winner-tiles { --tile-w: clamp(17px, 3vw, 28px); --tile-h: calc(var(--tile-w) * 1.37); display: flex; flex-wrap: wrap; justify-content: center; }
-.result-balances { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 12px; padding: 9px; font-size: 11px; }
-.result-balances b { color: #28724d; }
-.result-card details { text-align: left; color: #82735f; font-size: 11px; }
+.result-card { width: min(96vw, 920px); height: min(94%, 300px); padding: 7px 10px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; text-align: left; }
+.result-header { display: flex; flex: none; align-items: center; gap: 8px; min-height: 24px; }
+.result-header h2 { margin: 0; color: #275f43; font-size: clamp(14px, 2vw, 18px); white-space: nowrap; }
+.result-header .modal-close { position: static; margin-left: auto; padding: 0 4px; }
+.winner-tabs { display: flex; gap: 4px; overflow-x: auto; min-width: 0; }
+.winner-tabs button, .ledger-toggle { border: 1px solid #c9d8c0; border-radius: 7px; padding: 3px 7px; background: #f8f7ea; color: #477253; font-size: 11px; white-space: nowrap; }
+.winner-tabs button.active { background: #397c53; color: white; }
+.result-body { flex: 1; min-height: 0; overflow: auto; }
+.result-empty { display: grid; place-items: center; height: 100%; color: #8a795f; }
+.result-ledger { height: 100%; overflow: auto; padding: 7px 10px; border-radius: 9px; background: #f5f1df; color: #766b56; font-size: 11px; }
 .ledger { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 4px 0; }
-.result-actions { margin-top: 9px; }
+.result-footer { flex: none; display: flex; flex-direction: column; gap: 4px; }
+.result-balances { display: flex; gap: 4px 9px; align-items: baseline; overflow-x: auto; white-space: nowrap; font-size: clamp(9px, 1.4vw, 11px); }
+.result-balances strong { color: #87765c; }
+.result-balances b.positive { color: #257846; }
+.result-balances b.negative { color: #aa4d3d; }
+.result-balances small { color: #958b79; }
+.result-actions { justify-content: flex-end; }
+.result-actions .action-btn { font-size: clamp(10px, 1.5vw, 13px); padding: 5px 10px; }
 .result-actions .action-btn--ghost { color: #3a6d4f; border-color: #c1d4bc; }
 .mj-toast { position: absolute; z-index: 100; left: 50%; top: 12%; transform: translateX(-50%); background: #102e22ef; color: white; border-radius: 20px; padding: 7px 13px; font-size: 12px; white-space: nowrap; }
 .loading-overlay { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; }
@@ -503,5 +538,5 @@ async function tryLandscape() {
   .rotate-cover button { margin-top: 8px; border: 1px solid #d7e7bd; border-radius: 12px; background: transparent; color: #fff8dd; padding: 10px 18px; font-weight: 800; }
   .rotate-icon { font-size: 56px; line-height: 1; transform: rotate(90deg); color: #e9ce85; }
 }
-@media (prefers-reduced-motion: reduce) { .hand-button { transition: none; } .reveal-tiles, .wall-dice b { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .hand-button :deep(.tile) { transition: none; } .reveal-tiles { animation: none; } }
 </style>
