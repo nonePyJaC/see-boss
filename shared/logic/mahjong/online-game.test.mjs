@@ -172,6 +172,22 @@ test('牌墙耗尽后仍能碰最后弃牌，不能直杠', () => {
   assert.equal(g.turn, 2)
   assert.ok(legalOnlineActions(g, 2).some((a) => a.type === 'discard'))
 })
+test('手中三张时可碰、杠或过；碰后保留一张并可选择补杠或继续出牌', () => {
+  const initial = responseFixture()
+  initial.players[1].hand = []
+  initial.players[2].hand = ['E','E','E','1m','2m','3m','4m','5m','6m','1p','2p','3p','9s']
+  let g = applyOnlineAction(initial, 0, { type: 'discard', tile: 'E' })
+  assert.deepEqual(legalOnlineActions(g, 2).map((a) => a.type).sort(), ['kong', 'pass', 'pong'])
+  g = applyOnlineAction(g, 2, { type: 'pong' })
+  assert.equal(g.players[2].hand.filter((t) => t === 'E').length, 1)
+  assert.equal(g.players[2].melds[0].type, 'pong')
+  assert.ok(legalOnlineActions(g, 2).some((a) => a.type === 'bukong' && a.tile === 'E'))
+  assert.ok(legalOnlineActions(g, 2).some((a) => a.type === 'discard' && a.tile === '1m'))
+  g = applyOnlineAction(g, 2, { type: 'discard', tile: '1m' })
+  g.phase = 'turn'; g.turn = 2
+  g.players[2].hand.push('9p')
+  assert.ok(legalOnlineActions(g, 2).some((a) => a.type === 'bukong' && a.tile === 'E'))
+})
 test('同张牌两家胡，等待所有胡家并按付款人余额比例分配', () => {
   const initial = responseFixture()
   initial.players[2].hand = initial.players[1].hand.slice()
@@ -297,6 +313,16 @@ test('非门清小胡四硬花门槛只数硬花', () => {
     initial.players[1].flowers = ['Z', 'Z', 'F', 'F'].slice(0, flowerCount)
     const g = applyOnlineAction(initial, 0, { type: 'discard', tile: 'E' })
     assert.equal(legalOnlineActions(g, 1).some((a) => a.type === 'win'), flowerCount === 4)
+  }
+})
+test('明杠和暗杠不破门清，小胡不受四硬花门槛限制', () => {
+  for (const type of ['kong', 'ankong']) for (const flowerCount of [3, 4]) {
+    const initial = responseFixture()
+    initial.players[1].hand = ['1m','2m','3m','1p','2p','3p','1s','2s','3s','E']
+    initial.players[1].melds = [{ type, tiles: ['4m','4m','4m','4m'], ...(type === 'kong' ? { from: 3 } : {}) }]
+    initial.players[1].flowers = ['Z','Z','F','F'].slice(0, flowerCount)
+    const g = applyOnlineAction(initial, 0, { type: 'discard', tile: 'E' })
+    assert.equal(legalOnlineActions(g, 1).some((a) => a.type === 'win'), true)
   }
 })
 test('翻倍局闲家小胡，下手由原庄下家坐庄并恢复一倍', () => {

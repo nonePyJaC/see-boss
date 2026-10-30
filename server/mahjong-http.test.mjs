@@ -9,11 +9,12 @@ import { dealSeatSequence } from '../shared/logic/mahjong/online-game.mjs'
 import { setMahjongReady, startMahjongHand, submitMahjongAction } from './mahjong-room.mjs'
 import { buildMahjongObservation } from './mahjong-room.mjs'
 import { safeMahjongAction } from './mahjong-ai.mjs'
+import { HAMSTERS } from '../shared/assets/hamsters.mjs'
 
 process.env.LISTEN = '0'
 process.env.HAMSTER_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'hamster-mahjong-test-'))
 process.env.HAMSTER_ONLINE_CREATE_CODE = 'test-code'
-const { server, rooms, restoreRoom } = await import('./index.js')
+const { server, rooms, restoreRoom, setMahjongAiDelay } = await import('./index.js')
 const { closeDb, loadRoomSnapshot, rawDb } = await import('./db.js')
 const { saveMahjongSnapshot, makeMahjongHandRecord } = await import('./mahjong-store.mjs')
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -90,6 +91,9 @@ test('一真人可添加三个自动准备的 AI', async () => {
   const started = await api('/api/room/start', { ...host, ...identity })
   assert.equal(started.ok, true, started.error)
   assert.equal(started.data.seats.filter((s) => s.isAI).length, 3)
+  const bots = started.data.seats.filter((s) => s.isAI)
+  assert.equal(new Set(bots.map((s) => s.avatar)).size, 3)
+  assert.ok(bots.every((s) => HAMSTERS.some((h) => h.id === s.avatar && h.name === s.nickname)))
   await api('/api/room/leave', host)
 })
 
@@ -105,7 +109,7 @@ test('线上 AI 调度器按本地策略选择并提交合法动作', async () =
   const started = await api('/api/room/start', { ...host, ...initial })
   assert.equal(started.ok, true, started.error)
   let captured = null
-  for (let attempt = 0; attempt < 100 && !captured; attempt++) {
+  for (let attempt = 0; attempt < 400 && !captured; attempt++) {
     const room = rooms.get(host.roomId), session = room.mahjongSession
     const hostObs = buildMahjongObservation(session, 0)
     if (session.game.phase === 'ready' && hostObs.myActions.some((a) => a.type === 'pass')) {
@@ -121,8 +125,10 @@ test('线上 AI 调度器按本地策略选择并提交合法动作', async () =
     if (!captured) await new Promise((resolve) => setTimeout(resolve, 20))
   }
   assert.ok(captured, '没有捕获 AI 出牌回合')
+  await new Promise((resolve) => setTimeout(resolve, 250))
+  assert.equal(rooms.get(host.roomId).mahjongSession.game.events.slice(captured.eventCount).some((e) => e.type === 'discard' && e.seat === 1), false, 'AI 不应瞬间出牌')
   let actual
-  for (let attempt = 0; attempt < 100 && !actual; attempt++) {
+  for (let attempt = 0; attempt < 200 && !actual; attempt++) {
     const events = rooms.get(host.roomId).mahjongSession.game.events.slice(captured.eventCount)
     actual = events.find((e) => e.type === 'discard' && e.seat === 1)
     if (!actual) await new Promise((resolve) => setTimeout(resolve, 20))
@@ -193,7 +199,9 @@ test('四真人通过接口完整一手、恢复与战绩幂等，再准备下�
   assert.equal(rawDb().prepare('SELECT COUNT(*) AS n FROM account_ledger').get().n, 0)
 })
 
-test('四真人以及一、二、三真人混合 AI 均能连续完成两手', async () => {
+test('四真人以及一、二、三真人混合 AI 均能连续完成两手', async (t) => {
+  setMahjongAiDelay(30)
+  t.after(() => setMahjongAiDelay(1200))
   for (let humans = 1; humans <= 4; humans++) {
     const uids = []
     for (let i = 0; i < humans; i++) uids.push(await register(30 + humans * 4 + i))

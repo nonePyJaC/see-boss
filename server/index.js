@@ -433,6 +433,8 @@ function commitMahjong(room, changes = {}) {
   armMahjong(room)
 }
 
+let mahjongAiDelayMs = 1200
+function setMahjongAiDelay(ms) { mahjongAiDelayMs = ms }
 function armMahjong(room) {
   if (room.mjTimer) clearTimeout(room.mjTimer)
   room.mjTimer = null
@@ -440,7 +442,8 @@ function armMahjong(room) {
   if (!session?.game || session.game.phase === 'finished' || session.deadlineAt == null) return
   const captured = { id: room.id, matchId: session.matchId, handId: session.handId, windowId: session.windowId, deadlineAt: session.deadlineAt }
   const auto = room.seats.findIndex((s, i) => (s.kind === 'ai' || s.left) && projectMahjongSession(session, i).myActions?.length)
-  const delay = auto >= 0 ? Math.min(50, Math.max(0, session.deadlineAt - Date.now())) : Math.max(0, session.deadlineAt - Date.now())
+  // 每名自动玩家保留可辨认的行动间隔，仍不能越过当前窗口的截止时间。
+  const delay = auto >= 0 ? Math.min(mahjongAiDelayMs, Math.max(0, session.deadlineAt - Date.now())) : Math.max(0, session.deadlineAt - Date.now())
   room.mjTimer = setTimeout(() => {
     const current = rooms.get(captured.id), s = current?.mahjongSession
     if (!current || s?.matchId !== captured.matchId || s.handId !== captured.handId || s.windowId !== captured.windowId || s.deadlineAt !== captured.deadlineAt) return
@@ -1832,7 +1835,14 @@ function handleAddAi(body, uid) {
     if (host.uid !== room.hostUid) return fail('只有房主可以添加 AI', 'NOT_HOST')
     if (room.mahjongSession.game) return fail('本场已开始，不能增加座位', 'HAND_IN_PROGRESS')
     if (room.seats.length >= 4) return fail('房间已满', 'ROOM_FULL')
-    const ai = { uid: 'ai_' + crypto.randomBytes(8).toString('base64url'), kind: 'ai', nickname: `麻将AI${room.seats.length}`, avatar: 1, seeds: room.initialSeeds }
+    const usedNames = new Set(room.seats.map((s) => s.nickname))
+    const usedAvatars = new Set(room.seats.map((s) => s.avatar))
+    const available = HAMSTERS.filter((h) => !usedNames.has(h.name) && !usedAvatars.has(h.id))
+    const candidates = available.length ? available : HAMSTERS.filter((h) => !usedNames.has(h.name))
+    const pool = candidates.length ? candidates : HAMSTERS
+    const pick = pool[Math.floor(Math.random() * pool.length)]
+    const ai = { uid: 'ai_' + crypto.randomBytes(8).toString('base64url'), kind: 'ai',
+      nickname: usedNames.has(pick.name) ? `${pick.name}${room.seats.length}` : pick.name, avatar: pick.id, seeds: room.initialSeeds }
     const next = setMahjongReady(room.mahjongSession, room.seats.length)
     commitMahjong(room, { seats: [...room.seats, ai], mahjongSession: next })
     return ok(publicState(room, host.uid))
@@ -2528,4 +2538,4 @@ if (SHOULD_LISTEN) {
 // 导出：供集成测试在进程内起服务（避免重复 listen）
 // onTurnTimeout/onAiTurn 给测试直接触发回调，不用真等 120s / AI 延迟；
 // setAiDelayRange 让测试把 AI 延迟压成 0（规格 §8.8 测试注入）
-export { server, rooms, restoreRoom, onTurnTimeout, onAiTurn, setAiDelayRange, sampleAiThinkDelay }
+export { server, rooms, restoreRoom, onTurnTimeout, onAiTurn, setAiDelayRange, sampleAiThinkDelay, setMahjongAiDelay }

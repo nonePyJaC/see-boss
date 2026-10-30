@@ -62,7 +62,7 @@ test('混一色：风牌 + 一种花色；清一色：只有一种花色', () =>
   assert.equal(qing.types.hunyise, false)
 })
 
-test('门清：无碰算门清；直杠/暗杠/花杠不破门清；碰后补杠破门清', () => {
+test('门清：碰和补杠破门清，明杠、暗杠和花杠不破门清', () => {
   assert.equal(analyzeHand(hand(MENQING_XIAOHU)).meldsConcealed, true)
 
   const zhi = analyzeHand(hand(PIHU, { melds: [kong('1m')] }))

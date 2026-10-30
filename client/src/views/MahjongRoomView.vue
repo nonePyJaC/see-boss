@@ -31,12 +31,39 @@ const resultWinnerIndex = ref(0), ledgerOpen = ref(false)
 const openingProgress = ref(null)
 const now = ref(Date.now()), toast = ref(''), profileReady = ref(false)
 const animationEnabled = ref(true)
+const actionFlash = ref(null)
 const tileTaps = createTileTapTracker()
 let watcher = null, tickTimer = null, toastTimer = null, revealTimer = null, openingTimer = null, joining = false, joinAttempted = false
 let pendingDiscardTimer = null
 let openedFullscreen = false, lockedOrientation = false
 let orientationMedia = null
 let boardObserver = null
+let flashTimer = null, flashQueue = []
+
+function clearActionFlash() {
+  clearTimeout(flashTimer); flashTimer = null; flashQueue = []; actionFlash.value = null
+}
+function playActionFlash() {
+  if (!flashQueue.length || !animationEnabled.value) { actionFlash.value = null; return }
+  actionFlash.value = flashQueue.shift()
+  flashTimer = setTimeout(() => { actionFlash.value = null; flashTimer = null; playActionFlash() }, 850)
+}
+function queueActionFlashes(previous, current) {
+  if (!previous || !animationEnabled.value) return
+  const types = new Set(['pong', 'kong', 'ankong', 'bukong', 'flowerKong', 'win'])
+  const oldEvents = (previous.events ?? []).filter((event) => types.has(event.type))
+  const newEvents = (current.events ?? []).filter((event) => types.has(event.type))
+  if (newEvents.length < oldEvents.length) return
+  const added = newEvents.slice(oldEvents.length).map((event) => {
+    const actors = event.type === 'win' ? event.seats : [event.seat]
+    return { label: event.type === 'pong' ? '碰' : event.type === 'win' ? '胡' : '杠',
+      name: (actors ?? []).map((seat) => current.seats?.[seat]?.nickname ?? '玩家').join('、') }
+  })
+  // 结算前优先展示胡，避免较早的提示排队遮住摊牌。
+  const winning = added.findLast((item) => item.label === '胡')
+  if (winning) { clearActionFlash(); flashQueue.push(winning) } else flashQueue.push(...added)
+  if (!flashTimer) playActionFlash()
+}
 
 const me = computed(() => data.value?.seats?.findIndex((s) => s.isMe) ?? -1)
 const viewer = computed(() => me.value >= 0 ? me.value : 0)
@@ -126,12 +153,15 @@ function applyState(r) {
   if (r.data?.gameType !== 'nanjing') { router.replace({ path: '/room/online', query: { room: roomId.value } }); return }
   if (data.value && Number(r.data.rev ?? 0) < Number(data.value.rev ?? 0)) return
   const previousHand = JSON.stringify(data.value?.myHand ?? [])
+  const previousData = data.value
   const previousKey = `${data.value?.matchId ?? ''}:${data.value?.handId ?? ''}`
   const previousWindow = data.value?.windowId
   const wasWaiting = !!data.value && (data.value.phase === 'waiting' || data.value.phase === 'finished')
   data.value = r.data; connected.value = true; error.value = ''
   if (previousHand !== JSON.stringify(r.data?.myHand ?? []) || previousKey !== `${r.data?.matchId ?? ''}:${r.data?.handId ?? ''}` || previousWindow !== r.data?.windowId) { selected.value = null; clearTileGesture() }
   const currentKey = `${r.data.matchId ?? ''}:${r.data.handId ?? ''}`
+  if (previousKey !== currentKey) clearActionFlash()
+  else queueActionFlashes(previousData, r.data)
   if (previousKey !== currentKey || r.data.phase === 'finished') groupZoomSeat.value = null
   if (previousKey !== currentKey || r.data.phase === 'finished') { clearInterval(openingTimer); openingProgress.value = null }
   if (previousKey !== currentKey && wasWaiting && r.data.phase !== 'finished' && r.data.wallLayout) startOpening()
@@ -150,6 +180,7 @@ function applyState(r) {
 const phaseBefore = ref('')
 function roomGone() {
   clearTileGesture()
+  clearActionFlash()
   watcher?.stop(); clearSeatCred(roomId.value); cred.value = null
   clearTimeout(revealTimer); clearInterval(openingTimer)
   data.value = null; selected.value = null; revealActive.value = false; openingProgress.value = null
@@ -170,6 +201,7 @@ async function tryJoin() {
 }
 watch(roomId, (id) => {
   clearTileGesture()
+  clearActionFlash()
   watcher?.stop(); watcher = null; data.value = null; selected.value = null; error.value = ''; phaseBefore.value = ''
   clearTimeout(revealTimer); revealActive.value = false; clearInterval(openingTimer); openingProgress.value = null
   menuOpen.value = false; inviteOpen.value = false; resultOpen.value = false; groupZoomSeat.value = null; resultWinnerIndex.value = 0; ledgerOpen.value = false; joinAttempted = false
@@ -197,6 +229,7 @@ onUnmounted(() => {
   else orientationMedia?.removeListener?.(onOrientationChange)
   window.removeEventListener('resize', onOrientationChange)
   watcher?.stop(); clearInterval(tickTimer); clearTimeout(toastTimer); clearTimeout(revealTimer); clearInterval(openingTimer)
+  clearActionFlash()
   clearTileGesture()
   if (lockedOrientation) screen.orientation?.unlock?.()
   if (openedFullscreen && document.fullscreenElement) void document.exitFullscreen().catch(() => {})
@@ -281,6 +314,7 @@ function startOpening() {
 }
 function toggleAnimation() {
   animationEnabled.value = !animationEnabled.value
+  if (!animationEnabled.value) clearActionFlash()
   try { localStorage.setItem('hamster-poker:mahjong-animation', animationEnabled.value ? 'on' : 'off') } catch { /* 不影响对局 */ }
 }
 async function addBot() { await requestChange((id, c) => addAi(id, c)) }
@@ -343,7 +377,7 @@ async function tryLandscape() {
             <div class="menu-heading">房间 {{ data.id }}</div>
             <button @click="inviteOpen = true; menuOpen = false">邀请好友 <span>›</span></button>
             <button v-if="phase !== 'waiting'" @click="openGroupZoom(viewer)">放大花牌和碰杠 <span>›</span></button>
-            <button :aria-pressed="animationEnabled" @click="toggleAnimation">选牌动画 <span>{{ animationEnabled ? '开' : '关' }}</span></button>
+            <button :aria-pressed="animationEnabled" @click="toggleAnimation">牌桌动画 <span>{{ animationEnabled ? '开' : '关' }}</span></button>
             <button v-if="phase === 'finished'" @click="showResult(); menuOpen = false">查看本手结果 <span>›</span></button>
             <button @click="leave">离开房间 <span>›</span></button>
           </div>
@@ -381,6 +415,7 @@ async function tryLandscape() {
               :highlight="tile === selectedCode || (latestDiscard?.seat === s.seat && latestDiscard?.tile === tile && i === s.player.discards.length - 1)" />
           </div>
 
+          <div v-if="actionFlash" :key="`${actionFlash.label}-${actionFlash.name}`" class="action-flash" role="status" aria-live="polite"><span>{{ actionFlash.label }}</span><small>{{ actionFlash.name }}</small></div>
           <div class="table-center"><strong>余 {{ data.wallCount }} 张</strong><span v-if="data.double" class="double-badge">×2</span><small v-if="phase !== 'turn'">{{ statusText }}<template v-if="countdown != null"> · {{ countdown }}秒</template></small></div>
           <div v-if="me < 0" class="spectator-tag">旁观中</div>
           <div class="own-badge player-badge" :class="{ 'player-badge--acting': phase === 'turn' && data.turn === viewer }"><span class="avatar-chip" :class="{ 'avatar-chip--dealer': data.dealer === viewer }"><img v-if="data.seats?.[viewer]" :src="hamsterDataURI(getHamster(data.seats[viewer].avatar), 42)" alt="" /><em v-if="data.dealer === viewer">庄</em></span><div><b>{{ me >= 0 ? data.seats[me].nickname : '旁观视角' }}</b><small v-if="me >= 0">{{ data.balances?.[me] }} 瓜子</small><small v-if="phase === 'turn' && data.turn === viewer" class="seat-timer">行动中<template v-if="countdown != null"> {{ countdown }}秒</template></small></div></div>
@@ -506,10 +541,16 @@ async function tryLandscape() {
 @keyframes reveal-hand { from { opacity: .25; transform: perspective(400px) rotateX(70deg) translateY(-7px); } to { opacity: 1; transform: none; } }
 .reveal-message { position: absolute; z-index: 9; left: 2%; bottom: 20%; display: flex; align-items: center; gap: 8px; padding: 5px 9px; border: 1px solid #e8ce82; border-radius: 20px; background: #173f2de9; color: #ffdf8d; font-size: clamp(10px, 1.5vw, 14px); font-weight: 900; white-space: nowrap; }
 .reveal-message button { border: 0; background: transparent; color: #fff8df; font: inherit; cursor: pointer; }
+.action-flash { position: absolute; z-index: 20; left: 50%; top: 48%; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); pointer-events: none; animation: action-flash .85s ease-out both; }
+.action-flash span { color: #ffe49a; font-size: clamp(55px, 15vh, 112px); font-weight: 1000; line-height: 1; -webkit-text-stroke: 1px #9b5219; text-shadow: 0 3px 0 #9b5219, 0 0 18px #eab84ddd; }
+.action-flash small { padding: 2px 9px; border-radius: 8px; background: #153f2de8; color: #fff1c8; font-weight: 800; font-size: clamp(11px, 2.2vh, 16px); white-space: nowrap; }
+@keyframes action-flash { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.5); } 18% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); } 30%, 75% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); } }
 .spectator-tag { position: absolute; top: 4%; left: 13%; color: #fff0bd; font-size: 11px; }
 .spectator-hand { position: absolute; bottom: 5%; left: 38%; font-size: 11px; color: #cae0cd; }
 .action-area { position: absolute; z-index: 8; bottom: 17%; left: 23%; width: 54%; display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .action-buttons, .waiting-actions, .result-actions, .finished-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; }
+.action-buttons { gap: clamp(14px, 3vw, 24px); }
+.action-buttons .action-btn { min-width: 54px; min-height: 40px; touch-action: manipulation; }
 .action-btn { border: 1px solid #ead9a4aa; border-radius: 9px; background: #fffaf0; color: #32634a; padding: clamp(5px, 1.4vh, 10px) clamp(9px, 1.7vw, 18px); font-size: clamp(11px, 1.8vw, 15px); font-weight: 900; white-space: nowrap; box-shadow: 0 3px 0 #a29a72, 0 3px 8px #062b1d66; }
 .action-btn--gold { background: #ffdb79; border-color: #ffe8a9; color: #694815; box-shadow: 0 3px 0 #b28b38, 0 3px 8px #062b1d66; }
 .action-btn--ghost { background: #ffffff20; color: #f6f4dd; box-shadow: none; }
@@ -577,5 +618,5 @@ async function tryLandscape() {
   .rotate-cover button { margin-top: 8px; border: 1px solid #d7e7bd; border-radius: 12px; background: transparent; color: #fff8dd; padding: 10px 18px; font-weight: 800; }
   .rotate-icon { font-size: 56px; line-height: 1; transform: rotate(90deg); color: #e9ce85; }
 }
-@media (prefers-reduced-motion: reduce) { .hand-button :deep(.tile) { transition: none; } .reveal-tiles { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .hand-button :deep(.tile) { transition: none; } .reveal-tiles, .action-flash { animation: none; } }
 </style>

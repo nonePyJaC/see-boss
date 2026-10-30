@@ -230,6 +230,27 @@ async function main() {
     assert.match(await page.locator('.risk-note').innerText(), /胡牌需向点炮者支付一份/)
     await tiles.nth(0).click(); await tiles.nth(0).click()
     assert.equal(submissions.length, 2, '响应阶段不能通过双点出牌')
+    state = { ...state, rev: state.rev + 1, windowId: state.windowId + 1,
+      myActions: [{ type: 'pong' }, { type: 'kong' }, { type: 'pass' }], response: { kind: 'discard', source: 1, sourceInGarden: false } }
+    stateResult = { ok: true, data: state }
+    await page.waitForFunction((id) => document.querySelector('.board')?.dataset.windowId === String(id), state.windowId)
+    for (const [width, height] of [[568, 320], [667, 375], [844, 390]]) {
+      await page.setViewportSize({ width, height }); await pause(150)
+      const boxes = await page.locator('.action-buttons button').evaluateAll((buttons) => buttons.map((button) => {
+        const { x, width, height } = button.getBoundingClientRect(); return { x, width, height }
+      }))
+      assert.equal(boxes.length, 3)
+      assert.ok(boxes.every((box) => box.width >= 54 && box.height >= 40), '响应按钮应便于触摸')
+      for (let i = 1; i < boxes.length; i++) assert.ok(boxes[i].x - (boxes[i - 1].x + boxes[i - 1].width) >= 13, '响应按钮需要足够间隔')
+    }
+    for (const [type, expected] of [['pong', '碰'], ['kong', '杠'], ['win', '胡']]) {
+      state = { ...state, rev: state.rev + 1, events: [...state.events, { type, seat: 1, seats: [1] }] }
+      stateResult = { ok: true, data: state }
+      await page.waitForFunction((label) => document.querySelector('.action-flash span')?.textContent === label, expected)
+      assert.equal(await page.locator('.action-flash').evaluate((e) => getComputedStyle(e).pointerEvents), 'none')
+      await page.waitForTimeout(1000)
+      assert.equal(await page.locator('.action-flash').count(), 0, '同一事件轮询不应重复播放')
+    }
     assert.deepEqual(errors, [])
     if (process.env.MAHJONG_POLISH_EVIDENCE_DIR) writeFileSync(path.join(process.env.MAHJONG_POLISH_EVIDENCE_DIR, 'touch-evidence.txt'),
       '模拟 Chromium 触屏（hasTouch / isMobile），非真实手机。\n实际本地房间：鼠标双击仅产生一次服务端弃牌。\n触屏：牌底部两次 tap 及额外 tap 合计只发送一次请求。\n不同实体、超时、窗口变化、竖屏往返和响应阶段均未错误提交。\n568×320、667×375、844×390：牌墙数、单层牌、区域与密集牌河断言通过。\n')
