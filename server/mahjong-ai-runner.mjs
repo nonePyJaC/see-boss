@@ -1,25 +1,28 @@
 /** 策略计算不占用 HTTP 事件循环；超时或并发繁忙时立即安全回退。 */
 import { Worker } from 'node:worker_threads'
-import { estimateMahjongWin } from './mahjong-ai-v1.mjs'
+import { boundedFallback } from './mahjong-ai-fallback.mjs'
+import { POLICY_VERSION } from './mahjong-ai-v2.mjs'
 const MAX_WORKERS = 2, TIMEOUT_MS = 700
 let active = 0
 
 export function fastLegalFallback(obs) {
-  const actions = obs?.myActions ?? []
-  const win = actions.find((a) => a.type === 'win')
-  if (win) {
-    try {
-      const estimate = estimateMahjongWin(obs)
-      const exposure = Math.min(obs.balances[obs.seat], Math.ceil((obs.wallCount ?? 0) / 12) * 10 * (obs.double ? 2 : 1))
-      if (estimate.net >= 0 || -estimate.net <= exposure) return { ...win }
-    } catch { return { ...win } }
-  }
-  return { ...(actions.find((a) => a.type === 'ready') ?? actions.find((a) => a.type === 'pass') ?? actions.find((a) => a.type === 'discard') ?? actions[0]) }
+  try { return boundedFallback(obs).action } catch { return emergencyLegalAction(obs) }
 }
 
-export function runMahjongPolicy(observation, options = {}) {
-  const fallback = (reason) => ({ action: fastLegalFallback(observation), route: null,
-    diagnostic: { version: 'nanjing-local-policy-v2', observationId: options.observationId ?? null, fallback: reason, candidates: [] } })
+function emergencyLegalAction(obs) {
+  const actions = obs?.myActions ?? []
+  const legal = actions.find((a) => a.type === 'pass') ?? actions.find((a) => a.type === 'discard') ?? actions[0]
+  return legal ? { ...legal } : null
+}
+
+export function runMahjongPolicy(observation, options = {}, { timeoutMs = TIMEOUT_MS } = {}) {
+  const fallback = (reason) => {
+    let result
+    try { result = boundedFallback(observation) }
+    catch { result = { action: emergencyLegalAction(observation), evaluated: 0, exhausted: false, method: 'invalid-observation' } }
+    return { action: result.action, route: null, diagnostic: { version: POLICY_VERSION, observationId: options.observationId ?? null,
+      fallback: reason, fallbackDetail: { evaluated: result.evaluated, exhausted: result.exhausted, method: result.method }, candidates: [] } }
+  }
   if (active >= MAX_WORKERS) return Promise.resolve(fallback('并发预算繁忙'))
   active++
   return new Promise((resolve) => {
@@ -32,7 +35,7 @@ export function runMahjongPolicy(observation, options = {}) {
     }
     try {
       worker = new Worker(new URL('./mahjong-ai-worker.mjs', import.meta.url), { workerData: { observation, options } })
-      timer = setTimeout(() => finish(fallback('计算超时')), TIMEOUT_MS)
+      timer = setTimeout(() => finish(fallback('计算超时')), timeoutMs)
       worker.once('message', (result) => {
         const legal = observation.myActions.some((a) => a.type === result.action?.type && (a.tile == null || a.tile === result.action?.tile))
         finish(legal ? result : fallback('工作线程结果无效'))

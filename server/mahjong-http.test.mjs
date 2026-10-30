@@ -10,6 +10,7 @@ import { setMahjongReady, startMahjongHand, submitMahjongAction } from './mahjon
 import { buildMahjongObservation } from './mahjong-room.mjs'
 import { safeMahjongAction } from './mahjong-ai.mjs'
 import { HAMSTERS } from '../shared/assets/hamsters.mjs'
+import { POLICY_VERSION } from './mahjong-ai-v2.mjs'
 
 process.env.LISTEN = '0'
 process.env.HAMSTER_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'hamster-mahjong-test-'))
@@ -139,7 +140,7 @@ test('线上 AI 调度器按本地策略选择并提交合法动作', async () =
   assert.equal(JSON.stringify(view.data).includes('observationId'), false)
   const reviewDir = path.join(process.env.HAMSTER_DATA_DIR, 'ai-reviews')
   const reviews = fs.readdirSync(reviewDir).flatMap((name) => fs.readFileSync(path.join(reviewDir, name), 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse))
-  const review = reviews.findLast((record) => record.room === host.roomId && record.model === 'nanjing-local-policy-v2')
+  const review = reviews.findLast((record) => record.room === host.roomId && record.model === POLICY_VERSION)
   assert.ok(review?.input?.messages?.[0]?.content.includes('diagnostic'), '私有复盘应保留真实策略诊断')
   assert.equal(JSON.stringify(review).includes(host.seatToken), false)
   await api('/api/room/leave', host)

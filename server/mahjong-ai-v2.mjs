@@ -5,8 +5,8 @@ import { scoreHand } from '../shared/logic/mahjong/score.mjs'
 import { settleOnlineWin, settleOnlineKong } from '../shared/logic/mahjong/online-payments.mjs'
 import { mahjongVisibleCounts, estimateMahjongWin, safeMahjongAction as baseline } from './mahjong-ai-v1.mjs'
 
-export const POLICY_VERSION = 'nanjing-local-policy-v2'
-export const POLICY_PARAMS = Object.freeze({ budgetMs: 500, cacheLimit: 20000, near: 2.5, continuity: 1.5,
+export const POLICY_VERSION = 'nanjing-local-policy-v2.1'
+export const POLICY_PARAMS = Object.freeze({ budgetMs: 500, cacheLimit: 20000, near: .75, randomTemperature: .4, continuity: 1.5,
   switchThreshold: 3, riskCap: 12, speedWeight: 7, drawWeight: .35, futureWeight: .42 })
 const TYPES = new Set(['pong', 'kong', 'pongkong', 'ankong'])
 const SUITS = ['m', 's', 'p']
@@ -216,6 +216,39 @@ function brokenShape(hand, tile) {
   return Math.min(3, Math.min(2, sequencesLost) * 1.1 + pairLost * .7)
 }
 
+/** 只剔除可验证的同路线劣势，不横向淘汰做牌路线。 */
+export function filterDominatedCandidates(ranked, near = POLICY_PARAMS.near) {
+  const top = ranked[0]?.score ?? -Infinity
+  const payoutSignature = (route) => {
+    const scenarios = route?.reference?.scenarios
+    if (!scenarios?.length) return null
+    const signatures = new Set(scenarios.map((s) => JSON.stringify({ flowers: s.scoreFlowers, payment: s.payment })))
+    return signatures.size === 1 ? [...signatures][0] : null
+  }
+  const dominates = (a, b) => {
+    if (a.action.type !== 'discard' || b.action.type !== 'discard') return false
+    const ar = a.best, br = b.best
+    if (!ar || !br || ar.route !== br.route || ar.distance !== br.distance || ar.effective <= br.effective) return false
+    if (a.risk > b.risk + 1e-9 || a.immediate < b.immediate) return false
+    if (ar.distance === 0) {
+      const signature = payoutSignature(ar)
+      if (!signature || signature !== payoutSignature(br)) return false
+    } else {
+      // 未听牌时要求整个改善牌集合被覆盖、假设付款完全一致、结构成本不升。
+      if (!ar.reference || !br.reference || JSON.stringify(ar.reference) !== JSON.stringify(br.reference) ||
+          (ar.pairProgress ?? 1) < (br.pairProgress ?? 1) || (ar.quadProgress ?? 1) < (br.quadProgress ?? 1) ||
+          (ar.shapeCost ?? 0) > (br.shapeCost ?? 0) || ar.score < br.score - 1e-9) return false
+      const available = new Map((ar.draws ?? []).map((d) => [d.tile, d.left]))
+      if (!(br.draws?.length) || br.draws.some((d) => (available.get(d.tile) ?? 0) < d.left)) return false
+    }
+    // 较窄听口如果还有接近最优且独有优势的不同路线，不抹掉该路线的取舍。
+    const alternateAdvantage = b.routes.some((r) => r.route !== br.route && r.reachable && Number.isFinite(r.score) && r.score >= top - near &&
+      r.score > (a.routes.find((x) => x.route === r.route)?.score ?? -Infinity) + 1e-9)
+    return !alternateAdvantage
+  }
+  return ranked.filter((candidate) => !ranked.some((other) => other !== candidate && dominates(other, candidate)))
+}
+
 export function decideMahjongV2(obs, options = {}) {
   const start = performance.now(), budget = { end: start + Math.max(0, options.budgetMs ?? POLICY_PARAMS.budgetMs) }
   const actions = obs?.myActions ?? [], version = POLICY_VERSION
@@ -286,12 +319,19 @@ export function decideMahjongV2(obs, options = {}) {
     const ranked = [...unique.values()].filter((candidate) => Number.isFinite(candidate.score))
     if (!ranked.length) return chooseBaseline('没有可比较的候选路线')
     ranked.sort((a, b) => b.score - a.score || JSON.stringify(a.action).localeCompare(JSON.stringify(b.action)))
-    const near = ranked.filter((c) => ranked[0].score - c.score <= POLICY_PARAMS.near)
+    const undominated = filterDominatedCandidates(ranked)
+    const near = undominated.filter((c) => undominated[0].score - c.score <= POLICY_PARAMS.near)
     const random = options.random ?? (() => stableHash(`${identity.seed}:${options.observationId ?? JSON.stringify(obs)}`) / 4294967296)
-    const weights = near.map((c) => Math.exp((c.score - ranked[0].score) / 2))
-    let target = random() * weights.reduce((sum, w) => sum + w, 0), chosen = near.at(-1)
-    for (let i = 0; i < near.length; i++) { target -= weights[i]; if (target <= 0) { chosen = near[i]; break } }
+    const weights = near.map((c) => Math.exp((c.score - undominated[0].score) / POLICY_PARAMS.randomTemperature))
+    let chosen = near[0]
+    if (options.randomize !== false) {
+      let target = random() * weights.reduce((sum, w) => sum + w, 0)
+      chosen = near.at(-1)
+      for (let i = 0; i < near.length; i++) { target -= weights[i]; if (target <= 0) { chosen = near[i]; break } }
+    }
     diagnostic.candidates = ranked.map((c) => ({ action: c.action, projectedDiscard: c.projectedDiscard, score: c.score, risk: c.risk, immediate: c.immediate, routes: c.routes }))
+    diagnostic.randomPool = near.map((c) => c.action)
+    diagnostic.dominated = ranked.filter((c) => !undominated.includes(c)).map((c) => c.action)
     diagnostic.reason = `${chosen.best.route}：距离 ${chosen.best.distance}，有效未见 ${chosen.best.effective}，公开风险 ${chosen.risk.toFixed(1)}`
     return { action: { ...chosen.action }, diagnostic, route: chosen.best.route, ms: performance.now() - start }
   } catch (error) { return chooseBaseline(error instanceof BudgetError ? '预算耗尽' : '策略异常') }

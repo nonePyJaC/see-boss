@@ -7,12 +7,16 @@ import { decideMahjongV2, policyIdentity, POLICY_VERSION } from '../server/mahjo
 
 const groups = Number(process.env.MJ_COMPARE_GROUPS ?? 12)
 const startSeed = Number(process.env.MJ_COMPARE_SEED ?? 91000)
+const mode = process.env.MJ_POLICY_MODE ?? 'routes-random'
+if (!['baseline', 'routes', 'routes-random'].includes(mode)) throw new Error('未知对照模式')
 const seeded = (initial) => { let state = initial >>> 0; return () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 4294967296) }
-const summary = { kind: 'synthetic', version: POLICY_VERSION, baseline: 'c6f842b2b97e82997bcb4e27518a6782d92ca317',
+const summary = { kind: 'synthetic', version: POLICY_VERSION, mode, style: 'balanced', baseline: 'c6f842b2b97e82997bcb4e27518a6782d92ca317',
   groups, startSeed, games: 0, elapsedMs: 0, illegal: 0, stale: 0, fallback: 0, decisions: 0,
   draws: 0, wins: { v1: 0, v2: 0 }, winKinds: {}, flowers: { v1: [], v2: [] }, net: { v1: 0, v2: 0 },
   seatNetV2: [0,0,0,0], lossFromDiscard: { v1: 0, v2: 0 }, paymentReasons: {}, routes: {}, changes: 0, comparison: { differing: 0, slowerShape: 0, sameShape: 0, quickerShape: 0 },
-  bigChosen: 0, bigAbandoned: 0, bigCompleted: 0, bigFailed: 0, completedTypes: {}, styles: {}, decisionMs: [], records: [] }
+  bigChosen: 0, bigAbandoned: 0, bigCompleted: 0, bigFailed: 0, dominated: 0, randomizedPools: 0, randomizedSelections: 0,
+  sameStateRandomComparison: { compared: 0, changed: 0, fallback: 0 },
+  completedTypes: {}, styles: {}, decisionMs: [], records: [], decisionDiffs: [], sameStateRandomDiffs: [] }
 const started = performance.now()
 for (let group = 0; group < groups; group++) {
   const seed = startSeed + group, wall = createWall(seeded(seed))
@@ -22,7 +26,7 @@ for (let group = 0; group < groups; group++) {
     for (let i = 0; i < 4; i++) session = setMahjongReady(session, i)
     session = startMahjongHand(session, { now: 1000, wall, rng: seeded(seed + 11) })
     let steps = 0, previousRoute = null, everBig = false
-    const identity = policyIdentity(session.matchId, v2Seat)
+    const identity = { ...policyIdentity(session.matchId, v2Seat), style: 'balanced' }
     const style = summary.styles[identity.style] ??= { decisions: 0, actions: {}, routes: {} }
     while (session.game.phase !== 'finished' && steps++ < 1200) {
       const seat = [0,1,2,3].find((i) => buildMahjongObservation(session, i).myActions.length)
@@ -31,13 +35,40 @@ for (let group = 0; group < groups; group++) {
       let action
       if (seat === v2Seat) {
         const start = performance.now()
-        const result = decideMahjongV2(obs, { identity, previousRoute, observationId: `${seed}:${v2Seat}:${session.windowId}:${seat}` })
+        const result = mode === 'baseline'
+          ? { action: v1(obs), route: null, diagnostic: {} }
+          : decideMahjongV2(obs, { identity, previousRoute, randomize: mode === 'routes-random', observationId: `${seed}:${v2Seat}:${session.windowId}:${seat}` })
         summary.decisionMs.push(performance.now() - start); summary.decisions++
         if (result.diagnostic.fallback) summary.fallback++
+        summary.dominated += result.diagnostic.dominated?.length ?? 0
+        if (result.diagnostic.randomPool?.length > 1) summary.randomizedPools++
+        if (mode === 'routes-random' && result.diagnostic.randomPool?.length > 1 && JSON.stringify(result.action) !== JSON.stringify(result.diagnostic.randomPool[0])) summary.randomizedSelections++
+        if (mode === 'routes-random') {
+          const deterministic = decideMahjongV2(obs, { identity, previousRoute, randomize: false, observationId: `${seed}:${v2Seat}:${session.windowId}:${seat}` })
+          if (result.diagnostic.fallback || deterministic.diagnostic.fallback) summary.sameStateRandomComparison.fallback++
+          else {
+            summary.sameStateRandomComparison.compared++
+            if (JSON.stringify(result.action) !== JSON.stringify(deterministic.action)) {
+              summary.sameStateRandomComparison.changed++
+              summary.sameStateRandomDiffs.push({ seed, seat, window: session.windowId, identity, previousRoute, hand: obs.myHand,
+                players: obs.players, balances: obs.balances, wallCount: obs.wallCount, actions: obs.myActions, response: obs.response,
+                context: obs.myContext, double: obs.double,
+                noRandom: deterministic.action, random: result.action, pool: result.diagnostic.randomPool,
+                candidates: result.diagnostic.candidates.slice(0, 4).map((c) => ({ action: c.action, score: c.score, risk: c.risk,
+                  route: c.routes?.[0]?.route, distance: c.routes?.[0]?.distance, effective: c.routes?.[0]?.effective })) })
+            }
+          }
+        }
         action = result.action
         const base = v1(obs)
         if (JSON.stringify(base) !== JSON.stringify(action)) {
           summary.comparison.differing++
+          summary.decisionDiffs.push({ seed, seat, window: session.windowId, identity, previousRoute, baseline: base, chosen: action, route: result.route,
+            hand: obs.myHand, players: obs.players, balances: obs.balances, wallCount: obs.wallCount, actions: obs.myActions,
+            response: obs.response, context: obs.myContext, double: obs.double,
+            candidates: (result.diagnostic.candidates ?? []).slice(0, 4).map((c) => ({ action: c.action, score: c.score, risk: c.risk,
+              route: c.routes?.[0]?.route, distance: c.routes?.[0]?.distance, effective: c.routes?.[0]?.effective })),
+            dominated: result.diagnostic.dominated ?? [], pool: result.diagnostic.randomPool ?? [] })
           if (base?.type === 'discard' && action?.type === 'discard') {
             const remove = (tile) => { const hand = obs.myHand.slice(); hand.splice(hand.indexOf(tile), 1); return hand }
             const groups = obs.players[seat].melds.filter((m) => ['pong','kong','pongkong','ankong'].includes(m.type)).length

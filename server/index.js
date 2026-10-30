@@ -93,7 +93,7 @@ import { debugPage } from './debug-room-page.js'
 import { createMahjongSession, setMahjongReady, startMahjongHand, submitMahjongAction, expireMahjongWindowWithPolicy, projectMahjongSession, resetMahjongMatch, validateMahjongSnapshot, buildMahjongObservation } from './mahjong-room.mjs'
 import { saveMahjongSnapshot, makeMahjongHandRecord, makeAbandonedMahjongHandRecord } from './mahjong-store.mjs'
 import { runMahjongPolicy } from './mahjong-ai-runner.mjs'
-import { policyIdentity } from './mahjong-ai-v2.mjs'
+import { policyIdentity, POLICY_VERSION as MAHJONG_POLICY_VERSION } from './mahjong-ai-v2.mjs'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const PORT = Number(process.env.PORT) || 80
@@ -453,8 +453,8 @@ function armMahjong(room) {
     const reviews = []
     const saveReviews = (status, reason = null) => {
       for (const { observation, decision, seat, options } of reviews) writeDecisionReview(path.dirname(DB_PATH), {
-        trace: { room: current.id, hand: s.handId, turn: s.windowId, seat, nickname: current.seats[seat]?.nickname, phase: observation.phase, model: 'nanjing-local-policy-v2' },
-        input: { model: 'nanjing-local-policy-v2', messages: [{ role: 'user', content: JSON.stringify({ observation, diagnostic: decision.diagnostic, style: options.identity.style }) }] },
+        trace: { room: current.id, hand: s.handId, turn: s.windowId, seat, nickname: current.seats[seat]?.nickname, phase: observation.phase, model: MAHJONG_POLICY_VERSION },
+        input: { model: MAHJONG_POLICY_VERSION, messages: [{ role: 'user', content: JSON.stringify({ observation, diagnostic: decision.diagnostic, style: options.identity.style }) }] },
         result: { action: decision.action, reason: decision.diagnostic?.reason ?? decision.diagnostic?.fallback, ms: decision.ms, usage: null },
         execution: { status, source: 'local-policy', action: decision.action, fallbackReason: reason ?? decision.diagnostic?.fallback ?? null },
       })

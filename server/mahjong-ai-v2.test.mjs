@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createMahjongSession, setMahjongReady, startMahjongHand, buildMahjongObservation, projectMahjongSession } from './mahjong-room.mjs'
 import { safeMahjongAction as v1, mahjongVisibleCounts } from './mahjong-ai-v1.mjs'
-import { decideMahjongV2, routeDistance, routeEffectiveTiles, hypotheticalPayment, publicRisk, policyIdentity } from './mahjong-ai-v2.mjs'
+import { decideMahjongV2, routeDistance, routeEffectiveTiles, hypotheticalPayment, publicRisk, policyIdentity, POLICY_PARAMS } from './mahjong-ai-v2.mjs'
 import { runMahjongPolicy } from './mahjong-ai-runner.mjs'
 
 const players = () => Array.from({ length: 4 }, () => ({ melds: [], flowers: ['Z'], discards: [], binding: null, ready: false }))
@@ -108,8 +108,9 @@ test('A09 固定风格和种子重复决策可重现，只在接近候选中随�
   const obs = observation(a01), fixed = { identity: policyIdentity('match-fixed', 0), observationId: 'match-fixed:1:5:0', budgetMs: 2000 }
   const a = decideMahjongV2(obs, fixed), b = decideMahjongV2(obs, fixed)
   assert.deepEqual(a.action, b.action); assert.equal(a.route, b.route)
-  const top = a.diagnostic.candidates[0].score, chosen = a.diagnostic.candidates.find((c) => c.action.tile === a.action.tile)
-  assert.ok(top - chosen.score <= 4)
+  const eligible = a.diagnostic.candidates.filter((c) => a.diagnostic.randomPool.some((action) => action.type === c.action.type && action.tile === c.action.tile))
+  const chosen = a.diagnostic.candidates.find((c) => c.action.tile === a.action.tile)
+  assert.ok(eligible[0].score - chosen.score <= POLICY_PARAMS.near)
   const different = new Set([0, .3, .6, .99].map((n) => decideMahjongV2(obs, { ...fixed, random: () => n }).action.tile))
   assert.ok(different.size > 1)
   const fast = decideMahjongV2(obs, { ...opt, identity: { seed: 3, style: 'speed' } })
