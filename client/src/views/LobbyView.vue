@@ -107,6 +107,16 @@ onActivated(async () => {
         </div>
         <div class="mode-arrow">›</div>
       </button>
+
+      <button class="mode-card card" @click="router.push('/room/mahjong')">
+        <div class="mode-icon mode-icon--mahjong"><span>🀄</span></div>
+        <div class="mode-info">
+          <h2>南京麻将</h2>
+          <p>横屏牌桌，和朋友、AI 一起玩</p>
+          <div class="mode-tags"><span>四人对局</span><span>扫码加入</span></div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
     </div>
 
     <footer class="lobby-foot text-center text-sm text-light">
@@ -185,6 +195,7 @@ onActivated(async () => {
 .mode-icon--online {
   background: linear-gradient(160deg, #FFCCBC, #FFAB91);
 }
+.mode-icon--mahjong { background: linear-gradient(160deg, #d7eee2, #a5d6b6); }
 
 .mode-info {
   flex: 1;

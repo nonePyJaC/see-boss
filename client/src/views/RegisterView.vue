@@ -76,7 +76,7 @@ async function afterAuth() {
   if (m) {
     try {
       const r = await listRooms()
-      const alive = r.ok && (r.data?.rooms ?? []).some((x) => String(x.id) === m[1])
+      const alive = r.ok && (r.data?.rooms ?? []).some((x) => String(x.roomNo ?? x.id) === m[1])
       if (!alive) {
         router.replace('/lobby')
         return

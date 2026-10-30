@@ -452,7 +452,8 @@ function safeJson(s) { try { return JSON.parse(s) } catch { return {} } }
  * 连同快照一起清掉，只有金瓜子账本（account_ledger）保留。
  */
 export function deleteRoomHistory(roomNo) {
-  getDb().prepare('DELETE FROM history WHERE room_no = ?').run(String(roomNo))
+  // 麻将战绩跨房间存续，房号可能被不同玩法复用；只清理原先随房间删除的记录。
+  getDb().prepare("DELETE FROM history WHERE room_no = ? AND mode <> 'mahjong'").run(String(roomNo))
 }
 
 // ── 房间快照 ────────────────────────────────────────────

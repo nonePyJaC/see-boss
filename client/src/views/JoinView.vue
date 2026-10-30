@@ -14,6 +14,7 @@ import { hamsterDataURI, getHamster } from '@shared/assets/hamsters.mjs'
 import { useUser } from '../stores/user.js'
 import { roomRepo } from '../data/room-repo.js'
 import { saveSeatCred, loadSeatCred } from '../data/room-repo.js'
+import { onlineState } from '../data/room-repo.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -64,8 +65,13 @@ async function enter() {
       // 线上座位凭证按房间号落本机，之后靠它重连/行动
       saveSeatCred(roomNo.value, r.data)
     }
+    let gameType = r.ok ? r.data?.gameType : route.query.game
+    if (!r.ok && mode.value === 'online') {
+      const state = await onlineState(roomNo.value, null)
+      if (state.ok) gameType = state.data?.gameType
+    }
     router.push({
-      path: mode.value === 'offline' ? '/room/offline' : '/room/online',
+      path: mode.value === 'offline' ? '/room/offline' : gameType === 'nanjing' ? '/room/mahjong' : '/room/online',
       query: { room: roomNo.value },
     })
   } finally {
@@ -84,7 +90,7 @@ onMounted(async () => {
     const mod = await import('qrcode')
     const QRCode = mod.default ?? mod
     // hash 路由：直接拼 hash，避免依赖 history 路由的后端 rewrite
-    const url = location.origin + location.pathname + '#/join/' + roomNo.value + '?mode=' + mode.value
+    const url = location.origin + location.pathname + '#/join/' + roomNo.value + '?mode=' + mode.value + (route.query.game ? '&game=' + encodeURIComponent(route.query.game) : '')
     qrURI.value = await QRCode.toDataURL(url, {
       width: 168,
       margin: 1,

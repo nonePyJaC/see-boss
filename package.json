@@ -13,7 +13,8 @@
     "test:server": "node scripts/test-room-server.mjs",
     "test:online": "node scripts/test-online-room-server.mjs",
     "test:ai": "node --test server/ai/ai.test.mjs",
-    "test:logic": "node --test \"shared/logic/**/*.test.mjs\""
+    "test:logic": "node --test \"shared/logic/**/*.test.mjs\"",
+    "tiles:gen": "node scripts/generate-mahjong-tiles.mjs"
   },
   "engines": {
     "node": ">=22.13"

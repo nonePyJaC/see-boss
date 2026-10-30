@@ -16,7 +16,7 @@ import { hamsterDataURI, getHamster } from '@shared/assets/hamsters.mjs'
 import { useUser } from '../stores/user.js'
 import { askConfirm } from '../composables/useConfirm.js'
 import {
-  listRooms, joinRoom, onlineLeave, leaveRoom,
+  listRooms, joinRoom, onlineLeave, leaveRoom, onlineState,
   listSeatCredRooms, loadSeatCred, saveSeatCred, clearSeatCred,
 } from '../data/room-repo.js'
 
@@ -54,10 +54,10 @@ async function refresh() {
   }
 }
 
-const roomPath = (roomNo) => (props.mode === 'online' ? '/room/online' : '/room/offline')
+const roomPath = (roomNo, gameType) => (props.mode === 'online' ? (gameType === 'nanjing' ? '/room/mahjong' : '/room/online') : '/room/offline')
 
 function enter(r) {
-  router.push({ path: roomPath(r.roomNo), query: { room: r.roomNo } })
+  router.push({ path: roomPath(r.roomNo, r.gameType), query: { room: r.roomNo } })
 }
 
 async function joinByNo() {
@@ -83,7 +83,7 @@ async function joinByNo() {
 }
 
 async function joinListed(r) {
-  if (r.full && !r.iAmIn) return
+  if (r.full && !r.iAmIn && !(props.mode === 'online' && r.inProgress)) return
   if (props.mode === 'online') {
     await enterOnline(r.roomNo)
     return
@@ -113,10 +113,11 @@ async function enterOnline(roomNo) {
     }, loadSeatCred(roomNo))
     if (r.ok) {
       saveSeatCred(roomNo, r.data)
-      enter({ roomNo })
+      enter({ roomNo, gameType: r.data?.gameType })
     } else if (r.code === 'HAND_IN_PROGRESS') {
       // 真正开局后到达的新玩家按规则旁观，本手结束后自动尝试入座。
-      enter({ roomNo })
+      const state = await onlineState(roomNo, null)
+      enter({ roomNo, gameType: state.ok ? state.data?.gameType : undefined })
     } else {
       joinError.value = r.error || '加入失败'
       if (r.code === 'ROOM_NOT_FOUND') await refresh()
@@ -130,10 +131,10 @@ async function enterOnline(roomNo) {
 async function closeRoom(r) {
   const mine = r.isMine
   const yes = await askConfirm({
-    title: mine ? '解散房间' : '退出房间',
-    msg: mine ? `解散房间 ${r.roomNo}？里面的玩家都会被请出。` : `退出房间 ${r.roomNo}？`,
-    okText: mine ? '解散' : '退出',
-    danger: mine,
+    title: mine && r.gameType !== 'nanjing' ? '解散房间' : '退出房间',
+    msg: r.gameType === 'nanjing' ? `退出麻将房间 ${r.roomNo}？如仍有真人，房主将移交，当前牌局由托管继续。` : mine ? `解散房间 ${r.roomNo}？里面的玩家都会被请出。` : `退出房间 ${r.roomNo}？`,
+    okText: mine && r.gameType !== 'nanjing' ? '解散' : '退出',
+    danger: mine && r.gameType !== 'nanjing',
   })
   if (!yes) return
   busy.value = true
@@ -172,12 +173,12 @@ onUnmounted(() => clearInterval(timer))
               {{ r.inProgress ? '对局中' : '等待中' }}
             </span>
           </div>
-          <div class="r-sub">{{ r.playerCount }}/{{ r.maxSeats }} 人 · 房主 {{ r.hostName }}</div>
+          <div class="r-sub">{{ r.gameType === 'nanjing' ? '南京麻将 · ' : '' }}{{ r.playerCount }}/{{ r.maxSeats }} 人 · 房主 {{ r.hostName }}</div>
         </div>
         <div class="r-actions">
           <button class="btn primary sm" @click="enter(r)">回到房间</button>
           <button class="btn ghost sm danger" :disabled="busy" @click="closeRoom(r)">
-            {{ r.isMine ? '解散' : '退出' }}
+            {{ r.isMine && r.gameType !== 'nanjing' ? '解散' : '退出' }}
           </button>
         </div>
       </div>
@@ -200,12 +201,12 @@ onUnmounted(() => clearInterval(timer))
           <span v-if="r.full" class="badge full">满员</span>
         </div>
         <div class="r-sub">
-          {{ r.playerCount }}/{{ r.maxSeats }} 人 · 房主 {{ r.hostName }}
+          {{ r.gameType === 'nanjing' ? '南京麻将 · ' : '' }}{{ r.playerCount }}/{{ r.maxSeats }} 人 · 房主 {{ r.hostName }}
           <template v-if="r.aiCount"> · {{ r.aiCount }} AI</template>
         </div>
       </div>
       <div class="r-actions">
-        <button class="btn primary sm" :disabled="busy || r.full" @click="joinListed(r)">{{ mode === 'online' && r.inProgress ? '旁观' : '加入' }}</button>
+        <button class="btn primary sm" :disabled="busy || (r.full && !(mode === 'online' && r.inProgress))" @click="joinListed(r)">{{ mode === 'online' && r.inProgress ? '旁观' : '加入' }}</button>
       </div>
     </div>
 

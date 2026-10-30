@@ -90,6 +90,9 @@ import {
   saveUserLlmKeys, userLlmKeyStatus, userLlmKeys,
 } from './db.js'
 import { debugPage } from './debug-room-page.js'
+import { createMahjongSession, setMahjongReady, startMahjongHand, submitMahjongAction, expireMahjongWindow, projectMahjongSession, resetMahjongMatch, validateMahjongSnapshot, buildMahjongObservation } from './mahjong-room.mjs'
+import { saveMahjongSnapshot, makeMahjongHandRecord, makeAbandonedMahjongHandRecord } from './mahjong-store.mjs'
+import { safeMahjongAction } from './mahjong-ai.mjs'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const PORT = Number(process.env.PORT) || 80
@@ -174,6 +177,18 @@ function newRoom({ id, hostUid, host, cfg }) {
     roundNo: 1,
     lastActive: Date.now(),
   }
+  if (online && cfg.gameType === 'nanjing') {
+    const amount = Number(cfg.initialSeeds ?? 100)
+    if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 100000000) throw new Error('麻将初始瓜子无效')
+    const dealer = cfg.dealerSeat == null ? crypto.randomInt(4) : Number(cfg.dealerSeat)
+    room.initialSeeds = amount
+    hostSeat.seeds = amount
+    hostSeat.account = accountByUid(hostUid)?.account ?? null
+    room.mahjongDealer = cfg.dealerSeat == null ? null : dealer
+    room.mahjongSession = createMahjongSession({ initialSeeds: amount, dealer })
+    rooms.set(id, room)
+    return room
+  }
   // 大小麦：填一个就行，另一个按 ×2 自动算（实测口径：
   // 「填一个另一个自动计算」）。只给小麦 → 大麦 = 小麦×2；
   // 只给大麦 → 小麦 = 大麦÷2（大麦必须是偶数才除得尽）。
@@ -249,6 +264,7 @@ function tokenEq(got, expect) {
 
 /** 在线模式才发底牌；线下完全不碰牌 */
 function isOnline(room) { return room.mode === 'online' }
+function isMahjong(room) { return isOnline(room) && room.gameType === 'nanjing' }
 
 /**
  * 座位认证。
@@ -265,7 +281,7 @@ function authSeat(room, body, uid) {
   const token = String(body?.seatToken ?? '')
   if (!seatId || !token) return null
   const seat = room.seats.find((s) => s.uid === seatId)
-  if (!seat || seat.kind === 'ai' || !seat.seatToken) return null
+  if (!seat || seat.kind === 'ai' || seat.left || !seat.seatToken) return null
   return tokenEq(token, seat.seatToken) ? seat : null
 }
 
@@ -274,6 +290,13 @@ function authSeat(room, body, uid) {
  * 绝不外泄 state.deck / room.hands（除自己的底牌）。
  */
 function publicState(room, viewerUid) {
+  if (isMahjong(room)) {
+    const index = room.seats.findIndex((s) => s.uid === viewerUid && !s.left)
+    return { id: room.id, mode: room.mode, gameType: room.gameType, hostUid: room.hostUid, rev: room.rev ?? 0,
+      seats: room.seats.map((s) => ({ uid: s.uid, nickname: s.nickname, avatar: s.avatar, isAI: s.kind === 'ai',
+        isMe: s.uid === viewerUid && !s.left, isHost: s.uid === room.hostUid, left: !!s.left })),
+      ...projectMahjongSession(room.mahjongSession, index < 0 ? null : index) }
+  }
   const st = room.state
   const seats = room.seats.map((s) => {
     // online 用引擎里的座位数据，offline 直接读 seats
@@ -382,6 +405,15 @@ function publicState(room, viewerUid) {
 function touch(room) {
   room.lastActive = Date.now()
   room.rev = (room.rev ?? 0) + 1
+  if (isMahjong(room)) {
+    const seatRecords = room.seats.map((s) => ({ ...s, account: s.account ?? null }))
+    const snapshot = { version: 1, id: room.id, gameType: room.gameType, hostUid: room.hostUid, seats: room.seats,
+      initialSeeds: room.initialSeeds, dealerSetting: room.mahjongDealer ?? null,
+      useLLM: room.useLLM === true, llmModel: room.llmModel ?? '', llmThinking: room.llmThinking === true,
+      rev: room.rev, lastActive: room.lastActive, session: room.mahjongSession }
+    saveMahjongSnapshot({ roomId: room.id, snapshot, handRecord: makeMahjongHandRecord(room.mahjongSession, seatRecords) })
+    return
+  }
   persistRoom(room)
 }
 
@@ -392,6 +424,75 @@ function touch(room) {
  */
 function bumpActivity(room) {
   room.lastActive = Date.now()
+}
+
+function commitMahjong(room, changes = {}) {
+  const candidate = { ...room, ...changes }
+  touch(candidate)
+  Object.assign(room, candidate)
+  armMahjong(room)
+}
+
+function armMahjong(room) {
+  if (room.mjTimer) clearTimeout(room.mjTimer)
+  room.mjTimer = null
+  const session = room.mahjongSession
+  if (!session?.game || session.game.phase === 'finished' || session.deadlineAt == null) return
+  const captured = { id: room.id, matchId: session.matchId, handId: session.handId, windowId: session.windowId, deadlineAt: session.deadlineAt }
+  const auto = room.seats.findIndex((s, i) => (s.kind === 'ai' || s.left) && projectMahjongSession(session, i).myActions?.length)
+  const delay = auto >= 0 ? Math.min(50, Math.max(0, session.deadlineAt - Date.now())) : Math.max(0, session.deadlineAt - Date.now())
+  room.mjTimer = setTimeout(() => {
+    const current = rooms.get(captured.id), s = current?.mahjongSession
+    if (!current || s?.matchId !== captured.matchId || s.handId !== captured.handId || s.windowId !== captured.windowId || s.deadlineAt !== captured.deadlineAt) return
+    try {
+      let next
+      if (Date.now() >= s.deadlineAt) next = expireMahjongWindow(s)
+      else {
+        const i = current.seats.findIndex((seat, n) => (seat.kind === 'ai' || seat.left) && projectMahjongSession(s, n).myActions?.length)
+        if (i < 0) { armMahjong(current); return }
+        const action = safeMahjongAction(buildMahjongObservation(s, i))
+        next = submitMahjongAction(s, i, action, { matchId: s.matchId, handId: s.handId, windowId: s.windowId })
+      }
+      if (next.game?.phase === 'finished' && !next.game.result?.matchOver) {
+        for (let i = 0; i < current.seats.length; i++) if (current.seats[i].kind === 'ai' || current.seats[i].left) next = setMahjongReady(next, i)
+      }
+      commitMahjong(current, { mahjongSession: next })
+    } catch (e) {
+      console.error('[mahjong] 自动处理失败', e?.message)
+      current.mjTimer = setTimeout(() => { if (rooms.get(current.id) === current) armMahjong(current) }, 1000)
+      current.mjTimer.unref?.()
+    }
+  }, delay)
+  room.mjTimer.unref?.()
+}
+
+function handleMahjongReady(body, uid) {
+  const room = rooms.get(String(body?.roomId ?? ''))
+  if (!room || !isMahjong(room)) return fail('麻将房间不存在', 'ROOM_NOT_FOUND')
+  const seat = authSeat(room, body, uid)
+  if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
+  try {
+    if (body.matchId !== room.mahjongSession.matchId || body.handId !== room.mahjongSession.handId) return fail('牌局已更新', 'STALE_HAND')
+    const next = setMahjongReady(room.mahjongSession, room.seats.indexOf(seat), body.ready !== false)
+    commitMahjong(room, { mahjongSession: next })
+    return ok(publicState(room, seat.uid))
+  } catch (e) { return fail(e.message) }
+}
+
+function handleMahjongReset(body, uid) {
+  const room = rooms.get(String(body?.roomId ?? ''))
+  if (!room || !isMahjong(room)) return fail('麻将房间不存在', 'ROOM_NOT_FOUND')
+  const seat = authSeat(room, body, uid)
+  if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
+  if (seat.uid !== room.hostUid) return fail('只有房主可以重开', 'NOT_HOST')
+  try {
+    if (body.matchId !== room.mahjongSession.matchId || body.handId !== room.mahjongSession.handId) return fail('牌局已更新', 'STALE_HAND')
+    let next = resetMahjongMatch(room.mahjongSession, { dealer: room.mahjongDealer ?? crypto.randomInt(4) })
+    const seats = room.seats.filter((s) => !s.left)
+    for (let i = 0; i < seats.length; i++) if (seats[i].kind === 'ai') next = setMahjongReady(next, i)
+    commitMahjong(room, { seats, mahjongSession: next })
+    return ok(publicState(room, seat.uid))
+  } catch (e) { return fail(e.message) }
 }
 
 // ── 接口实现 ────────────────────────────────────────────
@@ -425,6 +526,9 @@ function handleCreate(body, uid) {
   }
   const room = rooms.get(id)
   const seat = room.seats[0]
+  if (isMahjong(room)) {
+    try { touch(room) } catch (e) { rooms.delete(id); return fail('麻将房间保存失败', 'PERSIST_FAILED') }
+  }
   // 线上：一次性回发 seatId/seatToken，客户端存 localStorage 当身份凭证；
   // 之后任何接口都靠它认座，uid 不再参与授权。
   return ok({
@@ -438,6 +542,20 @@ function handleJoin(body, uid) {
   if (!/^\d{6}$/.test(id)) return fail('房间号无效')
   const room = rooms.get(id)
   if (!room) return fail('房间不存在', 'ROOM_NOT_FOUND')
+
+  if (isMahjong(room)) {
+    const existing = authSeat(room, body, uid)
+    if (existing) { bumpActivity(room); return ok({ ...publicState(room, existing.uid), seatId: existing.uid, seatToken: existing.seatToken }) }
+    const account = accountByUid(uid)
+    if (!account) return fail('请先登录或注册账号再加入线上房间', 'LOGIN_REQUIRED')
+    if (room.seats.some((s) => s.accountUid === uid || s.account === account.account)) return fail('请使用原座位凭证重连', 'AUTH_FAILED')
+    if (room.mahjongSession.game) return fail('本场已经开始，不能加入新座位', 'HAND_IN_PROGRESS')
+    if (room.seats.length >= 4) return fail('房间已满', 'ROOM_FULL')
+    const seat = { uid: genSeatId(room), accountUid: uid, account: account.account, nickname: body.me?.nickname ?? '匿名',
+      avatar: num(body.me?.avatar, 1), kind: 'human', seatToken: genSeatToken(), seeds: room.initialSeeds, joinedAt: Date.now() }
+    commitMahjong(room, { seats: [...room.seats, seat] })
+    return ok({ ...publicState(room, seat.uid), seatId: seat.uid, seatToken: seat.seatToken })
+  }
 
   if (isOnline(room)) {
     // 持有效令牌的旧座位重连：直接回状态，不新增座位。
@@ -540,17 +658,18 @@ function handleList(body, uid) {
     list.push({
       roomNo: r.id,
       mode: r.mode,
+      ...(isMahjong(r) ? { gameType: 'nanjing' } : {}),
       hostName: host?.nickname ?? '房主',
       hostAvatar: host?.avatar ?? 1,
       playerCount: r.seats.length,
       aiCount: r.seats.filter((s) => s.kind === 'ai').length,
-      maxSeats: MAX_SEATS,
+      maxSeats: isMahjong(r) ? 4 : MAX_SEATS,
       smallBlind: r.smallBlind,
       bigBlind: r.bigBlind,
       initialSeeds: r.initialSeeds,
       roundNo: r.roundNo,
-      full: r.seats.length >= MAX_SEATS,
-      inProgress: !!(r.state && !r.state.finished),
+      full: r.seats.length >= (isMahjong(r) ? 4 : MAX_SEATS),
+      inProgress: isMahjong(r) ? !!(r.mahjongSession.game && r.mahjongSession.game.phase !== 'finished') : !!(r.state && !r.state.finished),
       isMine,
       iAmIn,
     })
@@ -607,6 +726,22 @@ function handleReorder(body, uid) {
 function handleStart(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在', 'ROOM_NOT_FOUND')
+  if (isMahjong(room)) {
+    const seat = authSeat(room, body, uid)
+    if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
+    if (seat.uid !== room.hostUid) return fail('只有房主可以开局', 'NOT_HOST')
+    if (room.seats.length !== 4) return fail('麻将需要四个座位', 'NOT_ENOUGH_PLAYERS')
+    const session = room.mahjongSession
+    if (body.matchId !== session.matchId || body.handId !== session.handId) return fail('牌局已更新', 'STALE_HAND')
+    try {
+      let next = startMahjongHand(session)
+      if (next.game?.phase === 'finished' && !next.game.result?.matchOver) {
+        for (let i = 0; i < room.seats.length; i++) if (room.seats[i].kind === 'ai' || room.seats[i].left) next = setMahjongReady(next, i)
+      }
+      commitMahjong(room, { mahjongSession: next })
+      return ok(publicState(room, seat.uid))
+    } catch (e) { return fail(e.message) }
+  }
   let viewerUid = uid
   if (isOnline(room)) {
     const seat = authSeat(room, body, uid)
@@ -712,6 +847,19 @@ function syncSeats(room) {
 function handleAction(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在', 'ROOM_NOT_FOUND')
+  if (isMahjong(room)) {
+    const seat = authSeat(room, body, uid)
+    if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
+    try {
+      let next = submitMahjongAction(room.mahjongSession, room.seats.indexOf(seat), body.action,
+        { matchId: body.matchId, handId: body.handId, windowId: body.windowId })
+      if (next.game?.phase === 'finished' && !next.game.result?.matchOver) {
+        for (let i = 0; i < room.seats.length; i++) if (room.seats[i].kind === 'ai' || room.seats[i].left) next = setMahjongReady(next, i)
+      }
+      commitMahjong(room, { mahjongSession: next })
+      return ok(publicState(room, seat.uid))
+    } catch (e) { return fail(e.message, 'INVALID_ACTION') }
+  }
   if (!room.state) return fail('本手还没开始')
 
   if (isOnline(room)) {
@@ -1630,6 +1778,7 @@ function handlePause(body, uid) {
 function handleResetOnline(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在', 'ROOM_NOT_FOUND')
+  if (isMahjong(room)) return handleMahjongReset(body, uid)
   if (!isOnline(room)) return fail('仅线上房间支持此操作', 'ONLINE_ONLY')
   const seat = authSeat(room, body, uid)
   if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
@@ -1677,6 +1826,17 @@ function handleResetOnline(body, uid) {
 function handleAddAi(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在', 'ROOM_NOT_FOUND')
+  if (isMahjong(room)) {
+    const host = authSeat(room, body, uid)
+    if (!host) return fail('身份验证失败', 'AUTH_FAILED')
+    if (host.uid !== room.hostUid) return fail('只有房主可以添加 AI', 'NOT_HOST')
+    if (room.mahjongSession.game) return fail('本场已开始，不能增加座位', 'HAND_IN_PROGRESS')
+    if (room.seats.length >= 4) return fail('房间已满', 'ROOM_FULL')
+    const ai = { uid: 'ai_' + crypto.randomBytes(8).toString('base64url'), kind: 'ai', nickname: `麻将AI${room.seats.length}`, avatar: 1, seeds: room.initialSeeds }
+    const next = setMahjongReady(room.mahjongSession, room.seats.length)
+    commitMahjong(room, { seats: [...room.seats, ai], mahjongSession: next })
+    return ok(publicState(room, host.uid))
+  }
   if (!isOnline(room)) return fail('线下房间不支持 AI', 'OFFLINE_ONLY')
   const seat = authSeat(room, body, uid)
   if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
@@ -1720,6 +1880,19 @@ function handleAddAi(body, uid) {
 function handleRemoveAi(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在', 'ROOM_NOT_FOUND')
+  if (isMahjong(room)) {
+    const host = authSeat(room, body, uid)
+    if (!host) return fail('身份验证失败', 'AUTH_FAILED')
+    if (host.uid !== room.hostUid) return fail('只有房主可以移除 AI', 'NOT_HOST')
+    if (room.mahjongSession.game) return fail('本场已开始，不能移除座位', 'HAND_IN_PROGRESS')
+    const index = room.seats.findIndex((s) => s.uid === String(body?.targetSeatId ?? '') && s.kind === 'ai')
+    if (index < 0) return fail('AI 座位不存在')
+    const seats = room.seats.filter((_, i) => i !== index)
+    const next = structuredClone(room.mahjongSession)
+    next.ready.splice(index, 1); next.ready.push(false)
+    commitMahjong(room, { seats, mahjongSession: next })
+    return ok(publicState(room, host.uid))
+  }
   if (!isOnline(room)) return fail('线下房间不支持 AI', 'OFFLINE_ONLY')
   const seat = authSeat(room, body, uid)
   if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
@@ -1743,6 +1916,7 @@ function handleRemoveAi(body, uid) {
 function handleExtendTurn(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在', 'ROOM_NOT_FOUND')
+  if (isMahjong(room)) return fail('麻将房间不支持延时', 'UNSUPPORTED')
   if (!isOnline(room)) return fail('仅线上房间支持续时', 'ONLINE_ONLY')
   const seat = authSeat(room, body, uid)
   if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
@@ -1770,6 +1944,31 @@ function handleExtendTurn(body, uid) {
 function handleLeave(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return ok({ left: true })
+  if (isMahjong(room)) {
+    const seat = authSeat(room, body, uid)
+    if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
+    const humans = room.seats.filter((s) => s.kind === 'human' && !s.left && s.uid !== seat.uid)
+    if (!humans.length) {
+      const records = room.seats.map((s) => ({ ...s, account: s.account ?? null }))
+      saveMahjongSnapshot({ roomId: room.id, snapshot: {}, close: true, handRecord: makeAbandonedMahjongHandRecord(room.mahjongSession, records) })
+      if (room.mjTimer) clearTimeout(room.mjTimer)
+      rooms.delete(room.id)
+      return ok({ roomClosed: true })
+    }
+    const hostUid = seat.uid === room.hostUid ? humans[0].uid : room.hostUid
+    let next = structuredClone(room.mahjongSession)
+    let seats
+    if (!next.game) {
+      const index = room.seats.indexOf(seat)
+      seats = room.seats.filter((s) => s.uid !== seat.uid)
+      next.ready.splice(index, 1); next.ready.push(false)
+    } else {
+      seats = room.seats.map((s) => s.uid === seat.uid ? { ...s, left: true, seatToken: null } : s)
+      if (next.game.phase === 'finished' && !next.game.result?.matchOver) next = setMahjongReady(next, room.seats.indexOf(seat))
+    }
+    commitMahjong(room, { seats, hostUid, mahjongSession: next })
+    return ok({ left: true })
+  }
 
   // 线上：必须持座位令牌才能离开；uid / seatId 伪造不生效。
   // 房主离开销毁整房（线下旧口径一致，但要令牌证明真是房主）。
@@ -1894,7 +2093,7 @@ function handleAdminWipe(body) {
   const before = dataCounts()
   const removed = wipeData(scope.what)
   const wipedMemoryRooms = rooms.size
-  for (const r of rooms.values()) { disarmTurnClock(r); disarmAiTimer(r) }
+  for (const r of rooms.values()) { disarmTurnClock(r); disarmAiTimer(r); if (r.mjTimer) clearTimeout(r.mjTimer) }
   rooms.clear()
 
   return ok({
@@ -2042,6 +2241,25 @@ function serializeRoom(room) {
 }
 
 function restoreRoom(snap) {
+  if (snap?.mode === 'mahjong') {
+    const data = snap.state
+    try {
+      if (data?.version !== 1 || data.gameType !== 'nanjing' || data.id !== snap.roomId ||
+          !Array.isArray(data.seats) || data.seats.length < 1 || data.seats.length > 4 ||
+          new Set(data.seats.map((s) => s.uid)).size !== data.seats.length ||
+          !data.seats.some((s) => s.uid === data.hostUid && s.kind === 'human' && !s.left) ||
+          data.seats.some((s) => !s.uid || !['human', 'ai'].includes(s.kind) || (s.kind === 'human' && !s.left && !s.seatToken)) ||
+          (data.session?.game && data.seats.length !== 4)) throw new Error('座位快照无效')
+      validateMahjongSnapshot(data.session)
+      const room = { id: data.id, mode: 'online', gameType: 'nanjing', hostUid: data.hostUid, seats: data.seats,
+        initialSeeds: data.initialSeeds, mahjongDealer: data.dealerSetting ?? null, useLLM: data.useLLM === true,
+        llmModel: data.llmModel ?? '', llmThinking: data.llmThinking === true,
+        rev: data.rev ?? 0, lastActive: Date.now(), mahjongSession: data.session, state: null }
+      rooms.set(room.id, room)
+      armMahjong(room)
+      return room
+    } catch (e) { console.error('[mahjong] 快照校验失败', e.message); return null }
+  }
   // 线上房间一律不恢复（V1 无伪恢复）：座位还在但手牌/令牌全丢，
   // 恢复出来是个没法玩的空壳。顺手清掉旧版残留快照，免得占着位置。
   if (snap?.mode === 'online') {
@@ -2101,6 +2319,8 @@ const ROUTES = {
   '/api/room/add-ai': handleAddAi,
   '/api/room/remove-ai': handleRemoveAi,
   '/api/room/leave': handleLeave,
+  '/api/mahjong/ready': handleMahjongReady,
+  '/api/mahjong/reset': handleMahjongReset,
   '/api/admin/stats': handleAdminStats,
   '/api/admin/wipe': handleAdminWipe,
   '/api/llm/models': handleLlmModels,
@@ -2247,6 +2467,14 @@ setInterval(() => {
   const now = Date.now()
   for (const [id, r] of rooms) {
     if (now - r.lastActive > ROOM_TTL) {
+      if (isMahjong(r)) {
+        const records = r.seats.map((s) => ({ ...s, account: s.account ?? null }))
+        try { saveMahjongSnapshot({ roomId: id, snapshot: {}, close: true, handRecord: makeAbandonedMahjongHandRecord(r.mahjongSession, records) }) }
+        catch (e) { console.error('[mahjong] 保存战绩失败', e.message); continue }
+        if (r.mjTimer) clearTimeout(r.mjTimer)
+        rooms.delete(id)
+        continue
+      }
       disarmTurnClock(r)       // 计时器跟房间一起死，防陈旧回调打到别处
       disarmAiTimer(r)
       rooms.delete(id)
@@ -2266,7 +2494,7 @@ try {
   for (const snap of loadAllRoomSnapshots()) {
     if (Date.now() - Date.parse(snap.updatedAt) > SNAP_MAX_AGE) {
       deleteRoomSnapshot(snap.roomId)
-      deleteRoomHistory(snap.roomId)   // 陈旧房一并清历史，不留孤儿记录
+      if (snap.mode !== 'mahjong') deleteRoomHistory(snap.roomId) // 麻将战绩独立保留
       continue
     }
     if (restoreRoom(snap)) restoredCount++

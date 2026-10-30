@@ -11,6 +11,7 @@ const props = defineProps({
   roomNo: { type: String, required: true },
   size: { type: Number, default: 132 },
   mode: { type: String, default: 'online' },
+  game: { type: String, default: '' },
 })
 
 const dataURI = ref('')
@@ -25,7 +26,7 @@ async function render() {
     if (typeof QRCode?.toDataURL !== 'function') {
       throw new Error('qrcode.toDataURL unavailable')
     }
-    const url = location.origin + location.pathname + '#/join/' + props.roomNo + '?mode=' + props.mode
+    const url = location.origin + location.pathname + '#/join/' + props.roomNo + '?mode=' + props.mode + (props.game ? '&game=' + encodeURIComponent(props.game) : '')
     dataURI.value = await QRCode.toDataURL(url, {
       width: props.size,
       margin: 1,
@@ -39,7 +40,7 @@ async function render() {
 }
 
 onMounted(render)
-watch(() => props.roomNo, render)
+watch(() => [props.roomNo, props.mode, props.game], render)
 </script>
 
 <template>

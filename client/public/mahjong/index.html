@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>麻将牌面 SVG · 手机适配预览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #14352a; color: #e8e4d8; min-height: 100vh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    user-select: none; -webkit-user-select: none;
+  }
+  header { padding: 14px 16px 6px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header p { font-size: 12px; opacity: .7; margin-top: 4px; }
+  h2 { font-size: 14px; font-weight: 600; padding: 14px 16px 8px; color: #cfe0d4; }
+  .grid { display: flex; flex-wrap: wrap; gap: 8px 6px; padding: 0 14px; }
+  figure { width: clamp(40px, 12vw, 56px); text-align: center; }
+  figure img { width: 100%; display: block; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+  figcaption { font-size: 10px; opacity: .65; margin-top: 3px; }
+
+  /* ---- 牌桌演示 ---- */
+  .table { margin: 16px 10px 24px; border-radius: 16px; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 35%, #2b6b4f 0%, #1c4a37 70%, #173e2f 100%);
+    border: 1px solid #0f2c20; padding: 14px 0 18px; }
+  .table .label { text-align: center; font-size: 11px; color: #b8d4c2; padding: 2px 0 10px; }
+  .opponents { display: flex; justify-content: center; gap: 4px; }
+  .opponents img { width: 26px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
+  .river { display: grid; grid-template-columns: repeat(6, 26px); gap: 3px; justify-content: center; margin: 12px 0; min-height: 40px; }
+  .river img { width: 26px; }
+  .river .slot { width: 26px; height: 36px; border-radius: 4px; background: rgba(0,0,0,.12); }
+  .hand { display: flex; gap: 2px; overflow-x: auto; padding: 26px 10px 4px; scrollbar-width: none; }
+  .hand::-webkit-scrollbar { display: none; }
+  .hand .tile { flex: 0 0 auto; width: clamp(42px, 12.5vw, 58px); cursor: pointer;
+    transition: transform .12s ease, filter .12s ease;
+    filter: drop-shadow(0 3px 3px rgba(0,0,0,.4)); touch-action: manipulation; }
+  .hand .tile.drawn { margin-left: 10px; }
+  .hand .tile.up { transform: translateY(-16px); filter: drop-shadow(0 8px 6px rgba(0,0,0,.5)); }
+  .actions { display: flex; justify-content: center; gap: 10px; margin-top: 10px; }
+  .actions button { font-size: 14px; padding: 8px 22px; border-radius: 999px; border: 0;
+    background: #e8b64c; color: #3a2a08; font-weight: 600; touch-action: manipulation; }
+  .actions button:disabled { opacity: .4; }
+  footer { font-size: 11px; color: #9db8a8; padding: 0 16px 24px; line-height: 1.7; }
+  footer code { background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>麻将牌面 · SVG 全套</h1>
+  <p>万饼条 1-9 · 东南西北 · 中发白 · 梅兰竹菊 · 春夏秋冬 · 牌背，共 43 个文件</p>
+</header>
+
+<div class="table">
+  <div class="label">对家</div>
+  <div class="opponents"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"><img src="tiles/back.svg" alt="牌背"></div>
+  <div class="river" id="river">
+    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+  </div>
+  <div class="hand" id="hand">
+      <img class="tile" src="tiles/wan-2.svg" alt="wan-2" draggable="false">
+      <img class="tile" src="tiles/wan-3.svg" alt="wan-3" draggable="false">
+      <img class="tile" src="tiles/wan-4.svg" alt="wan-4" draggable="false">
+      <img class="tile" src="tiles/tong-3.svg" alt="tong-3" draggable="false">
+      <img class="tile" src="tiles/tong-4.svg" alt="tong-4" draggable="false">
+      <img class="tile" src="tiles/tong-5.svg" alt="tong-5" draggable="false">
+      <img class="tile" src="tiles/tiao-6.svg" alt="tiao-6" draggable="false">
+      <img class="tile" src="tiles/tiao-7.svg" alt="tiao-7" draggable="false">
+      <img class="tile" src="tiles/tiao-8.svg" alt="tiao-8" draggable="false">
+      <img class="tile" src="tiles/feng-dong.svg" alt="feng-dong" draggable="false">
+      <img class="tile" src="tiles/feng-dong.svg" alt="feng-dong" draggable="false">
+      <img class="tile" src="tiles/jian-zhong.svg" alt="jian-zhong" draggable="false">
+      <img class="tile" src="tiles/hua-mei.svg" alt="hua-mei" draggable="false">
+      <img class="tile drawn" src="tiles/tiao-5.svg" alt="摸牌" draggable="false">
+  </div>
+  <div class="actions"><button id="discardBtn" disabled>打出</button></div>
+</div>
+
+    <h2>万子</h2>
+    <div class="grid">
+      <figure><img src="tiles/wan-1.svg" alt="一万" draggable="false"><figcaption>一万</figcaption></figure>
+      <figure><img src="tiles/wan-2.svg" alt="二万" draggable="false"><figcaption>二万</figcaption></figure>
+      <figure><img src="tiles/wan-3.svg" alt="三万" draggable="false"><figcaption>三万</figcaption></figure>
+      <figure><img src="tiles/wan-4.svg" alt="四万" draggable="false"><figcaption>四万</figcaption></figure>
+      <figure><img src="tiles/wan-5.svg" alt="五万" draggable="false"><figcaption>五万</figcaption></figure>
+      <figure><img src="tiles/wan-6.svg" alt="六万" draggable="false"><figcaption>六万</figcaption></figure>
+      <figure><img src="tiles/wan-7.svg" alt="七万" draggable="false"><figcaption>七万</figcaption></figure>
+      <figure><img src="tiles/wan-8.svg" alt="八万" draggable="false"><figcaption>八万</figcaption></figure>
+      <figure><img src="tiles/wan-9.svg" alt="九万" draggable="false"><figcaption>九万</figcaption></figure>
+    </div>
+
+    <h2>饼子</h2>
+    <div class="grid">
+      <figure><img src="tiles/tong-1.svg" alt="一饼" draggable="false"><figcaption>一饼</figcaption></figure>
+      <figure><img src="tiles/tong-2.svg" alt="二饼" draggable="false"><figcaption>二饼</figcaption></figure>
+      <figure><img src="tiles/tong-3.svg" alt="三饼" draggable="false"><figcaption>三饼</figcaption></figure>
+      <figure><img src="tiles/tong-4.svg" alt="四饼" draggable="false"><figcaption>四饼</figcaption></figure>
+      <figure><img src="tiles/tong-5.svg" alt="五饼" draggable="false"><figcaption>五饼</figcaption></figure>
+      <figure><img src="tiles/tong-6.svg" alt="六饼" draggable="false"><figcaption>六饼</figcaption></figure>
+      <figure><img src="tiles/tong-7.svg" alt="七饼" draggable="false"><figcaption>七饼</figcaption></figure>
+      <figure><img src="tiles/tong-8.svg" alt="八饼" draggable="false"><figcaption>八饼</figcaption></figure>
+      <figure><img src="tiles/tong-9.svg" alt="九饼" draggable="false"><figcaption>九饼</figcaption></figure>
+    </div>
+
+    <h2>条子</h2>
+    <div class="grid">
+      <figure><img src="tiles/tiao-1.svg" alt="幺鸡" draggable="false"><figcaption>幺鸡</figcaption></figure>
+      <figure><img src="tiles/tiao-2.svg" alt="二条" draggable="false"><figcaption>二条</figcaption></figure>
+      <figure><img src="tiles/tiao-3.svg" alt="三条" draggable="false"><figcaption>三条</figcaption></figure>
+      <figure><img src="tiles/tiao-4.svg" alt="四条" draggable="false"><figcaption>四条</figcaption></figure>
+      <figure><img src="tiles/tiao-5.svg" alt="五条" draggable="false"><figcaption>五条</figcaption></figure>
+      <figure><img src="tiles/tiao-6.svg" alt="六条" draggable="false"><figcaption>六条</figcaption></figure>
+      <figure><img src="tiles/tiao-7.svg" alt="七条" draggable="false"><figcaption>七条</figcaption></figure>
+      <figure><img src="tiles/tiao-8.svg" alt="八条" draggable="false"><figcaption>八条</figcaption></figure>
+      <figure><img src="tiles/tiao-9.svg" alt="九条" draggable="false"><figcaption>九条</figcaption></figure>
+    </div>
+
+    <h2>字牌</h2>
+    <div class="grid">
+      <figure><img src="tiles/feng-dong.svg" alt="东风" draggable="false"><figcaption>东风</figcaption></figure>
+      <figure><img src="tiles/feng-nan.svg" alt="南风" draggable="false"><figcaption>南风</figcaption></figure>
+      <figure><img src="tiles/feng-xi.svg" alt="西风" draggable="false"><figcaption>西风</figcaption></figure>
+      <figure><img src="tiles/feng-bei.svg" alt="北风" draggable="false"><figcaption>北风</figcaption></figure>
+      <figure><img src="tiles/jian-zhong.svg" alt="红中" draggable="false"><figcaption>红中</figcaption></figure>
+      <figure><img src="tiles/jian-fa.svg" alt="发财" draggable="false"><figcaption>发财</figcaption></figure>
+      <figure><img src="tiles/jian-bai.svg" alt="白板" draggable="false"><figcaption>白板</figcaption></figure>
+    </div>
+
+    <h2>花牌</h2>
+    <div class="grid">
+      <figure><img src="tiles/hua-mei.svg" alt="梅花" draggable="false"><figcaption>梅花</figcaption></figure>
+      <figure><img src="tiles/hua-lan.svg" alt="兰花" draggable="false"><figcaption>兰花</figcaption></figure>
+      <figure><img src="tiles/hua-zhu.svg" alt="竹花" draggable="false"><figcaption>竹花</figcaption></figure>
+      <figure><img src="tiles/hua-ju.svg" alt="菊花" draggable="false"><figcaption>菊花</figcaption></figure>
+      <figure><img src="tiles/ji-chun.svg" alt="春" draggable="false"><figcaption>春</figcaption></figure>
+      <figure><img src="tiles/ji-xia.svg" alt="夏" draggable="false"><figcaption>夏</figcaption></figure>
+      <figure><img src="tiles/ji-qiu.svg" alt="秋" draggable="false"><figcaption>秋</figcaption></figure>
+      <figure><img src="tiles/ji-dong.svg" alt="冬" draggable="false"><figcaption>冬</figcaption></figure>
+    </div>
+<footer>
+  文件：<code>public/mahjong/tiles/&lt;id&gt;.svg</code>（id 见 <code>src/data/mahjong-tiles.js</code>）<br>
+  雪碧图：<code>public/mahjong/sprite.svg</code>，用法 <code>&lt;use href="mahjong/sprite.svg#wan-1"&gt;</code><br>
+  字体：牌面汉字走系统楷体回退链，Android 无楷体时退化为衬线/黑体，仍可读。<br>
+  触控：手牌 width ≥42px，点按抬牌，按钮打出；横竖屏自适应。
+</footer>
+<script>
+const hand = document.getElementById('hand')
+const river = document.getElementById('river')
+const btn = document.getElementById('discardBtn')
+let selected = null
+hand.addEventListener('click', e => {
+  const t = e.target.closest('.tile')
+  if (!t) return
+  if (selected === t) { t.classList.remove('up'); selected = null }
+  else { selected && selected.classList.remove('up'); selected = t; t.classList.add('up') }
+  btn.disabled = !selected
+})
+btn.addEventListener('click', () => {
+  if (!selected) return
+  const img = selected.cloneNode()
+  img.className = ''; img.style.width = '26px'
+  const slot = river.querySelector('.slot')
+  slot ? slot.replaceWith(img) : river.appendChild(img)
+  selected.remove(); selected = null; btn.disabled = true
+})
+</script>
+</body>
+</html>
