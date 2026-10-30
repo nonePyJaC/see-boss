@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createMahjongSession, setMahjongReady, startMahjongHand, submitMahjongAction, expireMahjongWindow, projectMahjongSession, resetMahjongMatch, validateMahjongSnapshot } from './mahjong-room.mjs'
+import { createMahjongSession, setMahjongReady, startMahjongHand, submitMahjongAction, expireMahjongWindow, expireMahjongWindowWithPolicy, projectMahjongSession, resetMahjongMatch, validateMahjongSnapshot } from './mahjong-room.mjs'
 import { createWall } from '../shared/logic/mahjong/online-wall.mjs'
 import { isFlower } from '../shared/logic/mahjong/tiles.mjs'
 import { dealSeatSequence } from '../shared/logic/mahjong/online-game.mjs'
@@ -58,6 +58,15 @@ test('行动限时拒绝过期请求，托管只选择合法动作并推进', ()
   assert.equal(expireMahjongWindow(s, { now: s.deadlineAt - 1 }), s)
   const after = expireMahjongWindow(s, { now: s.deadlineAt })
   assert.notEqual(after.windowId, s.windowId)
+})
+test('异步超时托管复核动作，路线记忆能恢复且不会进入公开投影', async () => {
+  const s = start()
+  const next = await expireMahjongWindowWithPolicy(s, async (state, seat) => ({ action: legalOnlineActionsFor(state, seat)[0], route: 'qing:m' }), { now: s.deadlineAt })
+  assert.notEqual(next.windowId, s.windowId)
+  assert.equal(next.localPolicy.handId, next.handId)
+  assert.equal(Object.values(next.localPolicy.routes)[0], 'qing:m')
+  assert.equal('localPolicy' in projectMahjongSession(next, 0), false)
+  assert.equal(validateMahjongSnapshot(JSON.parse(JSON.stringify(next))), true)
 })
 test('同一响应窗口允许不同座位先后操作，投影不透露其他人尚未裁定的选择', () => {
   let s = start()

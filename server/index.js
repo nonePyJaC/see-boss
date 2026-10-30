@@ -90,9 +90,10 @@ import {
   saveUserLlmKeys, userLlmKeyStatus, userLlmKeys,
 } from './db.js'
 import { debugPage } from './debug-room-page.js'
-import { createMahjongSession, setMahjongReady, startMahjongHand, submitMahjongAction, expireMahjongWindow, projectMahjongSession, resetMahjongMatch, validateMahjongSnapshot, buildMahjongObservation } from './mahjong-room.mjs'
+import { createMahjongSession, setMahjongReady, startMahjongHand, submitMahjongAction, expireMahjongWindowWithPolicy, projectMahjongSession, resetMahjongMatch, validateMahjongSnapshot, buildMahjongObservation } from './mahjong-room.mjs'
 import { saveMahjongSnapshot, makeMahjongHandRecord, makeAbandonedMahjongHandRecord } from './mahjong-store.mjs'
-import { safeMahjongAction } from './mahjong-ai.mjs'
+import { runMahjongPolicy } from './mahjong-ai-runner.mjs'
+import { policyIdentity } from './mahjong-ai-v2.mjs'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const PORT = Number(process.env.PORT) || 80
@@ -435,6 +436,8 @@ function commitMahjong(room, changes = {}) {
 
 let mahjongAiDelayMs = 1200
 function setMahjongAiDelay(ms) { mahjongAiDelayMs = ms }
+let mahjongPolicyRunner = runMahjongPolicy
+function setMahjongPolicyRunner(runner = runMahjongPolicy) { mahjongPolicyRunner = runner }
 function armMahjong(room) {
   if (room.mjTimer) clearTimeout(room.mjTimer)
   room.mjTimer = null
@@ -444,23 +447,54 @@ function armMahjong(room) {
   const auto = room.seats.findIndex((s, i) => (s.kind === 'ai' || s.left) && projectMahjongSession(session, i).myActions?.length)
   // 每名自动玩家保留可辨认的行动间隔，仍不能越过当前窗口的截止时间。
   const delay = auto >= 0 ? Math.min(mahjongAiDelayMs, Math.max(0, session.deadlineAt - Date.now())) : Math.max(0, session.deadlineAt - Date.now())
-  room.mjTimer = setTimeout(() => {
+  room.mjTimer = setTimeout(async () => {
     const current = rooms.get(captured.id), s = current?.mahjongSession
     if (!current || s?.matchId !== captured.matchId || s.handId !== captured.handId || s.windowId !== captured.windowId || s.deadlineAt !== captured.deadlineAt) return
+    const reviews = []
+    const saveReviews = (status, reason = null) => {
+      for (const { observation, decision, seat, options } of reviews) writeDecisionReview(path.dirname(DB_PATH), {
+        trace: { room: current.id, hand: s.handId, turn: s.windowId, seat, nickname: current.seats[seat]?.nickname, phase: observation.phase, model: 'nanjing-local-policy-v2' },
+        input: { model: 'nanjing-local-policy-v2', messages: [{ role: 'user', content: JSON.stringify({ observation, diagnostic: decision.diagnostic, style: options.identity.style }) }] },
+        result: { action: decision.action, reason: decision.diagnostic?.reason ?? decision.diagnostic?.fallback, ms: decision.ms, usage: null },
+        execution: { status, source: 'local-policy', action: decision.action, fallbackReason: reason ?? decision.diagnostic?.fallback ?? null },
+      })
+    }
     try {
       let next
-      if (Date.now() >= s.deadlineAt) next = expireMahjongWindow(s)
+      const choose = async (session, seat) => {
+        const observation = buildMahjongObservation(session, seat)
+        const options = { identity: policyIdentity(session.matchId, seat), previousRoute: session.localPolicy?.handId === session.handId ? session.localPolicy.routes?.[seat] : null,
+          observationId: `${session.matchId}:${session.handId}:${session.windowId}:${seat}` }
+        const decision = await mahjongPolicyRunner(observation, options)
+        reviews.push({ observation, decision, seat, options })
+        return decision
+      }
+      if (Date.now() >= s.deadlineAt) next = await expireMahjongWindowWithPolicy(s, choose)
       else {
         const i = current.seats.findIndex((seat, n) => (seat.kind === 'ai' || seat.left) && projectMahjongSession(s, n).myActions?.length)
         if (i < 0) { armMahjong(current); return }
-        const action = safeMahjongAction(buildMahjongObservation(s, i))
-        next = submitMahjongAction(s, i, action, { matchId: s.matchId, handId: s.handId, windowId: s.windowId })
+        const decision = await choose(s, i)
+        const latest = rooms.get(captured.id)?.mahjongSession
+        if (!latest || latest.matchId !== captured.matchId || latest.handId !== captured.handId || latest.windowId !== captured.windowId || latest.deadlineAt !== captured.deadlineAt) { saveReviews('stale'); return }
+        if (rooms.get(captured.id) !== current || !(current.seats[i]?.kind === 'ai' || current.seats[i]?.left)) { saveReviews('stale'); return }
+        if (Date.now() >= latest.deadlineAt) { saveReviews('stale', '计算完成时窗口已过期'); armMahjong(current); return }
+        const legal = projectMahjongSession(latest, i).myActions ?? []
+        if (!legal.some((a) => a.type === decision.action?.type && (a.tile == null || a.tile === decision.action.tile))) { saveReviews('stale', '动作已不再合法'); return }
+        next = submitMahjongAction(latest, i, decision.action, { matchId: latest.matchId, handId: latest.handId, windowId: latest.windowId })
+        if (decision.route) {
+          if (next.localPolicy?.handId !== next.handId) next.localPolicy = { handId: next.handId, routes: {} }
+          next.localPolicy.routes[i] = decision.route
+        }
       }
+      const latest = rooms.get(captured.id)?.mahjongSession
+      if (!latest || latest.matchId !== captured.matchId || latest.handId !== captured.handId || latest.windowId !== captured.windowId || latest.deadlineAt !== captured.deadlineAt) { saveReviews('stale'); return }
       if (next.game?.phase === 'finished' && !next.game.result?.matchOver) {
         for (let i = 0; i < current.seats.length; i++) if (current.seats[i].kind === 'ai' || current.seats[i].left) next = setMahjongReady(next, i)
       }
       commitMahjong(current, { mahjongSession: next })
+      saveReviews('applied')
     } catch (e) {
+      saveReviews('failed', '自动处理失败')
       console.error('[mahjong] 自动处理失败', e?.message)
       current.mjTimer = setTimeout(() => { if (rooms.get(current.id) === current) armMahjong(current) }, 1000)
       current.mjTimer.unref?.()
@@ -2538,4 +2572,4 @@ if (SHOULD_LISTEN) {
 // 导出：供集成测试在进程内起服务（避免重复 listen）
 // onTurnTimeout/onAiTurn 给测试直接触发回调，不用真等 120s / AI 延迟；
 // setAiDelayRange 让测试把 AI 延迟压成 0（规格 §8.8 测试注入）
-export { server, rooms, restoreRoom, onTurnTimeout, onAiTurn, setAiDelayRange, sampleAiThinkDelay, setMahjongAiDelay }
+export { server, rooms, restoreRoom, onTurnTimeout, onAiTurn, setAiDelayRange, sampleAiThinkDelay, setMahjongAiDelay, setMahjongPolicyRunner }

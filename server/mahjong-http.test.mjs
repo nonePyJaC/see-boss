@@ -14,7 +14,7 @@ import { HAMSTERS } from '../shared/assets/hamsters.mjs'
 process.env.LISTEN = '0'
 process.env.HAMSTER_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'hamster-mahjong-test-'))
 process.env.HAMSTER_ONLINE_CREATE_CODE = 'test-code'
-const { server, rooms, restoreRoom, setMahjongAiDelay } = await import('./index.js')
+const { server, rooms, restoreRoom, setMahjongAiDelay, setMahjongPolicyRunner } = await import('./index.js')
 const { closeDb, loadRoomSnapshot, rawDb } = await import('./db.js')
 const { saveMahjongSnapshot, makeMahjongHandRecord } = await import('./mahjong-store.mjs')
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -120,7 +120,7 @@ test('线上 AI 调度器按本地策略选择并提交合法动作', async () =
     if (session.game.phase === 'turn' && session.game.turn === 1) {
       const obs = buildMahjongObservation(session, 1)
       const choice = safeMahjongAction(obs)
-      if (choice?.type === 'discard') captured = { action: choice, eventCount: session.game.events.length }
+      if (choice?.type === 'discard') captured = { legal: obs.myActions, eventCount: session.game.events.length }
     }
     if (!captured) await new Promise((resolve) => setTimeout(resolve, 20))
   }
@@ -133,7 +133,44 @@ test('线上 AI 调度器按本地策略选择并提交合法动作', async () =
     actual = events.find((e) => e.type === 'discard' && e.seat === 1)
     if (!actual) await new Promise((resolve) => setTimeout(resolve, 20))
   }
-  assert.equal(actual?.tile, captured.action.tile)
+  assert.ok(captured.legal.some((action) => action.type === 'discard' && action.tile === actual?.tile), '自动出牌必须来自合法动作')
+  const view = await api('/api/room/state', host)
+  assert.equal(JSON.stringify(view.data).includes('localPolicy'), false)
+  assert.equal(JSON.stringify(view.data).includes('observationId'), false)
+  const reviewDir = path.join(process.env.HAMSTER_DATA_DIR, 'ai-reviews')
+  const reviews = fs.readdirSync(reviewDir).flatMap((name) => fs.readFileSync(path.join(reviewDir, name), 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse))
+  const review = reviews.findLast((record) => record.room === host.roomId && record.model === 'nanjing-local-policy-v2')
+  assert.ok(review?.input?.messages?.[0]?.content.includes('diagnostic'), '私有复盘应保留真实策略诊断')
+  assert.equal(JSON.stringify(review).includes(host.seatToken), false)
+  await api('/api/room/leave', host)
+})
+
+test('异步策略结果返回前窗口已变化时不能提交旧动作', async (t) => {
+  let complete, observed
+  setMahjongAiDelay(0)
+  setMahjongPolicyRunner((obs) => { observed = obs; return new Promise((resolve) => { complete = resolve }) })
+  t.after(() => { setMahjongAiDelay(1200); setMahjongPolicyRunner() })
+  const uid = await register(91)
+  const created = await api('/api/room/create', { uid, me: { nickname: '房主' }, createCode: 'test-code',
+    cfg: { mode: 'online', gameType: 'nanjing', initialSeeds: 1000, dealerSeat: 1 } })
+  const host = credential(created.data, uid)
+  for (let i = 0; i < 3; i++) assert.equal((await api('/api/room/add-ai', host)).ok, true)
+  const initial = { matchId: created.data.matchId, handId: 0 }
+  assert.equal((await api('/api/mahjong/ready', { ...host, ...initial })).ok, true)
+  let started = await api('/api/room/start', { ...host, ...initial })
+  assert.equal(started.ok, true, started.error)
+  if (started.data.phase === 'ready' && started.data.myActions.some((a) => a.type === 'pass')) {
+    started = await api('/api/room/action', { ...host, matchId: started.data.matchId, handId: started.data.handId, windowId: started.data.windowId, action: { type: 'pass' } })
+    assert.equal(started.ok, true, started.error)
+  }
+  for (let i = 0; i < 100 && !complete; i++) await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.ok(complete, '未捕获异步决策')
+  const room = rooms.get(host.roomId), before = room.mahjongSession.game.events.length
+  room.mahjongSession.windowId++
+  complete({ action: observed.myActions[0], route: 'qing:m', diagnostic: {} })
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  assert.equal(room.mahjongSession.game.events.length, before)
+  assert.equal(room.mahjongSession.localPolicy, undefined)
   await api('/api/room/leave', host)
 })
 
@@ -201,7 +238,8 @@ test('四真人通过接口完整一手、恢复与战绩幂等，再准备下�
 
 test('四真人以及一、二、三真人混合 AI 均能连续完成两手', async (t) => {
   setMahjongAiDelay(30)
-  t.after(() => setMahjongAiDelay(1200))
+  setMahjongPolicyRunner(async (obs) => ({ action: safeMahjongAction(obs), diagnostic: { reason: '测试用基线' } }))
+  t.after(() => { setMahjongAiDelay(1200); setMahjongPolicyRunner() })
   for (let humans = 1; humans <= 4; humans++) {
     const uids = []
     for (let i = 0; i < humans; i++) uids.push(await register(30 + humans * 4 + i))

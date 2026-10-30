@@ -76,6 +76,27 @@ export function expireMahjongWindow(session, { now = Date.now() } = {}) {
   return next
 }
 
+/** 服务端超时托管：计算可在工作线程进行，最终仍从引擎合法动作中复核。 */
+export async function expireMahjongWindowWithPolicy(session, choose, { now = Date.now() } = {}) {
+  if (session.deadlineAt == null || now < session.deadlineAt) return session
+  const next = clone(session), oldKey = windowKey(next.game)
+  for (let seat = 0; seat < 4 && windowKey(next.game) === oldKey; seat++) {
+    const legal = legalOnlineActions(next.game, seat)
+    if (!legal.length) continue
+    const decision = await choose(next, seat)
+    const action = legal.find((a) => a.type === decision?.action?.type && (a.tile == null || a.tile === decision.action.tile))
+      ?? legal.find((a) => a.type === 'pass') ?? legal.find((a) => a.type === 'discard') ?? legal[0]
+    next.game = applyOnlineAction(next.game, seat, action)
+    if (decision?.route) {
+      if (next.localPolicy?.handId !== next.handId) next.localPolicy = { handId: next.handId, routes: {} }
+      next.localPolicy.routes[seat] = decision.route
+    }
+  }
+  setWindow(next, oldKey, Date.now())
+  if (next.deadlineAt === session.deadlineAt) throw new Error('超时后窗口没有推进')
+  return next
+}
+
 export function resetMahjongMatch(session, { dealer = session.initialDealer } = {}) {
   if (!session.game?.result?.matchOver) throw new Error('本场尚未结束')
   const next = createMahjongSession({ initialSeeds: session.initialSeeds, dealer })
