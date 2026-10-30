@@ -33,23 +33,23 @@ const SKY = '#3a7ec2'
 const PURPLE = '#7a5aa8'
 const DIM = '#9a8f6d' // 花牌角标
 
-const KAI = `'Kaiti SC','STKaiti','KaiTi','楷体','Noto Serif CJK SC','Songti SC',serif`
+// 小尺寸优先使用笔画清楚的系统字体；SVG 不依赖下载字体。
+const KAI = `'PingFang SC','Microsoft YaHei','Noto Sans CJK SC','Hiragino Sans GB',sans-serif`
 
 const CJK_NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九']
 
 // ---------- 基础图元 ----------
 const txt = (s, x, y, size, fill, extra = '') =>
-  `<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" text-anchor="middle" dominant-baseline="central" font-family="${KAI}" font-weight="600"${extra}>${s}</text>`
+  `<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" text-anchor="middle" dominant-baseline="central" font-family="${KAI}" font-weight="700"${extra}>${s}</text>`
 
 // 饼子点：色环 + 镂空 + 芯 + 镂空
 const pip = (x, y, r, c) =>
   `<g><circle cx="${x}" cy="${y}" r="${r}" fill="${c}"/>` +
-  `<circle cx="${x}" cy="${y}" r="${(r * 0.62).toFixed(2)}" fill="${IVORY}"/>` +
-  `<circle cx="${x}" cy="${y}" r="${(r * 0.32).toFixed(2)}" fill="${c}"/>` +
-  `<circle cx="${x}" cy="${y}" r="${(r * 0.12).toFixed(2)}" fill="${IVORY}"/></g>`
+  `<circle cx="${x}" cy="${y}" r="${(r * 0.56).toFixed(2)}" fill="${IVORY}"/>` +
+  `<circle cx="${x}" cy="${y}" r="${(r * 0.27).toFixed(2)}" fill="${c}"/></g>`
 
 // 条子：竹节棍，两节线 + 三个钱孔点
-const stick = (x, y, color, edge, { ang = 0, h = 24, w = 8.6 } = {}) =>
+const stick = (x, y, color, edge, { ang = 0, h = 24, w = 10 } = {}) =>
   `<g transform="translate(${x} ${y})${ang ? ` rotate(${ang})` : ''}">` +
   `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${w / 2}" fill="${color}" stroke="${edge}" stroke-width=".9"/>` +
   `<path d="M${-w / 2 + 1} ${-h / 6}h${w - 2}M${-w / 2 + 1} ${h / 6}h${w - 2}" stroke="${edge}" stroke-width="1" opacity=".5" fill="none"/>` +
@@ -66,7 +66,6 @@ const DEFS = `<defs>` +
   `<linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a8a5f"/><stop offset="1" stop-color="#1b6444"/></linearGradient>` +
   `<linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f7d57"/><stop offset="1" stop-color="#17452d"/></linearGradient>` +
   `<linearGradient id="v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".38"/><stop offset=".2" stop-color="#ffffff" stop-opacity="0"/><stop offset=".82" stop-color="#8a6c30" stop-opacity="0"/><stop offset="1" stop-color="#8a6c30" stop-opacity=".12"/></linearGradient>` +
-  `<filter id="e" x="-8%" y="-8%" width="116%" height="116%"><feDropShadow dx="0" dy=".8" stdDeviation=".4" flood-color="#4a3a10" flood-opacity=".3"/></filter>` +
   `</defs>`
 
 const shell = inner =>
@@ -77,14 +76,14 @@ const shell = inner =>
   `<path d="M13 5.6h38" stroke="#fff" stroke-width="1.2" opacity=".55" stroke-linecap="round"/>` +
   `<path d="M70.8 14v72" stroke="#0f3a26" stroke-width="1" opacity=".5"/>` +
   `<path d="M16 92.8h40" stroke="#0f3a26" stroke-width="1" opacity=".45"/>` +
-  `<g filter="url(#e)">${inner}</g>`
+  `<g>${inner}</g>`
 
 const svgDoc = inner =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">${DEFS}${shell(inner)}</svg>\n`
 
 // ---------- 万子 ----------
 const wanFace = n =>
-  txt(CJK_NUM[n - 1], 36, 33, 26, INK) + txt('万', 36, 69, 35, RED)
+  txt(CJK_NUM[n - 1], 36, 32, 30, INK) + txt('万', 36, 69, 38, RED)
 
 // ---------- 饼子 ----------
 const TONG_LAYOUTS = {
@@ -162,9 +161,9 @@ function sparrow() {
 }
 
 // ---------- 字牌 ----------
-const windFace = ch => txt(ch, 36, 48, 44, INK)
-const zhongFace = () => txt('中', 36, 48, 50, RED)
-const faFace = () => txt('發', 36, 48, 46, GREEN)
+const windFace = ch => txt(ch, 36, 48, 50, INK)
+const zhongFace = () => txt('中', 36, 48, 52, RED)
+const faFace = () => txt('發', 36, 48, 50, GREEN)
 const baiFace = () =>
   `<rect x="17" y="24" width="38" height="48" rx="4" fill="none" stroke="${BLUE}" stroke-width="5"/>` +
   `<rect x="23.5" y="30.5" width="25" height="35" rx="2" fill="none" stroke="${BLUE}" stroke-width="1.6"/>`
@@ -247,8 +246,8 @@ const dongArt = () => {
   return `<g>${spokes}<circle cx="36" cy="62" r="2" fill="${SKY}"/></g>`
 }
 
-const huaFace = (char, art) => txt(char, 36, 30, 25, RED) + art()
-const jiFace = (char, art) => txt(char, 36, 30, 25, INK) + art()
+const huaFace = (char, art) => txt(char, 36, 30, 32, RED) + art()
+const jiFace = (char, art) => txt(char, 36, 30, 32, INK) + art()
 
 // ---------- 牌背 ----------
 const backBody = () =>

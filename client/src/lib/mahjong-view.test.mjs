@@ -1,12 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { tileInfo, relativeSeat, sidewaysIndex, sortedHand } from './mahjong-view.mjs'
+import { tileInfo, tileUrl, TILE_ASSET_VERSION, relativeSeat, sidewaysIndex, sortedHand } from './mahjong-view.mjs'
 import { ALL_TILES } from '../../../shared/logic/mahjong/tiles.mjs'
 
 test('南京牌码均映射到现有素材', () => {
   for (const tile of ALL_TILES) assert.ok(tileInfo(tile).file, tile)
   assert.equal(tileInfo('E').file, 'feng-dong.svg')
   assert.equal(tileInfo('Z').file, 'jian-zhong.svg')
+  assert.equal(tileUrl('E', './'), `./mahjong/tiles/feng-dong.svg?v=${TILE_ASSET_VERSION}`)
 })
 test('供牌者相对碰牌者的位置决定横牌位置', () => {
   for (let owner = 0; owner < 4; owner++) {

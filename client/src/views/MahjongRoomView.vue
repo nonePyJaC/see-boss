@@ -11,6 +11,7 @@ import { captureSeatRequest, isCurrentSeatRequest } from '../lib/seat-state-requ
 import { sortedHand, tileInfo } from '../lib/mahjong-view.mjs'
 import { createTileTapTracker, DISCARD_RECHECK_MS } from '../lib/mahjong-taps.mjs'
 import { resultNetTransfers } from '../lib/mahjong-result.mjs'
+import { groupTileWidth, handTileWidth } from '../lib/mahjong-clarity.mjs'
 import { wallLayoutStacks } from '@shared/logic/mahjong/online-wall.mjs'
 import JoinRoomPanel from '../components/JoinRoomPanel.vue'
 import RoomQR from '../components/RoomQR.vue'
@@ -24,6 +25,8 @@ const roomId = computed(() => String(route.query.room || route.query.join || '')
 const data = ref(null), cred = ref(null), error = ref(''), connected = ref(true), busy = ref(false)
 const setupTab = ref('create'), createCode = ref(''), seeds = ref(100), createBusy = ref(false)
 const menuOpen = ref(false), inviteOpen = ref(false), resultOpen = ref(false), selected = ref(null), revealActive = ref(false)
+const groupZoomSeat = ref(null), boardElement = ref(null)
+const boardSize = ref({ width: window.innerWidth, height: window.innerHeight })
 const resultWinnerIndex = ref(0), ledgerOpen = ref(false)
 const openingProgress = ref(null)
 const now = ref(Date.now()), toast = ref(''), profileReady = ref(false)
@@ -33,12 +36,15 @@ let watcher = null, tickTimer = null, toastTimer = null, revealTimer = null, ope
 let pendingDiscardTimer = null
 let openedFullscreen = false, lockedOrientation = false
 let orientationMedia = null
+let boardObserver = null
 
 const me = computed(() => data.value?.seats?.findIndex((s) => s.isMe) ?? -1)
 const viewer = computed(() => me.value >= 0 ? me.value : 0)
 const isHost = computed(() => me.value >= 0 && !!data.value?.seats?.[me.value]?.isHost)
 const phase = computed(() => data.value?.phase ?? 'waiting')
 const hand = computed(() => sortedHand(data.value?.myHand ?? [], data.value?.myContext?.lastDraw))
+const ownHasMelds = computed(() => !!data.value?.players?.[me.value]?.melds?.length)
+const ownTileWidth = computed(() => handTileWidth({ ...boardSize.value, count: hand.value.length || 14, hasMelds: ownHasMelds.value }))
 const actions = computed(() => data.value?.myActions ?? [])
 const selectedCode = computed(() => selected.value?.code ?? '')
 const specialActions = computed(() => actions.value.filter((a) => a.type !== 'discard'))
@@ -53,6 +59,22 @@ const seats = computed(() => [0, 1, 2, 3].map((offset) => {
   const seat = (viewer.value + offset) % 4
   return { seat, side: ['bottom', 'right', 'top', 'left'][offset], info: data.value?.seats?.[seat], player: data.value?.players?.[seat] }
 }))
+const zoomSeat = computed(() => seats.value.find((seat) => seat.seat === groupZoomSeat.value))
+function groupStyle(seat, kind) {
+  return { '--tile-w': `${groupTileWidth({ ...boardSize.value, side: seat.side, kind,
+    flowers: seat.player?.flowers ?? [], melds: seat.player?.melds ?? [] })}px` }
+}
+function openGroupZoom(seat) {
+  if (openingProgress.value !== null || revealActive.value || resultOpen.value) return
+  clearTileGesture(); selected.value = null; menuOpen.value = false; groupZoomSeat.value = seat
+}
+watch(boardElement, (element) => {
+  boardObserver?.disconnect(); boardObserver = null
+  if (!element) return
+  const update = () => { boardSize.value = { width: element.clientWidth, height: element.clientHeight } }
+  update()
+  if (typeof ResizeObserver !== 'undefined') { boardObserver = new ResizeObserver(update); boardObserver.observe(element) }
+})
 const wallSegments = computed(() => {
   const layout = data.value?.wallLayout
   let stacks = layout?.stacks
@@ -110,6 +132,7 @@ function applyState(r) {
   data.value = r.data; connected.value = true; error.value = ''
   if (previousHand !== JSON.stringify(r.data?.myHand ?? []) || previousKey !== `${r.data?.matchId ?? ''}:${r.data?.handId ?? ''}` || previousWindow !== r.data?.windowId) { selected.value = null; clearTileGesture() }
   const currentKey = `${r.data.matchId ?? ''}:${r.data.handId ?? ''}`
+  if (previousKey !== currentKey || r.data.phase === 'finished') groupZoomSeat.value = null
   if (previousKey !== currentKey || r.data.phase === 'finished') { clearInterval(openingTimer); openingProgress.value = null }
   if (previousKey !== currentKey && wasWaiting && r.data.phase !== 'finished' && r.data.wallLayout) startOpening()
   if (previousKey !== currentKey || r.data.phase !== 'finished') {
@@ -130,7 +153,7 @@ function roomGone() {
   watcher?.stop(); clearSeatCred(roomId.value); cred.value = null
   clearTimeout(revealTimer); clearInterval(openingTimer)
   data.value = null; selected.value = null; revealActive.value = false; openingProgress.value = null
-  menuOpen.value = false; inviteOpen.value = false; resultOpen.value = false
+  menuOpen.value = false; inviteOpen.value = false; resultOpen.value = false; groupZoomSeat.value = null
   error.value = '房间不存在或已结束'
 }
 async function tryJoin() {
@@ -149,7 +172,7 @@ watch(roomId, (id) => {
   clearTileGesture()
   watcher?.stop(); watcher = null; data.value = null; selected.value = null; error.value = ''; phaseBefore.value = ''
   clearTimeout(revealTimer); revealActive.value = false; clearInterval(openingTimer); openingProgress.value = null
-  menuOpen.value = false; inviteOpen.value = false; resultOpen.value = false; resultWinnerIndex.value = 0; ledgerOpen.value = false; joinAttempted = false
+  menuOpen.value = false; inviteOpen.value = false; resultOpen.value = false; groupZoomSeat.value = null; resultWinnerIndex.value = 0; ledgerOpen.value = false; joinAttempted = false
   cred.value = id ? loadSeatCred(id) : null
   if (id) watcher = watchRoom(id, applyState, () => { connected.value = false }, () => cred.value, ONLINE_POLL_INTERVAL)
 }, { immediate: true })
@@ -169,6 +192,7 @@ onMounted(async () => {
   if (roomId.value && !cred.value && data.value?.phase === 'waiting') void tryJoin()
 })
 onUnmounted(() => {
+  boardObserver?.disconnect()
   if (orientationMedia?.removeEventListener) orientationMedia.removeEventListener('change', onOrientationChange)
   else orientationMedia?.removeListener?.(onOrientationChange)
   window.removeEventListener('resize', onOrientationChange)
@@ -223,11 +247,11 @@ function clearTileGesture() {
 }
 function canDiscardTile(tile) {
   return !!data.value && !busy.value && connected.value && phase.value === 'turn' && data.value.turn === me.value && !!cred.value &&
-    openingProgress.value === null && !revealActive.value && !resultOpen.value && !window.matchMedia('(orientation: portrait)').matches &&
+    openingProgress.value === null && !revealActive.value && !resultOpen.value && groupZoomSeat.value === null && !window.matchMedia('(orientation: portrait)').matches &&
     actions.value.some((action) => action.type === 'discard' && action.tile === tile.code)
 }
 function selectTile(tile) {
-  if (!data.value || pendingDiscardTimer !== null || openingProgress.value !== null || revealActive.value || resultOpen.value || window.matchMedia('(orientation: portrait)').matches) return
+  if (!data.value || pendingDiscardTimer !== null || openingProgress.value !== null || revealActive.value || resultOpen.value || groupZoomSeat.value !== null || window.matchMedia('(orientation: portrait)').matches) return
   const state = data.value
   const legal = canDiscardTile(tile)
   const scope = `${roomId.value}:${state.matchId}:${state.handId}:${state.windowId}`
@@ -310,7 +334,7 @@ async function tryLandscape() {
     <div v-if="error && !data" class="loading-overlay"><p>{{ error }}</p><button @click="router.replace('/lobby')">返回大厅</button></div>
     <div v-else-if="!data" class="loading-overlay">正在进入牌桌…</div>
     <template v-else>
-      <div class="board" :class="{ 'board--opening': openingProgress !== null }" :inert="openingProgress !== null || undefined" :data-window-id="data.windowId" :data-result-type="data.result?.type">
+      <div ref="boardElement" class="board" :class="{ 'board--opening': openingProgress !== null }" :inert="openingProgress !== null || undefined" :style="{ '--hand-tile-w': `${ownTileWidth}px` }" :data-window-id="data.windowId" :data-result-type="data.result?.type">
         <div class="board-grain"></div>
         <div v-if="!connected" class="connection">连接中断，正在重连…</div>
         <div class="corner">
@@ -318,6 +342,7 @@ async function tryLandscape() {
           <div v-if="menuOpen" class="menu-panel">
             <div class="menu-heading">房间 {{ data.id }}</div>
             <button @click="inviteOpen = true; menuOpen = false">邀请好友 <span>›</span></button>
+            <button v-if="phase !== 'waiting'" @click="openGroupZoom(viewer)">放大花牌和碰杠 <span>›</span></button>
             <button :aria-pressed="animationEnabled" @click="toggleAnimation">选牌动画 <span>{{ animationEnabled ? '开' : '关' }}</span></button>
             <button v-if="phase === 'finished'" @click="showResult(); menuOpen = false">查看本手结果 <span>›</span></button>
             <button @click="leave">离开房间 <span>›</span></button>
@@ -347,8 +372,8 @@ async function tryLandscape() {
             <div class="back-row" :class="{ 'reveal-tiles': revealActive }" :aria-label="`${s.info?.nickname ?? '玩家'} ${s.player?.handCount ?? 0} 张手牌`"><template v-if="revealActive && data.revealedHands?.[s.seat]"><MahjongTile v-for="tile in sortedHand(data.revealedHands[s.seat])" :key="tile.index" :code="tile.code" :sideways="s.side === 'left' || s.side === 'right'" /></template><template v-else><MahjongTile v-for="n in (s.player?.handCount ?? 0)" :key="n" code="back" :sideways="s.side === 'left' || s.side === 'right'" /></template></div>
           </div>
           <template v-for="s in seats" :key="`groups-${s.seat}`">
-            <MahjongMelds v-if="s.player?.flowers?.length" class="seat-flowers" :class="`seat-flowers--${s.side}`" :flowers="s.player.flowers" :owner="s.seat" :selected="selectedCode" :vertical="s.side === 'left' || s.side === 'right'" />
-            <MahjongMelds v-if="s.player?.melds?.length" class="seat-melds" :class="`seat-melds--${s.side}`" :melds="s.player.melds" :owner="s.seat" :selected="selectedCode" :vertical="s.side === 'left' || s.side === 'right'" />
+            <MahjongMelds v-if="s.player?.flowers?.length" class="seat-flowers" :class="[`seat-flowers--${s.side}`, { 'seat-flowers--wide': s.side === 'bottom' && !ownHasMelds }]" :style="groupStyle(s, 'flowers')" :flowers="s.player.flowers" :owner="s.seat" :selected="selectedCode" :vertical="s.side === 'left' || s.side === 'right'" role="button" tabindex="0" :aria-label="`${s.info?.nickname ?? '玩家'}的花牌，点击放大`" @click="openGroupZoom(s.seat)" @keydown.enter.prevent="openGroupZoom(s.seat)" @keydown.space.prevent="openGroupZoom(s.seat)" />
+            <MahjongMelds v-if="s.player?.melds?.length" class="seat-melds" :class="`seat-melds--${s.side}`" :style="groupStyle(s, 'melds')" :melds="s.player.melds" :owner="s.seat" :selected="selectedCode" :vertical="s.side === 'left' || s.side === 'right'" role="button" tabindex="0" :aria-label="`${s.info?.nickname ?? '玩家'}的碰杠，点击放大`" @click="openGroupZoom(s.seat)" @keydown.enter.prevent="openGroupZoom(s.seat)" @keydown.space.prevent="openGroupZoom(s.seat)" />
           </template>
 
           <div v-for="s in seats" :key="`river-${s.seat}`" class="river" :class="[`river--${s.side}`, { 'river--dense': (s.player?.discards?.length ?? 0) > 24 }]" :aria-label="`${s.info?.nickname ?? '玩家'}出牌区`">
@@ -359,8 +384,8 @@ async function tryLandscape() {
           <div class="table-center"><strong>余 {{ data.wallCount }} 张</strong><span v-if="data.double" class="double-badge">×2</span><small v-if="phase !== 'turn'">{{ statusText }}<template v-if="countdown != null"> · {{ countdown }}秒</template></small></div>
           <div v-if="me < 0" class="spectator-tag">旁观中</div>
           <div class="own-badge player-badge" :class="{ 'player-badge--acting': phase === 'turn' && data.turn === viewer }"><span class="avatar-chip" :class="{ 'avatar-chip--dealer': data.dealer === viewer }"><img v-if="data.seats?.[viewer]" :src="hamsterDataURI(getHamster(data.seats[viewer].avatar), 42)" alt="" /><em v-if="data.dealer === viewer">庄</em></span><div><b>{{ me >= 0 ? data.seats[me].nickname : '旁观视角' }}</b><small v-if="me >= 0">{{ data.balances?.[me] }} 瓜子</small><small v-if="phase === 'turn' && data.turn === viewer" class="seat-timer">行动中<template v-if="countdown != null"> {{ countdown }}秒</template></small></div></div>
-          <div v-if="revealActive && data.revealedHands?.[viewer]" class="my-hand revealed-bottom reveal-tiles" aria-label="本家摊牌"><MahjongTile v-for="tile in sortedHand(data.revealedHands[viewer])" :key="tile.index" :code="tile.code" /></div>
-          <div v-else-if="me >= 0" class="my-hand" aria-label="我的手牌，快速点击同一张两次出牌">
+          <div v-if="revealActive && data.revealedHands?.[viewer]" class="my-hand revealed-bottom reveal-tiles" :class="{ 'my-hand--wide': !ownHasMelds }" aria-label="本家摊牌"><MahjongTile v-for="tile in sortedHand(data.revealedHands[viewer])" :key="tile.index" :code="tile.code" /></div>
+          <div v-else-if="me >= 0" class="my-hand" :class="{ 'my-hand--wide': !ownHasMelds }" aria-label="我的手牌，快速点击同一张两次出牌">
             <button v-for="tile in hand" :key="tile.index" class="hand-button" :class="{ 'hand-button--selected': selected?.index === tile.index && selected?.code === tile.code, 'hand-button--drawn': tile.drawn }" :aria-label="`${tileInfo(tile.code).name}${selected?.index === tile.index ? '，已选中' : ''}`" :aria-pressed="selected?.index === tile.index" @click="selectTile(tile)"><MahjongTile :code="tile.code" :highlight="selected?.index === tile.index && selected?.code === tile.code" /></button>
           </div>
           <div v-else class="spectator-hand">旁观不会显示其他玩家手牌</div>
@@ -375,6 +400,7 @@ async function tryLandscape() {
       </div>
 
       <div v-if="inviteOpen" class="modal-shade" @click.self="inviteOpen = false"><div class="invite-card"><button class="modal-close" aria-label="关闭" @click="inviteOpen = false">×</button><span class="modal-kicker">一起入座</span><h2>邀请好友</h2><p>扫码或输入房间号</p><RoomQR :room-no="data.id" mode="online" game="nanjing" :size="150" /><strong class="invite-number">{{ data.id }}</strong><button class="entry-primary" @click="copyInvite">复制邀请链接</button></div></div>
+      <div v-if="groupZoomSeat !== null && zoomSeat" class="modal-shade" @click.self="groupZoomSeat = null"><div class="group-zoom-card" role="dialog" aria-modal="true" aria-label="放大查看花牌和碰杠"><header><b>花牌和碰杠</b><small v-if="countdown != null">剩余 {{ countdown }} 秒</small><button aria-label="关闭放大查看" @click="groupZoomSeat = null">×</button></header><nav aria-label="选择玩家"><button v-for="s in seats" :key="s.seat" :class="{ active: groupZoomSeat === s.seat }" @click="groupZoomSeat = s.seat">{{ s.info?.nickname ?? '玩家' }}</button></nav><div class="group-zoom-content"><div><strong>碰杠与花杠</strong><MahjongMelds v-if="zoomSeat.player?.melds?.length" class="zoom-groups" :melds="zoomSeat.player.melds" :owner="zoomSeat.seat" show-labels /><span v-else>无</span></div><div><strong>花牌</strong><MahjongMelds v-if="zoomSeat.player?.flowers?.length" class="zoom-groups" :flowers="zoomSeat.player.flowers" :owner="zoomSeat.seat" /><span v-else>无</span></div></div></div></div>
       <div v-if="phase === 'finished' && resultOpen" class="modal-shade"><div class="result-card">
         <header class="result-header"><h2>{{ data.result?.type === 'win' ? '胡牌结算' : data.result?.type === 'draw' ? '流局' : '本场结算' }}</h2><div v-if="resultWinners.length > 1" class="winner-tabs" aria-label="切换胡家"><button v-for="(winner, i) in resultWinners" :key="winner.seat" :class="{ active: i === resultWinnerIndex && !ledgerOpen }" @click="resultWinnerIndex = i; ledgerOpen = false">{{ data.seats?.[winner.seat]?.nickname ?? '玩家' }}</button></div><button v-if="data.ledger?.length" class="ledger-toggle" @click="ledgerOpen = !ledgerOpen">{{ ledgerOpen ? '返回牌组' : '流水' }}</button><button class="modal-close" aria-label="关闭结果" @click="resultOpen = false">×</button></header>
         <div class="result-body"><div v-if="ledgerOpen" class="result-ledger"><b>本手实际收付流水</b><div v-for="(entry, ei) in data.ledger" :key="ei" class="ledger"><b>{{ entry.event }}</b><span v-for="transfer in entry.transfers" :key="transfer.id">{{ data.seats?.[transfer.from]?.nickname }} → {{ data.seats?.[transfer.to]?.nickname }}：实付 {{ transfer.paid }}<template v-if="transfer.amount !== transfer.paid">（应付 {{ transfer.amount }}）</template> · {{ transfer.reason }}</span><span v-if="!entry.transfers?.length">无实际转账</span></div></div><MahjongResultWinner v-else-if="selectedWinner" :winner="selectedWinner" :nickname="data.seats?.[selectedWinner.seat]?.nickname ?? '玩家'" :double="!!data.double" /><div v-else class="result-empty">{{ data.result?.type === 'draw' ? '本手流局' : '本场结束' }}</div></div>
@@ -445,10 +471,12 @@ async function tryLandscape() {
 .opponent--left .back-row { align-self: flex-end; margin-right: 4px; }
 .opponent--right .back-row { align-self: flex-start; margin-left: 4px; }
 .seat-flowers, .seat-melds { --tile-w: clamp(7px, min(1.3vw, 2.8vh), 13px); --tile-h: calc(var(--tile-w) * 1.37); position: absolute; z-index: 3; }
+.seat-flowers, .seat-melds { cursor: pointer; touch-action: manipulation; }
 .seat-flowers--bottom { right: 24%; bottom: calc(3% + var(--hand-tile-w) * 1.37 + 4px); max-width: 23%; }
+.seat-flowers--wide { right: 1.5%; }
 .seat-melds--bottom { right: 1.5%; bottom: 3%; max-width: 23%; }
-.seat-flowers--top { left: 30%; top: 14%; max-width: 17%; }
-.seat-melds--top { right: 17%; top: 14%; max-width: 18%; }
+.seat-flowers--top { left: 30%; top: 14%; max-width: 12%; }
+.seat-melds--top { right: 15%; top: 14%; max-width: 23%; }
 .seat-flowers--left { left: 12.5%; top: 31%; max-height: 48%; }
 .seat-melds--left { left: 16%; top: 31%; max-height: 48%; }
 .seat-flowers--right { right: 12.5%; top: 31%; max-height: 48%; }
@@ -467,13 +495,13 @@ async function tryLandscape() {
 .own-badge { position: absolute; z-index: 3; left: 2%; bottom: 4%; }
 .own-badge b { max-width: max(32px, 7vw); }
 .my-hand { --tile-w: var(--hand-tile-w); --tile-h: calc(var(--tile-w) * 1.37); position: absolute; z-index: 5; bottom: 3%; left: 16%; width: 59%; display: flex; justify-content: center; align-items: end; }
+.my-hand--wide { width: 75%; }
 .hand-button { display: inline-flex; flex: 0 1 var(--tile-w); width: var(--tile-w); height: var(--tile-h); min-width: 0; padding: 0; border: 0; background: transparent; touch-action: manipulation; user-select: none; -webkit-tap-highlight-color: transparent; }
-.hand-button :deep(.tile) { transition: transform .14s ease, filter .14s ease; }
+.hand-button :deep(.tile) { transition: transform .14s ease; }
 .hand-button--drawn { margin-left: clamp(3px, .7vw, 9px); }
 .hand-button--selected { z-index: 4; }
-.hand-button--selected :deep(.tile) { transform: translateY(-10px); filter: drop-shadow(0 2px 5px #ffdf6f); }
+.hand-button--selected :deep(.tile) { transform: translateY(-10px); }
 .no-motion .hand-button :deep(.tile) { transition: none; }
-.revealed-bottom { --tile-w: clamp(15px, min(3.3vw, 7vh), 40px); }
 .reveal-tiles { animation: reveal-hand .65s ease-out both; }
 @keyframes reveal-hand { from { opacity: .25; transform: perspective(400px) rotateX(70deg) translateY(-7px); } to { opacity: 1; transform: none; } }
 .reveal-message { position: absolute; z-index: 9; left: 2%; bottom: 20%; display: flex; align-items: center; gap: 8px; padding: 5px 9px; border: 1px solid #e8ce82; border-radius: 20px; background: #173f2de9; color: #ffdf8d; font-size: clamp(10px, 1.5vw, 14px); font-weight: 900; white-space: nowrap; }
@@ -500,6 +528,17 @@ async function tryLandscape() {
 .waiting-seat span { color: #b8d9c0; font-size: 10px; }
 .add-bot, .remove-bot { color: #f9db8f; background: none; border: 0; font-size: 10px; text-decoration: underline; }
 .modal-shade { position: absolute; z-index: 30; inset: 0; display: grid; place-items: center; padding: 12px; background: #09251cbd; }
+.group-zoom-card { width: min(94vw, 700px); max-height: 92%; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; overflow: hidden; border: 1px solid #eee3be; border-radius: 16px; background: #fffdf5; color: #504637; box-shadow: 0 14px 50px #071d16a8; }
+.group-zoom-card header { display: flex; align-items: center; gap: 12px; color: #275f43; }
+.group-zoom-card header small { color: #82735f; }
+.group-zoom-card header button { margin-left: auto; border: 0; padding: 0 4px; background: none; color: #897d6d; font-size: 24px; line-height: 1; }
+.group-zoom-card nav { display: flex; gap: 5px; overflow-x: auto; }
+.group-zoom-card nav button { border: 1px solid #c9d8c0; border-radius: 7px; padding: 5px 10px; background: #f8f7ea; color: #477253; white-space: nowrap; }
+.group-zoom-card nav button.active { background: #397c53; color: white; }
+.group-zoom-content { overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 9px; }
+.group-zoom-content strong { display: block; margin-bottom: 3px; color: #85755c; font-size: 12px; }
+.group-zoom-content span:not(.tile):not(.tile-fallback) { color: #8c816e; }
+.zoom-groups { --tile-w: clamp(24px, min(4.5vw, 9vh), 38px); --tile-h: calc(var(--tile-w) * 1.37); justify-content: flex-start; }
 .invite-card, .result-card { position: relative; max-height: 92%; overflow: auto; border: 1px solid #eee3be; border-radius: 18px; background: #fffdf5; color: #504637; box-shadow: 0 14px 50px #071d16a8; }
 .invite-card { width: min(86vw, 270px); display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 18px; }
 .invite-card h2, .invite-card p, .result-card h2 { margin: 0; }

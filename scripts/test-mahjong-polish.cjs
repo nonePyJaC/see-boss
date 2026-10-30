@@ -96,15 +96,16 @@ async function main() {
     await page.waitForTimeout(800)
     for (const [width, height] of [[568, 320], [667, 375], [844, 390]]) {
       await page.setViewportSize({ width, height })
+      await page.waitForTimeout(120) // 等待 ResizeObserver 按实际安全区更新牌面大小。
       const layout = await page.evaluate(() => {
         const rect = (element) => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom } }
         const overlap = (a, b) => Math.min(a.right, b.right) - Math.max(a.x, b.x) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y) > 1
-        const groups = [...document.querySelectorAll('.seat-flowers .tile, .seat-melds .tile')].map(rect)
+        const groups = [...document.querySelectorAll('.seat-flowers .tile, .seat-melds .tile')].map((e) => ({ rect: rect(e), label: e.closest('.seat-flowers, .seat-melds').className }))
         const groupAreas = [...document.querySelectorAll('.seat-flowers, .seat-melds')].map((g) => [...g.querySelectorAll('.tile')].map(rect))
-        const sensitive = [...document.querySelectorAll('.river .tile, .player-badge, .my-hand .hand-button, .opponent .back-row .tile')].map(rect)
+        const sensitive = [...document.querySelectorAll('.river .tile, .player-badge, .my-hand .hand-button, .opponent .back-row .tile')].map((e) => ({ rect: rect(e), label: `${e.closest('.river, .player-badge, .my-hand, .opponent')?.className} ${e.closest('.opponent')?.className ?? ''}` }))
         const walls = [...document.querySelectorAll('.tile-wall')].map(rect)
         const rivers = [...document.querySelectorAll('.river')].map((river) => [...river.querySelectorAll('.tile')].map(rect))
-        return { overlaps: groups.filter((a) => sensitive.some((b) => overlap(a, b))).length,
+        return { overlaps: groups.flatMap((a) => sensitive.filter((b) => overlap(a.rect, b.rect)).map((b) => `${a.label} ↔ ${b.label}`)),
           groupOverlaps: groupAreas.some((g, i) => groupAreas.some((other, j) => i < j && g.some((a) => other.some((b) => overlap(a, b))))),
           ownBadgeOverlap: [...document.querySelectorAll('.own-badge')].map(rect).some((a) => [...document.querySelectorAll('.my-hand .hand-button')].map(rect).some((b) => overlap(a, b))),
           wallOverlaps: walls.some((a, i) => walls.some((b, j) => i < j && overlap(a, b))),
@@ -114,7 +115,7 @@ async function main() {
           wallAssets: [...document.querySelectorAll('.wall-layer')].every((item) => item.complete && item.naturalWidth > 0 && getComputedStyle(item).objectFit === 'contain'),
           status: document.querySelector('.table-center')?.innerText }
       })
-      assert.equal(layout.overlaps, 0, `${width}x${height} 花牌/副露遮挡其他关键元素`)
+      assert.deepEqual(layout.overlaps, [], `${width}x${height} 花牌/副露遮挡其他关键元素`)
       assert.equal(layout.groupOverlaps, false, `${width}x${height} 花牌或副露彼此遮挡`)
       assert.equal(layout.ownBadgeOverlap, false, `${width}x${height} 本家头像与手牌重叠`)
       assert.equal(layout.wallOverlaps, false, `${width}x${height} 牌墙角相交`)
@@ -127,6 +128,38 @@ async function main() {
     }
     assert.equal(await page.locator('.wall-dice, .room-tag').count(), 0)
     assert.equal(await page.getByRole('button', { name: /^打出/ }).count(), 0)
+    // 放大查看只展示已公开的花牌和副露，暗杠仍须遮住三张。
+    await page.locator('.seat-melds--bottom').click()
+    const zoom = page.getByRole('dialog', { name: '放大查看花牌和碰杠' })
+    assert.equal(await zoom.isVisible(), true)
+    const zoomTile = zoom.locator('.zoom-groups .tile').first()
+    assert.ok((await zoomTile.boundingBox()).width >= 24, '放大后的牌应足够大')
+    assert.match(await zoomTile.locator('img').getAttribute('src'), /\?v=clear-20261030$/)
+    assert.equal(await zoom.locator('img[alt="背面"]').count(), 3, '暗杠不可在放大查看中泄露')
+    await zoom.locator('nav button').nth(1).click()
+    assert.equal(await zoom.locator('nav button.active').count(), 1)
+    await zoom.getByRole('button', { name: '关闭放大查看' }).click()
+    assert.equal(submissions.length, 0, '查看花牌和碰杠不能提交出牌')
+
+    // 无副露时，手牌可使用腾出的空间；花牌仍可点击查看。
+    state = { ...state, rev: state.rev + 1, windowId: state.windowId + 1,
+      players: state.players.map((p, i) => i === 0 ? { ...p, melds: [] } : p) }
+    stateResult = { ok: true, data: state }
+    await page.setViewportSize({ width: 568, height: 320 })
+    await page.waitForFunction((id) => document.querySelector('.board')?.dataset.windowId === String(id), state.windowId)
+    await page.waitForTimeout(150)
+    assert.equal(await page.locator('.my-hand--wide').count(), 1)
+    assert.ok((await page.locator('.my-hand .hand-button').first().boundingBox()).width >= 27, '小屏手牌应充分利用空间')
+    await page.locator('.seat-flowers--bottom').click()
+    assert.equal(await zoom.isVisible(), true)
+    await zoom.getByRole('button', { name: '关闭放大查看' }).click()
+    assert.equal(submissions.length, 0)
+    state = { ...state, rev: state.rev + 1, windowId: state.windowId + 1, players: [0, 1, 2, 3].map(player) }
+    stateResult = { ok: true, data: state }
+    await page.setViewportSize({ width: 844, height: 390 })
+    await page.waitForFunction((id) => document.querySelector('.board')?.dataset.windowId === String(id), state.windowId)
+    await page.waitForTimeout(150)
+    const expectedWindow = state.windowId
     const tiles = page.locator('.my-hand .hand-button')
     await tiles.nth(0).click()
     await tiles.nth(0).evaluate((button) => getComputedStyle(button.querySelector('.tile')).transform)
@@ -144,7 +177,7 @@ async function main() {
     await pause(600)
     assert.equal(submissions.length, 1)
     assert.equal(submissions[0].action.tile, '1m')
-    assert.equal(submissions[0].windowId, initial.windowId)
+    assert.equal(submissions[0].windowId, expectedWindow)
 
     // 返回本人回合；触屏 tap 会生成真实的 touch/pointer/click 合成事件。
     state = { ...state, rev: state.rev + 1, windowId: state.windowId + 1, turn: 0, myHand: hand,

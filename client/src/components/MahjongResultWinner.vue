@@ -43,15 +43,15 @@ const hand = computed(() => sortedHand(props.winner.hand?.concealed ?? [], props
 </template>
 
 <style scoped>
-.winner { display: grid; grid-template-columns: minmax(0, 64fr) minmax(0, 36fr); gap: 8px; min-height: 0; height: 100%; text-align: left; font-size: clamp(10px, 1.5vw, 12px); }
+.winner { display: grid; grid-template-columns: minmax(0, 68fr) minmax(0, 32fr); gap: 8px; min-height: 0; height: 100%; text-align: left; font-size: clamp(10px, 1.5vw, 12px); }
 .winner-tiles-panel, .winner-score { min-width: 0; min-height: 0; border-radius: 9px; background: #f5f1df; padding: 7px 9px; }
 .winner-tiles-panel { overflow: auto; }
 h3 { margin: 0 0 2px; color: #275f43; font-size: clamp(12px, 1.8vw, 15px); }
 .tile-label { color: #85755c; font-size: 10px; font-weight: 800; margin: 4px 0 1px; }
-.winner-tiles { --tile-w: clamp(16px, min(3vw, 5.6vh), 27px); --tile-h: calc(var(--tile-w) * 1.37); display: flex; flex-wrap: wrap; align-items: end; gap: 1px; }
+.winner-tiles { --tile-w: clamp(18px, min(3.6vw, 6.5vh), 32px); --tile-h: calc(var(--tile-w) * 1.37); display: flex; flex-wrap: wrap; align-items: end; gap: 1px; }
 .result-tile { display: inline-flex; }
 .result-tile--win { margin-left: 5px; border-radius: 4px; box-shadow: 0 0 0 2px #d8ae4c; }
-.winner-groups { --tile-w: clamp(14px, min(2.6vw, 5vh), 24px); --tile-h: calc(var(--tile-w) * 1.37); justify-content: flex-start; }
+.winner-groups { --tile-w: clamp(16px, min(3vw, 5.8vh), 28px); --tile-h: calc(var(--tile-w) * 1.37); justify-content: flex-start; }
 .empty { margin-top: 5px; color: #8c816e; }
 .winner-score { display: flex; flex-direction: column; }
 .score-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; color: #276e48; font-weight: 900; border-bottom: 1px solid #ded6be; padding-bottom: 3px; }

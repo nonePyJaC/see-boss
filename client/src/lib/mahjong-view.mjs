@@ -2,6 +2,8 @@ import { MAHJONG_TILES, MAHJONG_TILE_BACK, MAHJONG_TILE_DIR } from '../data/mahj
 
 const honors = { E: '1z', S: '2z', W: '3z', N: '4z', Z: '5z', F: '6z', B: '7z' }
 const byNotation = new Map(MAHJONG_TILES.map((tile) => [tile.notation, tile]))
+// 原牌面路径会被缓存一年；更换素材时变更版本，确保手机获取新版。
+export const TILE_ASSET_VERSION = 'clear-20261030'
 const order = ['m', 'p', 's']
 export function tileInfo(code) {
   if (code === 'back') return { file: MAHJONG_TILE_BACK, name: '背面' }
@@ -9,7 +11,7 @@ export function tileInfo(code) {
 }
 export function tileUrl(code, base = (import.meta.env?.BASE_URL ?? './')) {
   const file = tileInfo(code).file
-  return file ? base + MAHJONG_TILE_DIR + file : null
+  return file ? `${base}${MAHJONG_TILE_DIR}${file}?v=${TILE_ASSET_VERSION}` : null
 }
 export function relativeSeat(seat, viewer) {
   return (seat - viewer + 4) % 4
