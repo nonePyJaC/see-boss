@@ -1,0 +1,3127 @@
+{
+  "kind": "synthetic",
+  "version": "nanjing-local-policy-v2.2",
+  "mode": "routes",
+  "style": "speed",
+  "baseline": "c6f842b2b97e82997bcb4e27518a6782d92ca317",
+  "groups": 2,
+  "startSeed": 95000,
+  "games": 8,
+  "elapsedMs": 9758,
+  "illegal": 0,
+  "stale": 0,
+  "fallback": 0,
+  "decisions": 48,
+  "draws": 0,
+  "wins": {
+    "v1": 7,
+    "v2": 1
+  },
+  "winKinds": {
+    "v1:selfDraw": 1,
+    "v1:discard": 6,
+    "v2:discard": 1
+  },
+  "flowers": {
+    "v1": [
+      65,
+      23,
+      23,
+      23,
+      22,
+      22,
+      22
+    ],
+    "v2": [
+      22
+    ]
+  },
+  "net": {
+    "v1": 128,
+    "v2": -128
+  },
+  "seatNetV2": [
+    -95,
+    -13,
+    32,
+    -52
+  ],
+  "lossFromDiscard": {
+    "v1": 112,
+    "v2": 45
+  },
+  "paymentReasons": {
+    "自摸": 195,
+    "点炮": 157,
+    "同牌罚": 120
+  },
+  "routes": {
+    "normal": 43,
+    "hun:m": 2,
+    "pairs": 2
+  },
+  "changes": 2,
+  "comparison": {
+    "differing": 12,
+    "slowerShape": 1,
+    "sameShape": 11,
+    "quickerShape": 0
+  },
+  "bigChosen": 4,
+  "bigAbandoned": 0,
+  "bigCompleted": 0,
+  "bigFailed": 2,
+  "dominated": 132,
+  "randomizedPools": 36,
+  "randomizedSelections": 0,
+  "sameStateRandomComparison": {
+    "compared": 0,
+    "changed": 0,
+    "fallback": 0
+  },
+  "completedTypes": {
+    "七对": 1,
+    "花开": 1,
+    "门清": 7
+  },
+  "styles": {
+    "speed": {
+      "decisions": 48,
+      "actions": {
+        "discard": 46,
+        "pass": 1,
+        "win": 1
+      },
+      "routes": {
+        "normal": 43,
+        "hun:m": 2,
+        "pairs": 2
+      }
+    }
+  },
+  "records": [
+    {
+      "seed": 95000,
+      "v2Seat": 0,
+      "style": "speed",
+      "v2Net": -65,
+      "balances": [
+        935,
+        935,
+        1195,
+        935
+      ],
+      "outcome": "win",
+      "kind": "selfDraw",
+      "source": null,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 65,
+          "types": [
+            "七对",
+            "花开"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": "normal",
+      "targetCompleted": false,
+      "steps": 25
+    },
+    {
+      "seed": 95000,
+      "v2Seat": 1,
+      "style": "speed",
+      "v2Net": -23,
+      "balances": [
+        1023,
+        977,
+        1000,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": true,
+      "lastRoute": "hun:m",
+      "targetCompleted": false,
+      "steps": 25
+    },
+    {
+      "seed": 95000,
+      "v2Seat": 2,
+      "style": "speed",
+      "v2Net": 0,
+      "balances": [
+        1023,
+        977,
+        1000,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": true,
+      "lastRoute": "pairs",
+      "targetCompleted": false,
+      "steps": 23
+    },
+    {
+      "seed": 95000,
+      "v2Seat": 3,
+      "style": "speed",
+      "v2Net": 0,
+      "balances": [
+        1023,
+        977,
+        1000,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": "normal",
+      "targetCompleted": false,
+      "steps": 23
+    },
+    {
+      "seed": 95001,
+      "v2Seat": 0,
+      "style": "speed",
+      "v2Net": -30,
+      "balances": [
+        970,
+        1010,
+        1032,
+        988
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 22,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": "normal",
+      "targetCompleted": false,
+      "steps": 25
+    },
+    {
+      "seed": 95001,
+      "v2Seat": 1,
+      "style": "speed",
+      "v2Net": 10,
+      "balances": [
+        1010,
+        1010,
+        1032,
+        948
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 22,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": "normal",
+      "targetCompleted": false,
+      "steps": 25
+    },
+    {
+      "seed": 95001,
+      "v2Seat": 2,
+      "style": "speed",
+      "v2Net": 32,
+      "balances": [
+        1010,
+        1010,
+        1032,
+        948
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 22,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": "normal",
+      "targetCompleted": false,
+      "steps": 25
+    },
+    {
+      "seed": 95001,
+      "v2Seat": 3,
+      "style": "speed",
+      "v2Net": -52,
+      "balances": [
+        1010,
+        1010,
+        1032,
+        948
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 22,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": "normal",
+      "targetCompleted": false,
+      "steps": 25
+    }
+  ],
+  "decisionDiffs": [
+    {
+      "seed": 95000,
+      "seat": 0,
+      "window": 1,
+      "identity": {
+        "seed": 284668923,
+        "style": "speed"
+      },
+      "previousRoute": null,
+      "baseline": {
+        "type": "discard",
+        "tile": "7m"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "2m"
+      },
+      "route": "normal",
+      "hand": [
+        "7m",
+        "5m",
+        "4p",
+        "3s",
+        "4p",
+        "5m",
+        "2p",
+        "9m",
+        "4s",
+        "3s",
+        "7m",
+        "8m",
+        "2m",
+        "5m"
+      ],
+      "players": [
+        {
+          "handCount": 14,
+          "flowers": [
+            "f5",
+            "B"
+          ],
+          "melds": [],
+          "discards": [],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f4"
+          ],
+          "melds": [],
+          "discards": [],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "B",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f1"
+          ],
+          "melds": [],
+          "discards": [],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "wallCount": 85,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "7m"
+        },
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "4p"
+        },
+        {
+          "type": "discard",
+          "tile": "3s"
+        },
+        {
+          "type": "discard",
+          "tile": "2p"
+        },
+        {
+          "type": "discard",
+          "tile": "9m"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "2m"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": true,
+        "lastDraw": null,
+        "draw": null
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "2m"
+          },
+          "score": 7.695032063046215,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 55
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "2p"
+          },
+          "score": 7.316244084435526,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 51
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "4s"
+          },
+          "score": 7.316244084435526,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 51
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "7m"
+          },
+          "score": 7.166307669395354,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 57
+        }
+      ],
+      "dominated": [],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "2m"
+        },
+        {
+          "type": "discard",
+          "tile": "2p"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        },
+        {
+          "type": "discard",
+          "tile": "7m"
+        }
+      ]
+    },
+    {
+      "seed": 95000,
+      "seat": 0,
+      "window": 5,
+      "identity": {
+        "seed": 284668923,
+        "style": "speed"
+      },
+      "previousRoute": "normal",
+      "baseline": {
+        "type": "discard",
+        "tile": "7m"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "3m"
+      },
+      "route": "normal",
+      "hand": [
+        "7m",
+        "5m",
+        "4p",
+        "3s",
+        "4p",
+        "5m",
+        "2p",
+        "9m",
+        "4s",
+        "3s",
+        "7m",
+        "8m",
+        "5m",
+        "3m"
+      ],
+      "players": [
+        {
+          "handCount": 14,
+          "flowers": [
+            "f5",
+            "B"
+          ],
+          "melds": [],
+          "discards": [
+            "2m"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f4"
+          ],
+          "melds": [],
+          "discards": [
+            "E"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "B",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [
+            "E"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f1",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [
+            "W"
+          ],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "wallCount": 80,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "7m"
+        },
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "4p"
+        },
+        {
+          "type": "discard",
+          "tile": "3s"
+        },
+        {
+          "type": "discard",
+          "tile": "2p"
+        },
+        {
+          "type": "discard",
+          "tile": "9m"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": false,
+        "lastDraw": "3m",
+        "draw": {
+          "reason": "normal",
+          "flower": false,
+          "kongSource": null
+        }
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "3m"
+          },
+          "score": 9.195032063046215,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 55
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "2p"
+          },
+          "score": 8.713388978186217,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 50
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "4s"
+          },
+          "score": 8.713388978186217,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 50
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "7m"
+          },
+          "score": 8.666307669395355,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 57
+        }
+      ],
+      "dominated": [],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "2p"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        },
+        {
+          "type": "discard",
+          "tile": "7m"
+        }
+      ]
+    },
+    {
+      "seed": 95000,
+      "seat": 1,
+      "window": 14,
+      "identity": {
+        "seed": 440431375,
+        "style": "speed"
+      },
+      "previousRoute": "normal",
+      "baseline": {
+        "type": "discard",
+        "tile": "8s"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "8p"
+      },
+      "route": "normal",
+      "hand": [
+        "9m",
+        "S",
+        "8p",
+        "8m",
+        "S",
+        "3p",
+        "3m",
+        "8s",
+        "4m",
+        "4m",
+        "2m",
+        "4p",
+        "5m",
+        "7m"
+      ],
+      "players": [
+        {
+          "handCount": 13,
+          "flowers": [
+            "f5",
+            "B",
+            "f3"
+          ],
+          "melds": [],
+          "discards": [
+            "7m",
+            "2p",
+            "9p",
+            "7s"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 14,
+          "flowers": [
+            "f4"
+          ],
+          "melds": [],
+          "discards": [
+            "E",
+            "N",
+            "5s"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "B",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [
+            "E",
+            "N",
+            "8m"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f1",
+            "Z",
+            "B"
+          ],
+          "melds": [],
+          "discards": [
+            "W",
+            "N",
+            "5s"
+          ],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "wallCount": 69,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "9m"
+        },
+        {
+          "type": "discard",
+          "tile": "S"
+        },
+        {
+          "type": "discard",
+          "tile": "8p"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "3p"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "8s"
+        },
+        {
+          "type": "discard",
+          "tile": "4m"
+        },
+        {
+          "type": "discard",
+          "tile": "2m"
+        },
+        {
+          "type": "discard",
+          "tile": "4p"
+        },
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "7m"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": false,
+        "lastDraw": "7m",
+        "draw": {
+          "reason": "normal",
+          "flower": false,
+          "kongSource": null
+        }
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "8p"
+          },
+          "score": 10.498848127803523,
+          "risk": 0,
+          "route": "normal",
+          "distance": 1,
+          "effective": 14
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "8s"
+          },
+          "score": 10.498848127803523,
+          "risk": 0,
+          "route": "normal",
+          "distance": 1,
+          "effective": 14
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "4p"
+          },
+          "score": 8.785016018329488,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 54
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "4m"
+          },
+          "score": 8.427757554878642,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 58
+        }
+      ],
+      "dominated": [
+        {
+          "type": "discard",
+          "tile": "3p"
+        },
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "2m"
+        },
+        {
+          "type": "discard",
+          "tile": "S"
+        },
+        {
+          "type": "discard",
+          "tile": "7m"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        }
+      ],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "8p"
+        },
+        {
+          "type": "discard",
+          "tile": "8s"
+        }
+      ]
+    },
+    {
+      "seed": 95000,
+      "seat": 1,
+      "window": 19,
+      "identity": {
+        "seed": 440431375,
+        "style": "speed"
+      },
+      "previousRoute": "normal",
+      "baseline": {
+        "type": "discard",
+        "tile": "7m"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "3p"
+      },
+      "route": "hun:m",
+      "hand": [
+        "9m",
+        "S",
+        "8m",
+        "S",
+        "3p",
+        "3m",
+        "8s",
+        "4m",
+        "4m",
+        "2m",
+        "4p",
+        "5m",
+        "7m",
+        "7m"
+      ],
+      "players": [
+        {
+          "handCount": 13,
+          "flowers": [
+            "f5",
+            "B",
+            "f3"
+          ],
+          "melds": [],
+          "discards": [
+            "7m",
+            "2p",
+            "9p",
+            "7s",
+            "3s"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 14,
+          "flowers": [
+            "f4",
+            "f8"
+          ],
+          "melds": [],
+          "discards": [
+            "E",
+            "N",
+            "5s",
+            "8p"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "B",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [
+            "E",
+            "N",
+            "8m",
+            "9p"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f1",
+            "Z",
+            "B"
+          ],
+          "melds": [],
+          "discards": [
+            "W",
+            "N",
+            "5s",
+            "9p"
+          ],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "wallCount": 64,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "9m"
+        },
+        {
+          "type": "discard",
+          "tile": "S"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "3p"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "8s"
+        },
+        {
+          "type": "discard",
+          "tile": "4m"
+        },
+        {
+          "type": "discard",
+          "tile": "2m"
+        },
+        {
+          "type": "discard",
+          "tile": "4p"
+        },
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "7m"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": false,
+        "lastDraw": "7m",
+        "draw": {
+          "reason": "normal",
+          "flower": true,
+          "kongSource": null
+        }
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "3p"
+          },
+          "score": 11.541326242119057,
+          "risk": 0,
+          "route": "hun:m",
+          "distance": 2,
+          "effective": 27
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "4p"
+          },
+          "score": 11.541326242119057,
+          "risk": 0,
+          "route": "hun:m",
+          "distance": 2,
+          "effective": 27
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "8s"
+          },
+          "score": 11.541326242119057,
+          "risk": 0,
+          "route": "hun:m",
+          "distance": 2,
+          "effective": 27
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "7m"
+          },
+          "score": 10.085657060806007,
+          "risk": 0,
+          "route": "normal",
+          "distance": 1,
+          "effective": 14
+        }
+      ],
+      "dominated": [
+        {
+          "type": "discard",
+          "tile": "4m"
+        },
+        {
+          "type": "discard",
+          "tile": "2m"
+        },
+        {
+          "type": "discard",
+          "tile": "9m"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        }
+      ],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "3p"
+        },
+        {
+          "type": "discard",
+          "tile": "4p"
+        },
+        {
+          "type": "discard",
+          "tile": "8s"
+        }
+      ]
+    },
+    {
+      "seed": 95000,
+      "seat": 1,
+      "window": 24,
+      "identity": {
+        "seed": 440431375,
+        "style": "speed"
+      },
+      "previousRoute": "hun:m",
+      "baseline": {
+        "type": "discard",
+        "tile": "8s"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "2s"
+      },
+      "route": "hun:m",
+      "hand": [
+        "9m",
+        "S",
+        "8m",
+        "S",
+        "3m",
+        "8s",
+        "4m",
+        "4m",
+        "2m",
+        "4p",
+        "5m",
+        "7m",
+        "7m",
+        "2s"
+      ],
+      "players": [
+        {
+          "handCount": 13,
+          "flowers": [
+            "f5",
+            "B",
+            "f3"
+          ],
+          "melds": [],
+          "discards": [
+            "7m",
+            "2p",
+            "9p",
+            "7s",
+            "3s",
+            "9p"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 14,
+          "flowers": [
+            "f4",
+            "f8"
+          ],
+          "melds": [],
+          "discards": [
+            "E",
+            "N",
+            "5s",
+            "8p",
+            "3p"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "B",
+            "Z",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [
+            "E",
+            "N",
+            "8m",
+            "9p",
+            "6s"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f1",
+            "Z",
+            "B"
+          ],
+          "melds": [],
+          "discards": [
+            "W",
+            "N",
+            "5s",
+            "9p",
+            "6m"
+          ],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "wallCount": 59,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "9m"
+        },
+        {
+          "type": "discard",
+          "tile": "S"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "8s"
+        },
+        {
+          "type": "discard",
+          "tile": "4m"
+        },
+        {
+          "type": "discard",
+          "tile": "2m"
+        },
+        {
+          "type": "discard",
+          "tile": "4p"
+        },
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "7m"
+        },
+        {
+          "type": "discard",
+          "tile": "2s"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": false,
+        "lastDraw": "2s",
+        "draw": {
+          "reason": "normal",
+          "flower": false,
+          "kongSource": null
+        }
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "2s"
+          },
+          "score": 11.53241799345678,
+          "risk": 0,
+          "route": "hun:m",
+          "distance": 2,
+          "effective": 26
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "4p"
+          },
+          "score": 11.53241799345678,
+          "risk": 0,
+          "route": "hun:m",
+          "distance": 2,
+          "effective": 26
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "8s"
+          },
+          "score": 11.53241799345678,
+          "risk": 0,
+          "route": "hun:m",
+          "distance": 2,
+          "effective": 26
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "7m"
+          },
+          "score": 6.065881045370494,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 52
+        }
+      ],
+      "dominated": [
+        {
+          "type": "discard",
+          "tile": "4m"
+        }
+      ],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "2s"
+        },
+        {
+          "type": "discard",
+          "tile": "4p"
+        },
+        {
+          "type": "discard",
+          "tile": "8s"
+        }
+      ]
+    },
+    {
+      "seed": 95000,
+      "seat": 2,
+      "window": 11,
+      "identity": {
+        "seed": 3098098315,
+        "style": "speed"
+      },
+      "previousRoute": "normal",
+      "baseline": {
+        "type": "discard",
+        "tile": "8m"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "8s"
+      },
+      "route": "normal",
+      "hand": [
+        "1s",
+        "3p",
+        "1s",
+        "8p",
+        "7p",
+        "8p",
+        "9p",
+        "6p",
+        "8s",
+        "8m",
+        "6p",
+        "6s",
+        "1m",
+        "1m"
+      ],
+      "players": [
+        {
+          "handCount": 13,
+          "flowers": [
+            "f5",
+            "B"
+          ],
+          "melds": [],
+          "discards": [
+            "7m",
+            "2p",
+            "9p"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f4"
+          ],
+          "melds": [],
+          "discards": [
+            "E",
+            "N",
+            "5s"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 14,
+          "flowers": [
+            "B",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [
+            "E",
+            "N"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f1",
+            "Z",
+            "B"
+          ],
+          "melds": [],
+          "discards": [
+            "W",
+            "N"
+          ],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "wallCount": 73,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "1s"
+        },
+        {
+          "type": "discard",
+          "tile": "3p"
+        },
+        {
+          "type": "discard",
+          "tile": "8p"
+        },
+        {
+          "type": "discard",
+          "tile": "7p"
+        },
+        {
+          "type": "discard",
+          "tile": "9p"
+        },
+        {
+          "type": "discard",
+          "tile": "6p"
+        },
+        {
+          "type": "discard",
+          "tile": "8s"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "6s"
+        },
+        {
+          "type": "discard",
+          "tile": "1m"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": false,
+        "lastDraw": "1m",
+        "draw": {
+          "reason": "normal",
+          "flower": false,
+          "kongSource": null
+        }
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "8s"
+          },
+          "score": 1.2865837275225473,
+          "risk": 0,
+          "route": "normal",
+          "distance": 3,
+          "effective": 62
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "3p"
+          },
+          "score": 1.081266144431142,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 13
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "8m"
+          },
+          "score": 1.081266144431142,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 13
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "6s"
+          },
+          "score": 1.0654051200287977,
+          "risk": 0,
+          "route": "normal",
+          "distance": 3,
+          "effective": 59
+        }
+      ],
+      "dominated": [
+        {
+          "type": "discard",
+          "tile": "6p"
+        },
+        {
+          "type": "discard",
+          "tile": "8p"
+        },
+        {
+          "type": "discard",
+          "tile": "9p"
+        }
+      ],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "8s"
+        },
+        {
+          "type": "discard",
+          "tile": "3p"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "6s"
+        }
+      ]
+    },
+    {
+      "seed": 95000,
+      "seat": 2,
+      "window": 15,
+      "identity": {
+        "seed": 3098098315,
+        "style": "speed"
+      },
+      "previousRoute": "normal",
+      "baseline": {
+        "type": "discard",
+        "tile": "9p"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "6s"
+      },
+      "route": "pairs",
+      "hand": [
+        "1s",
+        "3p",
+        "1s",
+        "8p",
+        "7p",
+        "8p",
+        "9p",
+        "6p",
+        "8m",
+        "6p",
+        "6s",
+        "1m",
+        "1m",
+        "3p"
+      ],
+      "players": [
+        {
+          "handCount": 13,
+          "flowers": [
+            "f5",
+            "B",
+            "f3"
+          ],
+          "melds": [],
+          "discards": [
+            "7m",
+            "2p",
+            "9p",
+            "7s"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f4"
+          ],
+          "melds": [],
+          "discards": [
+            "E",
+            "N",
+            "5s",
+            "8s"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 14,
+          "flowers": [
+            "B",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [
+            "E",
+            "N",
+            "8s"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f1",
+            "Z",
+            "B"
+          ],
+          "melds": [],
+          "discards": [
+            "W",
+            "N",
+            "5s"
+          ],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "wallCount": 68,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "1s"
+        },
+        {
+          "type": "discard",
+          "tile": "3p"
+        },
+        {
+          "type": "discard",
+          "tile": "8p"
+        },
+        {
+          "type": "discard",
+          "tile": "7p"
+        },
+        {
+          "type": "discard",
+          "tile": "9p"
+        },
+        {
+          "type": "discard",
+          "tile": "6p"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "6s"
+        },
+        {
+          "type": "discard",
+          "tile": "1m"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": false,
+        "lastDraw": "3p",
+        "draw": {
+          "reason": "normal",
+          "flower": false,
+          "kongSource": null
+        }
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "6s"
+          },
+          "score": 9.714816800095258,
+          "risk": 0,
+          "route": "pairs",
+          "distance": 1,
+          "effective": 8
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "8m"
+          },
+          "score": 9.714816800095258,
+          "risk": 0,
+          "route": "pairs",
+          "distance": 1,
+          "effective": 8
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "9p"
+          },
+          "score": 9.031914823547272,
+          "risk": 0,
+          "route": "pairs",
+          "distance": 1,
+          "effective": 9
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "7p"
+          },
+          "score": 7.514816800095258,
+          "risk": 0,
+          "route": "pairs",
+          "distance": 1,
+          "effective": 8
+        }
+      ],
+      "dominated": [],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "6s"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "9p"
+        }
+      ]
+    },
+    {
+      "seed": 95000,
+      "seat": 3,
+      "window": 4,
+      "identity": {
+        "seed": 3541811095,
+        "style": "speed"
+      },
+      "previousRoute": null,
+      "baseline": {
+        "type": "discard",
+        "tile": "W"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "N"
+      },
+      "route": "normal",
+      "hand": [
+        "5s",
+        "8s",
+        "2s",
+        "1p",
+        "7s",
+        "2p",
+        "6m",
+        "N",
+        "3p",
+        "4s",
+        "9p",
+        "1m",
+        "6m",
+        "W"
+      ],
+      "players": [
+        {
+          "handCount": 13,
+          "flowers": [
+            "f5",
+            "B"
+          ],
+          "melds": [],
+          "discards": [
+            "7m"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f4"
+          ],
+          "melds": [],
+          "discards": [
+            "E"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "B",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [
+            "E"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 14,
+          "flowers": [
+            "f1",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "wallCount": 81,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "5s"
+        },
+        {
+          "type": "discard",
+          "tile": "8s"
+        },
+        {
+          "type": "discard",
+          "tile": "2s"
+        },
+        {
+          "type": "discard",
+          "tile": "1p"
+        },
+        {
+          "type": "discard",
+          "tile": "7s"
+        },
+        {
+          "type": "discard",
+          "tile": "2p"
+        },
+        {
+          "type": "discard",
+          "tile": "6m"
+        },
+        {
+          "type": "discard",
+          "tile": "N"
+        },
+        {
+          "type": "discard",
+          "tile": "3p"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        },
+        {
+          "type": "discard",
+          "tile": "9p"
+        },
+        {
+          "type": "discard",
+          "tile": "1m"
+        },
+        {
+          "type": "discard",
+          "tile": "W"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": false,
+        "lastDraw": "W",
+        "draw": {
+          "reason": "normal",
+          "flower": true,
+          "kongSource": null
+        }
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "N"
+          },
+          "score": -0.5133745205930555,
+          "risk": 0,
+          "route": "normal",
+          "distance": 3,
+          "effective": 58
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "W"
+          },
+          "score": -0.5133745205930555,
+          "risk": 0,
+          "route": "normal",
+          "distance": 3,
+          "effective": 58
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "1m"
+          },
+          "score": -1.2477430972854844,
+          "risk": 0,
+          "route": "normal",
+          "distance": 3,
+          "effective": 50
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "9p"
+          },
+          "score": -1.2477430972854844,
+          "risk": 0,
+          "route": "normal",
+          "distance": 3,
+          "effective": 50
+        }
+      ],
+      "dominated": [
+        {
+          "type": "discard",
+          "tile": "8s"
+        }
+      ],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "N"
+        },
+        {
+          "type": "discard",
+          "tile": "W"
+        },
+        {
+          "type": "discard",
+          "tile": "1m"
+        },
+        {
+          "type": "discard",
+          "tile": "9p"
+        }
+      ]
+    },
+    {
+      "seed": 95001,
+      "seat": 0,
+      "window": 1,
+      "identity": {
+        "seed": 1249090056,
+        "style": "speed"
+      },
+      "previousRoute": null,
+      "baseline": {
+        "type": "discard",
+        "tile": "S"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "N"
+      },
+      "route": "normal",
+      "hand": [
+        "5m",
+        "S",
+        "6p",
+        "3m",
+        "2m",
+        "5s",
+        "4m",
+        "N",
+        "4s",
+        "1s",
+        "9s",
+        "8m",
+        "5p",
+        "W"
+      ],
+      "players": [
+        {
+          "handCount": 14,
+          "flowers": [],
+          "melds": [],
+          "discards": [],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "F",
+            "f5",
+            "f1",
+            "Z"
+          ],
+          "melds": [],
+          "discards": [],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f8"
+          ],
+          "melds": [],
+          "discards": [],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "F",
+            "Z",
+            "F"
+          ],
+          "melds": [],
+          "discards": [],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "wallCount": 83,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "S"
+        },
+        {
+          "type": "discard",
+          "tile": "6p"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "2m"
+        },
+        {
+          "type": "discard",
+          "tile": "5s"
+        },
+        {
+          "type": "discard",
+          "tile": "4m"
+        },
+        {
+          "type": "discard",
+          "tile": "N"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        },
+        {
+          "type": "discard",
+          "tile": "1s"
+        },
+        {
+          "type": "discard",
+          "tile": "9s"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "5p"
+        },
+        {
+          "type": "discard",
+          "tile": "W"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": true,
+        "lastDraw": null,
+        "draw": null
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "N"
+          },
+          "score": -3.847214646541845,
+          "risk": 0,
+          "route": "normal",
+          "distance": 4,
+          "effective": 71
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "S"
+          },
+          "score": -3.847214646541845,
+          "risk": 0,
+          "route": "normal",
+          "distance": 4,
+          "effective": 71
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "W"
+          },
+          "score": -3.847214646541845,
+          "risk": 0,
+          "route": "normal",
+          "distance": 4,
+          "effective": 71
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "1s"
+          },
+          "score": -4.069429182189651,
+          "risk": 0,
+          "route": "normal",
+          "distance": 4,
+          "effective": 67
+        }
+      ],
+      "dominated": [
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "4m"
+        }
+      ],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "N"
+        },
+        {
+          "type": "discard",
+          "tile": "S"
+        },
+        {
+          "type": "discard",
+          "tile": "W"
+        },
+        {
+          "type": "discard",
+          "tile": "1s"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "9s"
+        }
+      ]
+    },
+    {
+      "seed": 95001,
+      "seat": 0,
+      "window": 13,
+      "identity": {
+        "seed": 1249090056,
+        "style": "speed"
+      },
+      "previousRoute": "normal",
+      "baseline": {
+        "type": "discard",
+        "tile": "8m"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "1p"
+      },
+      "route": "normal",
+      "hand": [
+        "5m",
+        "6p",
+        "3m",
+        "2m",
+        "5s",
+        "4m",
+        "4s",
+        "1s",
+        "9s",
+        "8m",
+        "5p",
+        "1p",
+        "6s",
+        "3m"
+      ],
+      "players": [
+        {
+          "handCount": 14,
+          "flowers": [],
+          "melds": [],
+          "discards": [
+            "N",
+            "S",
+            "W"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "F",
+            "f5",
+            "f1",
+            "Z",
+            "B",
+            "F",
+            "B"
+          ],
+          "melds": [],
+          "discards": [
+            "N",
+            "S",
+            "E"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f8"
+          ],
+          "melds": [],
+          "discards": [
+            "N",
+            "S",
+            "W"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "F",
+            "Z",
+            "F"
+          ],
+          "melds": [],
+          "discards": [
+            "N",
+            "2s",
+            "W"
+          ],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        970,
+        1010,
+        1010,
+        1010
+      ],
+      "wallCount": 68,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "6p"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "2m"
+        },
+        {
+          "type": "discard",
+          "tile": "5s"
+        },
+        {
+          "type": "discard",
+          "tile": "4m"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        },
+        {
+          "type": "discard",
+          "tile": "1s"
+        },
+        {
+          "type": "discard",
+          "tile": "9s"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "5p"
+        },
+        {
+          "type": "discard",
+          "tile": "1p"
+        },
+        {
+          "type": "discard",
+          "tile": "6s"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": false,
+        "lastDraw": "3m",
+        "draw": {
+          "reason": "normal",
+          "flower": false,
+          "kongSource": null
+        }
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "1p"
+          },
+          "score": 10.147061895098663,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 24
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "1s"
+          },
+          "score": 10.147061895098663,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 24
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "8m"
+          },
+          "score": 10.147061895098663,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 24
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "9s"
+          },
+          "score": 10.147061895098663,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 24
+        }
+      ],
+      "dominated": [
+        {
+          "type": "discard",
+          "tile": "6p"
+        },
+        {
+          "type": "discard",
+          "tile": "4m"
+        }
+      ],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "1p"
+        },
+        {
+          "type": "discard",
+          "tile": "1s"
+        },
+        {
+          "type": "discard",
+          "tile": "8m"
+        },
+        {
+          "type": "discard",
+          "tile": "9s"
+        }
+      ]
+    },
+    {
+      "seed": 95001,
+      "seat": 3,
+      "window": 8,
+      "identity": {
+        "seed": 1741096436,
+        "style": "speed"
+      },
+      "previousRoute": "normal",
+      "baseline": {
+        "type": "discard",
+        "tile": "2s"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "2m"
+      },
+      "route": "normal",
+      "hand": [
+        "2p",
+        "5m",
+        "9p",
+        "4s",
+        "2m",
+        "6m",
+        "5m",
+        "4p",
+        "4s",
+        "3p",
+        "2s",
+        "3m",
+        "7p",
+        "2s"
+      ],
+      "players": [
+        {
+          "handCount": 13,
+          "flowers": [],
+          "melds": [],
+          "discards": [
+            "S",
+            "N"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "F",
+            "f5",
+            "f1",
+            "Z",
+            "B",
+            "F"
+          ],
+          "melds": [],
+          "discards": [
+            "S",
+            "N"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f8"
+          ],
+          "melds": [],
+          "discards": [
+            "S",
+            "N"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 14,
+          "flowers": [
+            "F",
+            "Z",
+            "F"
+          ],
+          "melds": [],
+          "discards": [
+            "N"
+          ],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1010,
+        1010,
+        1010,
+        970
+      ],
+      "wallCount": 74,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "2p"
+        },
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "9p"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        },
+        {
+          "type": "discard",
+          "tile": "2m"
+        },
+        {
+          "type": "discard",
+          "tile": "6m"
+        },
+        {
+          "type": "discard",
+          "tile": "4p"
+        },
+        {
+          "type": "discard",
+          "tile": "3p"
+        },
+        {
+          "type": "discard",
+          "tile": "2s"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "7p"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": false,
+        "lastDraw": "2s",
+        "draw": {
+          "reason": "normal",
+          "flower": false,
+          "kongSource": null
+        }
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "2m"
+          },
+          "score": 4.192521537773754,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 22
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "3m"
+          },
+          "score": 4.192521537773754,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 22
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "6m"
+          },
+          "score": 4.192521537773754,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 22
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "7p"
+          },
+          "score": 4.192521537773754,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 22
+        }
+      ],
+      "dominated": [],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "2m"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "6m"
+        },
+        {
+          "type": "discard",
+          "tile": "7p"
+        },
+        {
+          "type": "discard",
+          "tile": "9p"
+        },
+        {
+          "type": "discard",
+          "tile": "2s"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        }
+      ]
+    },
+    {
+      "seed": 95001,
+      "seat": 3,
+      "window": 12,
+      "identity": {
+        "seed": 1741096436,
+        "style": "speed"
+      },
+      "previousRoute": "normal",
+      "baseline": {
+        "type": "discard",
+        "tile": "W"
+      },
+      "chosen": {
+        "type": "discard",
+        "tile": "3m"
+      },
+      "route": "normal",
+      "hand": [
+        "2p",
+        "5m",
+        "9p",
+        "4s",
+        "6m",
+        "5m",
+        "4p",
+        "4s",
+        "3p",
+        "2s",
+        "3m",
+        "7p",
+        "2s",
+        "W"
+      ],
+      "players": [
+        {
+          "handCount": 13,
+          "flowers": [],
+          "melds": [],
+          "discards": [
+            "S",
+            "N",
+            "W"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "F",
+            "f5",
+            "f1",
+            "Z",
+            "B",
+            "F",
+            "B"
+          ],
+          "melds": [],
+          "discards": [
+            "S",
+            "N",
+            "E"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 13,
+          "flowers": [
+            "f8"
+          ],
+          "melds": [],
+          "discards": [
+            "S",
+            "N",
+            "W"
+          ],
+          "ready": false,
+          "binding": null
+        },
+        {
+          "handCount": 14,
+          "flowers": [
+            "F",
+            "Z",
+            "F"
+          ],
+          "melds": [],
+          "discards": [
+            "N",
+            "2m"
+          ],
+          "ready": false,
+          "binding": null
+        }
+      ],
+      "balances": [
+        1010,
+        1010,
+        1010,
+        970
+      ],
+      "wallCount": 69,
+      "actions": [
+        {
+          "type": "discard",
+          "tile": "2p"
+        },
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "9p"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        },
+        {
+          "type": "discard",
+          "tile": "6m"
+        },
+        {
+          "type": "discard",
+          "tile": "4p"
+        },
+        {
+          "type": "discard",
+          "tile": "3p"
+        },
+        {
+          "type": "discard",
+          "tile": "2s"
+        },
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "7p"
+        },
+        {
+          "type": "discard",
+          "tile": "W"
+        }
+      ],
+      "response": null,
+      "context": {
+        "initialDealerTurn": false,
+        "lastDraw": "W",
+        "draw": {
+          "reason": "normal",
+          "flower": false,
+          "kongSource": null
+        }
+      },
+      "double": false,
+      "candidates": [
+        {
+          "action": {
+            "type": "discard",
+            "tile": "3m"
+          },
+          "score": 4.192521537773754,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 22
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "W"
+          },
+          "score": 4.192521537773754,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 22
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "6m"
+          },
+          "score": 3.054579562152176,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 18
+        },
+        {
+          "action": {
+            "type": "discard",
+            "tile": "5m"
+          },
+          "score": 1.7261185505308145,
+          "risk": 0,
+          "route": "normal",
+          "distance": 2,
+          "effective": 16
+        }
+      ],
+      "dominated": [
+        {
+          "type": "discard",
+          "tile": "6m"
+        },
+        {
+          "type": "discard",
+          "tile": "5m"
+        },
+        {
+          "type": "discard",
+          "tile": "7p"
+        },
+        {
+          "type": "discard",
+          "tile": "9p"
+        },
+        {
+          "type": "discard",
+          "tile": "2s"
+        },
+        {
+          "type": "discard",
+          "tile": "4s"
+        }
+      ],
+      "pool": [
+        {
+          "type": "discard",
+          "tile": "3m"
+        },
+        {
+          "type": "discard",
+          "tile": "W"
+        }
+      ]
+    }
+  ],
+  "sameStateRandomDiffs": [],
+  "ordinaryPairs": {
+    "compared": 1479,
+    "ties": 196,
+    "over30": 698,
+    "over30Ties": 0
+  },
+  "selectedIneligible": {},
+  "selectedClaims": {},
+  "newBindings": 0,
+  "conditionalClaims": 0,
+  "snapshotsChecked": 196,
+  "timing": {
+    "mean": 142.93339166666672,
+    "p95": 206.39419999999973,
+    "p99": 303.28499999999997,
+    "max": 303.28499999999997
+  }
+}

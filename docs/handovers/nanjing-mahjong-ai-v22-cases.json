@@ -1,0 +1,5303 @@
+{
+  "kind": "synthetic-fixed-observation",
+  "effectivePoints": {
+    "0": 0,
+    "3": 1.5807223743428787,
+    "7": 3.4568715143726982,
+    "30": 10.5,
+    "53": 13.771948869559047,
+    "60": 14.362734132300144,
+    "90": 15.783754606284576
+  },
+  "cases": [
+    {
+      "id": "C01",
+      "old": {
+        "action": {
+          "type": "discard",
+          "tile": "1p"
+        },
+        "pool": [
+          {
+            "type": "discard",
+            "tile": "1p"
+          },
+          {
+            "type": "discard",
+            "tile": "1s"
+          },
+          {
+            "type": "discard",
+            "tile": "2m"
+          },
+          {
+            "type": "discard",
+            "tile": "7p"
+          },
+          {
+            "type": "discard",
+            "tile": "E"
+          }
+        ],
+        "candidates": [
+          {
+            "action": {
+              "type": "discard",
+              "tile": "1p"
+            },
+            "score": -3.4211320754717,
+            "risk": 0,
+            "immediate": 0,
+            "routes": [
+              {
+                "route": "normal",
+                "reachable": true,
+                "distance": 3,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "1m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "3m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 60,
+                "reference": {
+                  "flowers": 22,
+                  "payment": {
+                    "selfDraw": 66,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 22
+                      },
+                      {
+                        "source": 2,
+                        "amount": 22
+                      },
+                      {
+                        "source": 3,
+                        "amount": 22
+                      }
+                    ]
+                  },
+                  "reference": 35.2,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 13.283018867924527,
+                "continuity": 1.5,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -3.4211320754717,
+                "validSmall": true
+              },
+              {
+                "route": "triplets",
+                "reachable": true,
+                "distance": 5,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "2m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 25,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 22.186666666666664,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -16.931600000000003,
+                "validSmall": true
+              },
+              {
+                "route": "doublePairs",
+                "reachable": true,
+                "distance": 4,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "2m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 24,
+                "reference": {
+                  "flowers": 102,
+                  "payment": {
+                    "selfDraw": 306,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 102
+                      },
+                      {
+                        "source": 2,
+                        "amount": 102
+                      },
+                      {
+                        "source": 3,
+                        "amount": 102
+                      }
+                    ]
+                  },
+                  "reference": 163.2,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 5.354999999999999,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 0.15,
+                "quadProgress": 0.7,
+                "score": -17.350900000000003,
+                "validSmall": true
+              },
+              {
+                "route": "pairs",
+                "reachable": true,
+                "distance": 4,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "2m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 23,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 3.8999999999999995,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 0.15,
+                "quadProgress": 1,
+                "score": -18.312000000000005,
+                "validSmall": true
+              },
+              {
+                "route": "hun:s",
+                "reachable": true,
+                "distance": 6,
+                "excess": [
+                  "2m",
+                  "2p",
+                  "7p",
+                  "7m",
+                  "6m",
+                  "2p"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  },
+                  {
+                    "tile": "S",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 4
+                  },
+                  {
+                    "tile": "N",
+                    "left": 3
+                  }
+                ],
+                "effective": 43,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 19.34883720930232,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -23.37348837209302,
+                "validSmall": true
+              },
+              {
+                "route": "qing:s",
+                "reachable": true,
+                "distance": 7,
+                "excess": [
+                  "2m",
+                  "E",
+                  "2p",
+                  "7p",
+                  "7m",
+                  "6m",
+                  "2p"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  }
+                ],
+                "effective": 29,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 20.453608247422675,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -30.259484536082475,
+                "validSmall": true
+              },
+              {
+                "route": "qing:m",
+                "reachable": true,
+                "distance": 8,
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "E",
+                  "2p",
+                  "7p",
+                  "1s",
+                  "4s",
+                  "2p"
+                ],
+                "draws": [],
+                "effective": 0,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.9185185185185184,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.614222222222224,
+                "validSmall": true
+              },
+              {
+                "route": "qing:p",
+                "reachable": true,
+                "distance": 8,
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "2m",
+                  "E",
+                  "7m",
+                  "6m",
+                  "1s",
+                  "4s"
+                ],
+                "draws": [],
+                "effective": 0,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.9185185185185184,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.614222222222224,
+                "validSmall": true
+              },
+              {
+                "route": "hun:m",
+                "reachable": true,
+                "distance": 8,
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "2p",
+                  "7p",
+                  "1s",
+                  "4s",
+                  "2p"
+                ],
+                "draws": [],
+                "effective": 0,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.7703703703703703,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.67644444444444,
+                "validSmall": true
+              },
+              {
+                "route": "hun:p",
+                "reachable": true,
+                "distance": 8,
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "2m",
+                  "7m",
+                  "6m",
+                  "1s",
+                  "4s"
+                ],
+                "draws": [],
+                "effective": 0,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.7703703703703703,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.67644444444444,
+                "validSmall": true
+              }
+            ]
+          },
+          {
+            "action": {
+              "type": "discard",
+              "tile": "2m"
+            },
+            "score": -3.4211320754717,
+            "risk": 0,
+            "immediate": 0,
+            "routes": [
+              {
+                "route": "normal",
+                "reachable": true,
+                "distance": 3,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "5m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 53,
+                "reference": {
+                  "flowers": 22,
+                  "payment": {
+                    "selfDraw": 66,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 22
+                      },
+                      {
+                        "source": 2,
+                        "amount": 22
+                      },
+                      {
+                        "source": 3,
+                        "amount": 22
+                      }
+                    ]
+                  },
+                  "reference": 35.2,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 13.283018867924527,
+                "continuity": 1.5,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -3.4211320754717,
+                "validSmall": true
+              },
+              {
+                "route": "triplets",
+                "reachable": true,
+                "distance": 5,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 25,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 22.186666666666664,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -16.931600000000003,
+                "validSmall": true
+              },
+              {
+                "route": "doublePairs",
+                "reachable": true,
+                "distance": 4,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 24,
+                "reference": {
+                  "flowers": 102,
+                  "payment": {
+                    "selfDraw": 306,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 102
+                      },
+                      {
+                        "source": 2,
+                        "amount": 102
+                      },
+                      {
+                        "source": 3,
+                        "amount": 102
+                      }
+                    ]
+                  },
+                  "reference": 163.2,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 5.354999999999999,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 0.15,
+                "quadProgress": 0.7,
+                "score": -17.350900000000003,
+                "validSmall": true
+              },
+              {
+                "route": "pairs",
+                "reachable": true,
+                "distance": 4,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 23,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 3.8999999999999995,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 0.15,
+                "quadProgress": 1,
+                "score": -18.312000000000005,
+                "validSmall": true
+              },
+              {
+                "route": "hun:s",
+                "reachable": true,
+                "distance": 6,
+                "excess": [
+                  "1p",
+                  "2p",
+                  "7p",
+                  "7m",
+                  "6m",
+                  "2p"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  },
+                  {
+                    "tile": "S",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 4
+                  },
+                  {
+                    "tile": "N",
+                    "left": 3
+                  }
+                ],
+                "effective": 43,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 19.34883720930232,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -23.37348837209302,
+                "validSmall": true
+              },
+              {
+                "route": "qing:s",
+                "reachable": true,
+                "distance": 7,
+                "excess": [
+                  "E",
+                  "1p",
+                  "2p",
+                  "7p",
+                  "7m",
+                  "6m",
+                  "2p"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  }
+                ],
+                "effective": 29,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 20.453608247422675,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -30.259484536082475,
+                "validSmall": true
+              },
+              {
+                "route": "hun:p",
+                "reachable": true,
+                "distance": 8,
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "7m",
+                  "6m",
+                  "1s",
+                  "4s"
+                ],
+                "draws": [
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  },
+                  {
+                    "tile": "S",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 4
+                  },
+                  {
+                    "tile": "N",
+                    "left": 3
+                  }
+                ],
+                "effective": 46,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 15.407407407407405,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -39.028888888888886,
+                "validSmall": true
+              },
+              {
+                "route": "qing:m",
+                "reachable": true,
+                "distance": 8,
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "E",
+                  "1p",
+                  "2p",
+                  "7p",
+                  "1s",
+                  "4s",
+                  "2p"
+                ],
+                "draws": [],
+                "effective": 0,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.9185185185185184,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.614222222222224,
+                "validSmall": true
+              },
+              {
+                "route": "qing:p",
+                "reachable": true,
+                "distance": 8,
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "E",
+                  "7m",
+                  "6m",
+                  "1s",
+                  "4s"
+                ],
+                "draws": [],
+                "effective": 0,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.9185185185185184,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.614222222222224,
+                "validSmall": true
+              },
+              {
+                "route": "hun:m",
+                "reachable": true,
+                "distance": 8,
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "1p",
+                  "2p",
+                  "7p",
+                  "1s",
+                  "4s",
+                  "2p"
+                ],
+                "draws": [],
+                "effective": 0,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.7703703703703703,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.67644444444444,
+                "validSmall": true
+              }
+            ]
+          }
+        ]
+      },
+      "current": {
+        "action": {
+          "type": "discard",
+          "tile": "E"
+        },
+        "pool": [
+          {
+            "type": "discard",
+            "tile": "E"
+          },
+          {
+            "type": "discard",
+            "tile": "1p"
+          },
+          {
+            "type": "discard",
+            "tile": "1s"
+          }
+        ],
+        "candidates": [
+          {
+            "action": {
+              "type": "discard",
+              "tile": "2m"
+            },
+            "projectedDiscard": null,
+            "score": -0.149183205912653,
+            "risk": 0,
+            "immediate": 0,
+            "conditionalGain": 0,
+            "binding": {
+              "binding": null,
+              "status": "unchanged",
+              "possibleSource": null
+            },
+            "uncertainty": {
+              "points": 0,
+              "basis": "无待裁定响应"
+            },
+            "branch": {
+              "kind": "committed-on-acceptance",
+              "success": {
+                "immediate": 0,
+                "balances": [
+                  1000,
+                  1000,
+                  1000,
+                  1000
+                ],
+                "replacement": null,
+                "terminal": false
+              }
+            },
+            "routes": [
+              {
+                "route": "normal",
+                "reachable": true,
+                "distance": 3,
+                "speedDistance": 3,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "5m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 53,
+                "drawScore": 13.771948869559047,
+                "reference": {
+                  "flowers": 22,
+                  "payment": {
+                    "selfDraw": 66,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 22
+                      },
+                      {
+                        "source": 2,
+                        "amount": 22
+                      },
+                      {
+                        "source": 3,
+                        "amount": 22
+                      }
+                    ]
+                  },
+                  "reference": 35.2,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 13.283018867924527,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 1.5,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -0.149183205912653,
+                "validSmall": true
+              },
+              {
+                "route": "triplets",
+                "reachable": true,
+                "distance": 5,
+                "speedDistance": 5,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 25,
+                "drawScore": 9.391750873721895,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 22.186666666666664,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -16.289849126278106,
+                "validSmall": true
+              },
+              {
+                "route": "doublePairs",
+                "reachable": true,
+                "distance": 4,
+                "speedDistance": 4,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 24,
+                "drawScore": 9.147061895098664,
+                "reference": {
+                  "flowers": 102,
+                  "payment": {
+                    "selfDraw": 306,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 102
+                      },
+                      {
+                        "source": 2,
+                        "amount": 102
+                      },
+                      {
+                        "source": 3,
+                        "amount": 102
+                      }
+                    ]
+                  },
+                  "reference": 163.2,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 5.354999999999999,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 0.15,
+                "quadProgress": 0.7,
+                "score": -16.603838104901335,
+                "validSmall": true
+              },
+              {
+                "route": "pairs",
+                "reachable": true,
+                "distance": 4,
+                "speedDistance": 4,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 23,
+                "drawScore": 8.894079155769479,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 3.8999999999999995,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 0.15,
+                "quadProgress": 1,
+                "score": -17.467920844230523,
+                "validSmall": true
+              },
+              {
+                "route": "hun:s",
+                "reachable": true,
+                "distance": 6,
+                "speedDistance": 6,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "1p",
+                  "2p",
+                  "7p",
+                  "7m",
+                  "6m",
+                  "2p"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  },
+                  {
+                    "tile": "S",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 4
+                  },
+                  {
+                    "tile": "N",
+                    "left": 3
+                  }
+                ],
+                "effective": 43,
+                "drawScore": 12.648881724946992,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 19.34883720930232,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -21.22460664714603,
+                "validSmall": true
+              },
+              {
+                "route": "qing:s",
+                "reachable": true,
+                "distance": 7,
+                "speedDistance": 7,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "E",
+                  "1p",
+                  "2p",
+                  "7p",
+                  "7m",
+                  "6m",
+                  "2p"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  }
+                ],
+                "effective": 29,
+                "drawScore": 10.292875251313284,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 20.453608247422675,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -30.11660928476919,
+                "validSmall": true
+              },
+              {
+                "route": "hun:p",
+                "reachable": true,
+                "distance": 8,
+                "speedDistance": 8,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "7m",
+                  "6m",
+                  "1s",
+                  "4s"
+                ],
+                "draws": [
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  },
+                  {
+                    "tile": "S",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 4
+                  },
+                  {
+                    "tile": "N",
+                    "left": 3
+                  }
+                ],
+                "effective": 46,
+                "drawScore": 13.025903855386149,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 15.407407407407405,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -36.50298503350274,
+                "validSmall": true
+              },
+              {
+                "route": "qing:m",
+                "reachable": true,
+                "distance": 8,
+                "speedDistance": 8,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "E",
+                  "1p",
+                  "2p",
+                  "7p",
+                  "1s",
+                  "4s",
+                  "2p"
+                ],
+                "draws": [],
+                "effective": 0,
+                "drawScore": 0,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.9185185185185184,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.614222222222224,
+                "validSmall": true
+              },
+              {
+                "route": "qing:p",
+                "reachable": true,
+                "distance": 8,
+                "speedDistance": 8,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "E",
+                  "7m",
+                  "6m",
+                  "1s",
+                  "4s"
+                ],
+                "draws": [],
+                "effective": 0,
+                "drawScore": 0,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.9185185185185184,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.614222222222224,
+                "validSmall": true
+              },
+              {
+                "route": "hun:m",
+                "reachable": true,
+                "distance": 8,
+                "speedDistance": 8,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "1p",
+                  "2p",
+                  "7p",
+                  "1s",
+                  "4s",
+                  "2p"
+                ],
+                "draws": [],
+                "effective": 0,
+                "drawScore": 0,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.7703703703703703,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.67644444444444,
+                "validSmall": true
+              }
+            ]
+          },
+          {
+            "action": {
+              "type": "discard",
+              "tile": "1p"
+            },
+            "projectedDiscard": null,
+            "score": 0.4416020568284438,
+            "risk": 0,
+            "immediate": 0,
+            "conditionalGain": 0,
+            "binding": {
+              "binding": null,
+              "status": "unchanged",
+              "possibleSource": null
+            },
+            "uncertainty": {
+              "points": 0,
+              "basis": "无待裁定响应"
+            },
+            "branch": {
+              "kind": "committed-on-acceptance",
+              "success": {
+                "immediate": 0,
+                "balances": [
+                  1000,
+                  1000,
+                  1000,
+                  1000
+                ],
+                "replacement": null,
+                "terminal": false
+              }
+            },
+            "routes": [
+              {
+                "route": "normal",
+                "reachable": true,
+                "distance": 3,
+                "speedDistance": 3,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "1m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "3m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 60,
+                "drawScore": 14.362734132300144,
+                "reference": {
+                  "flowers": 22,
+                  "payment": {
+                    "selfDraw": 66,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 22
+                      },
+                      {
+                        "source": 2,
+                        "amount": 22
+                      },
+                      {
+                        "source": 3,
+                        "amount": 22
+                      }
+                    ]
+                  },
+                  "reference": 35.2,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 13.283018867924527,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 1.5,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": 0.4416020568284438,
+                "validSmall": true
+              },
+              {
+                "route": "triplets",
+                "reachable": true,
+                "distance": 5,
+                "speedDistance": 5,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "2m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 25,
+                "drawScore": 9.391750873721895,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 22.186666666666664,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -16.289849126278106,
+                "validSmall": true
+              },
+              {
+                "route": "doublePairs",
+                "reachable": true,
+                "distance": 4,
+                "speedDistance": 4,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "2m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 24,
+                "drawScore": 9.147061895098664,
+                "reference": {
+                  "flowers": 102,
+                  "payment": {
+                    "selfDraw": 306,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 102
+                      },
+                      {
+                        "source": 2,
+                        "amount": 102
+                      },
+                      {
+                        "source": 3,
+                        "amount": 102
+                      }
+                    ]
+                  },
+                  "reference": 163.2,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 5.354999999999999,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 0.15,
+                "quadProgress": 0.7,
+                "score": -16.603838104901335,
+                "validSmall": true
+              },
+              {
+                "route": "pairs",
+                "reachable": true,
+                "distance": 4,
+                "speedDistance": 4,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "2m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 23,
+                "drawScore": 8.894079155769479,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 3.8999999999999995,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 0.15,
+                "quadProgress": 1,
+                "score": -17.467920844230523,
+                "validSmall": true
+              },
+              {
+                "route": "hun:s",
+                "reachable": true,
+                "distance": 6,
+                "speedDistance": 6,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "2m",
+                  "2p",
+                  "7p",
+                  "7m",
+                  "6m",
+                  "2p"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  },
+                  {
+                    "tile": "S",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 4
+                  },
+                  {
+                    "tile": "N",
+                    "left": 3
+                  }
+                ],
+                "effective": 43,
+                "drawScore": 12.648881724946992,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 19.34883720930232,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -21.22460664714603,
+                "validSmall": true
+              },
+              {
+                "route": "qing:s",
+                "reachable": true,
+                "distance": 7,
+                "speedDistance": 7,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "2m",
+                  "E",
+                  "2p",
+                  "7p",
+                  "7m",
+                  "6m",
+                  "2p"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  }
+                ],
+                "effective": 29,
+                "drawScore": 10.292875251313284,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 20.453608247422675,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -30.11660928476919,
+                "validSmall": true
+              },
+              {
+                "route": "qing:m",
+                "reachable": true,
+                "distance": 8,
+                "speedDistance": 8,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "E",
+                  "2p",
+                  "7p",
+                  "1s",
+                  "4s",
+                  "2p"
+                ],
+                "draws": [],
+                "effective": 0,
+                "drawScore": 0,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.9185185185185184,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.614222222222224,
+                "validSmall": true
+              },
+              {
+                "route": "qing:p",
+                "reachable": true,
+                "distance": 8,
+                "speedDistance": 8,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "2m",
+                  "E",
+                  "7m",
+                  "6m",
+                  "1s",
+                  "4s"
+                ],
+                "draws": [],
+                "effective": 0,
+                "drawScore": 0,
+                "reference": {
+                  "flowers": 62,
+                  "payment": {
+                    "selfDraw": 186,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 62
+                      },
+                      {
+                        "source": 2,
+                        "amount": 62
+                      },
+                      {
+                        "source": 3,
+                        "amount": 62
+                      }
+                    ]
+                  },
+                  "reference": 99.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.9185185185185184,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.614222222222224,
+                "validSmall": true
+              },
+              {
+                "route": "hun:m",
+                "reachable": true,
+                "distance": 8,
+                "speedDistance": 8,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "2p",
+                  "7p",
+                  "1s",
+                  "4s",
+                  "2p"
+                ],
+                "draws": [],
+                "effective": 0,
+                "drawScore": 0,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.7703703703703703,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.67644444444444,
+                "validSmall": true
+              },
+              {
+                "route": "hun:p",
+                "reachable": true,
+                "distance": 8,
+                "speedDistance": 8,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "4s",
+                  "9s",
+                  "8s",
+                  "4s",
+                  "2m",
+                  "7m",
+                  "6m",
+                  "1s",
+                  "4s"
+                ],
+                "draws": [],
+                "effective": 0,
+                "drawScore": 0,
+                "reference": {
+                  "flowers": 52,
+                  "payment": {
+                    "selfDraw": 156,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 52
+                      },
+                      {
+                        "source": 2,
+                        "amount": 52
+                      },
+                      {
+                        "source": 3,
+                        "amount": 52
+                      }
+                    ]
+                  },
+                  "reference": 83.19999999999999,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.7703703703703703,
+                "conditionalDiscount": 1,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -55.67644444444444,
+                "validSmall": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "C02",
+      "old": {
+        "action": {
+          "type": "pong"
+        },
+        "pool": [
+          {
+            "type": "pong"
+          }
+        ],
+        "candidates": [
+          {
+            "action": {
+              "type": "pong"
+            },
+            "projectedDiscard": "2p",
+            "score": 0.84032,
+            "risk": 0.6832,
+            "immediate": 0,
+            "routes": [
+              {
+                "route": "normal",
+                "reachable": true,
+                "distance": 0,
+                "excess": [],
+                "draws": [],
+                "effective": 0,
+                "reference": {
+                  "flowers": 14,
+                  "payment": {
+                    "selfDraw": 42,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 14
+                      },
+                      {
+                        "source": 1,
+                        "amount": 14
+                      },
+                      {
+                        "source": 2,
+                        "amount": 14
+                      }
+                    ]
+                  },
+                  "reference": 22.4,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.055999999999999994,
+                "continuity": 1.5,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": 0.84032,
+                "validSmall": false
+              },
+              {
+                "route": "triplets",
+                "reachable": true,
+                "distance": 3,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "2s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 2
+                  }
+                ],
+                "effective": 11,
+                "reference": {
+                  "flowers": 33,
+                  "payment": {
+                    "selfDraw": 99,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 33
+                      },
+                      {
+                        "source": 1,
+                        "amount": 33
+                      },
+                      {
+                        "source": 2,
+                        "amount": 33
+                      }
+                    ]
+                  },
+                  "reference": 52.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 3.984905660377358,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -16.15953962264151,
+                "validSmall": true
+              },
+              {
+                "route": "hun:s",
+                "reachable": true,
+                "distance": 4,
+                "excess": [
+                  "7p",
+                  "6p",
+                  "4p",
+                  "7p"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 1
+                  }
+                ],
+                "effective": 18,
+                "reference": {
+                  "flowers": 33,
+                  "payment": {
+                    "selfDraw": 99,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 33
+                      },
+                      {
+                        "source": 1,
+                        "amount": 33
+                      },
+                      {
+                        "source": 2,
+                        "amount": 33
+                      }
+                    ]
+                  },
+                  "reference": 52.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 3.3,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -20.9972,
+                "validSmall": true
+              },
+              {
+                "route": "hun:p",
+                "reachable": true,
+                "distance": 6,
+                "excess": [
+                  "7s",
+                  "3s",
+                  "7s",
+                  "2s",
+                  "7s",
+                  "4s"
+                ],
+                "draws": [
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "4p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "W",
+                    "left": 1
+                  }
+                ],
+                "effective": 16,
+                "reference": {
+                  "flowers": 33,
+                  "payment": {
+                    "selfDraw": 99,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 33
+                      },
+                      {
+                        "source": 1,
+                        "amount": 33
+                      },
+                      {
+                        "source": 2,
+                        "amount": 33
+                      }
+                    ]
+                  },
+                  "reference": 52.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 2.455813953488372,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -36.05175813953488,
+                "validSmall": true
+              },
+              {
+                "route": "hun:m",
+                "reachable": true,
+                "distance": 8,
+                "excess": [
+                  "7s",
+                  "3s",
+                  "7p",
+                  "7s",
+                  "6p",
+                  "4p",
+                  "2s",
+                  "7s",
+                  "7p",
+                  "4s"
+                ],
+                "draws": [],
+                "effective": 0,
+                "reference": {
+                  "flowers": 33,
+                  "payment": {
+                    "selfDraw": 99,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 33
+                      },
+                      {
+                        "source": 1,
+                        "amount": 33
+                      },
+                      {
+                        "source": 2,
+                        "amount": 33
+                      }
+                    ]
+                  },
+                  "reference": 52.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.09777777777777778,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -56.642133333333334,
+                "validSmall": true
+              },
+              {
+                "route": "qing:m",
+                "reachable": false
+              },
+              {
+                "route": "qing:s",
+                "reachable": false
+              },
+              {
+                "route": "qing:p",
+                "reachable": false
+              },
+              {
+                "route": "pairs",
+                "reachable": false
+              },
+              {
+                "route": "doublePairs",
+                "reachable": false
+              }
+            ]
+          }
+        ]
+      },
+      "current": {
+        "action": {
+          "type": "pass"
+        },
+        "pool": [
+          {
+            "type": "pass"
+          }
+        ],
+        "candidates": [
+          {
+            "action": {
+              "type": "pong"
+            },
+            "projectedDiscard": "2p",
+            "score": -8.7207,
+            "risk": 1.7207000000000001,
+            "immediate": 0,
+            "conditionalGain": 0,
+            "binding": {
+              "binding": null,
+              "status": "not-bound",
+              "possibleSource": null
+            },
+            "uncertainty": {
+              "points": 1.0375,
+              "basis": "其他家胡牌或更高优先级响应的不确定性，非概率",
+              "ready": 0,
+              "exposed": 1
+            },
+            "branch": {
+              "kind": "conditional-success",
+              "success": {
+                "immediate": 0,
+                "balances": [
+                  1000,
+                  1000,
+                  1000,
+                  1000
+                ],
+                "replacement": null,
+                "terminal": false
+              }
+            },
+            "routes": [
+              {
+                "route": "normal",
+                "reachable": true,
+                "distance": 0,
+                "speedDistance": 1,
+                "qualification": "qualification-gap",
+                "exhausted": [],
+                "insufficient": [
+                  "5p"
+                ],
+                "excess": [],
+                "draws": [],
+                "effective": 0,
+                "drawScore": 0,
+                "reference": null,
+                "referenceUnavailable": true,
+                "potential": 0,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -8.7207,
+                "validSmall": false
+              },
+              {
+                "route": "triplets",
+                "reachable": true,
+                "distance": 3,
+                "speedDistance": 3,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "2s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 2
+                  }
+                ],
+                "effective": 11,
+                "drawScore": 5.098827184272167,
+                "reference": {
+                  "flowers": 33,
+                  "payment": {
+                    "selfDraw": 99,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 33
+                      },
+                      {
+                        "source": 1,
+                        "amount": 33
+                      },
+                      {
+                        "source": 2,
+                        "amount": 33
+                      }
+                    ]
+                  },
+                  "reference": 52.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 2.5901886792452826,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -16.533993570444814,
+                "validSmall": true
+              },
+              {
+                "route": "hun:s",
+                "reachable": true,
+                "distance": 4,
+                "speedDistance": 4,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "7p",
+                  "6p",
+                  "4p",
+                  "7p"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 1
+                  }
+                ],
+                "effective": 18,
+                "drawScore": 7.494579562152177,
+                "reference": {
+                  "flowers": 33,
+                  "payment": {
+                    "selfDraw": 99,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 33
+                      },
+                      {
+                        "source": 1,
+                        "amount": 33
+                      },
+                      {
+                        "source": 2,
+                        "amount": 33
+                      }
+                    ]
+                  },
+                  "reference": 52.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 2.145,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -21.325220437847825,
+                "validSmall": true
+              },
+              {
+                "route": "hun:p",
+                "reachable": true,
+                "distance": 6,
+                "speedDistance": 6,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "7s",
+                  "3s",
+                  "7s",
+                  "2s",
+                  "7s",
+                  "4s"
+                ],
+                "draws": [
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "4p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "W",
+                    "left": 1
+                  }
+                ],
+                "effective": 16,
+                "drawScore": 6.866118550530816,
+                "reference": {
+                  "flowers": 33,
+                  "payment": {
+                    "selfDraw": 99,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 33
+                      },
+                      {
+                        "source": 1,
+                        "amount": 33
+                      },
+                      {
+                        "source": 2,
+                        "amount": 33
+                      }
+                    ]
+                  },
+                  "reference": 52.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 1.5962790697674418,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -36.18414424016686,
+                "validSmall": true
+              },
+              {
+                "route": "hun:m",
+                "reachable": true,
+                "distance": 8,
+                "speedDistance": 8,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "7s",
+                  "3s",
+                  "7p",
+                  "7s",
+                  "6p",
+                  "4p",
+                  "2s",
+                  "7s",
+                  "7p",
+                  "4s"
+                ],
+                "draws": [],
+                "effective": 0,
+                "drawScore": 0,
+                "reference": {
+                  "flowers": 33,
+                  "payment": {
+                    "selfDraw": 99,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 33
+                      },
+                      {
+                        "source": 1,
+                        "amount": 33
+                      },
+                      {
+                        "source": 2,
+                        "amount": 33
+                      }
+                    ]
+                  },
+                  "reference": 52.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.06355555555555556,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -57.69400666666667,
+                "validSmall": true
+              },
+              {
+                "route": "qing:m",
+                "reachable": false
+              },
+              {
+                "route": "qing:s",
+                "reachable": false
+              },
+              {
+                "route": "qing:p",
+                "reachable": false
+              },
+              {
+                "route": "pairs",
+                "reachable": false
+              },
+              {
+                "route": "doublePairs",
+                "reachable": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "C03",
+      "old": {
+        "action": {
+          "type": "pong"
+        },
+        "pool": [
+          {
+            "type": "pong"
+          }
+        ],
+        "candidates": [
+          {
+            "action": {
+              "type": "pong"
+            },
+            "projectedDiscard": "9p",
+            "score": 6.4776923076923065,
+            "risk": 0,
+            "immediate": 0,
+            "routes": [
+              {
+                "route": "normal",
+                "reachable": true,
+                "distance": 0,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "E",
+                    "left": 3,
+                    "scoreFlowers": 15
+                  }
+                ],
+                "effective": 3,
+                "reference": {
+                  "basis": "当前可成牌听张的静态假设",
+                  "scenarios": [
+                    {
+                      "tile": "E",
+                      "left": 3,
+                      "scoreFlowers": 15,
+                      "payment": {
+                        "selfDraw": 35,
+                        "discard": [
+                          {
+                            "source": 1,
+                            "amount": 5
+                          },
+                          {
+                            "source": 2,
+                            "amount": 15
+                          },
+                          {
+                            "source": 3,
+                            "amount": 15
+                          }
+                        ]
+                      },
+                      "reference": 18.666666666666664
+                    }
+                  ],
+                  "reference": 18.666666666666664
+                },
+                "referenceUnavailable": false,
+                "potential": 12.923076923076922,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": 6.4776923076923065,
+                "validSmall": true
+              },
+              {
+                "route": "triplets",
+                "reachable": true,
+                "distance": 2,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "4s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 12,
+                "reference": {
+                  "flowers": 34,
+                  "payment": {
+                    "selfDraw": 73,
+                    "discard": [
+                      {
+                        "source": 1,
+                        "amount": 5
+                      },
+                      {
+                        "source": 2,
+                        "amount": 34
+                      },
+                      {
+                        "source": 3,
+                        "amount": 34
+                      }
+                    ]
+                  },
+                  "reference": 38.93333333333333,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 12.835164835164832,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -4.409230769230771,
+                "validSmall": true
+              },
+              {
+                "route": "hun:m",
+                "reachable": true,
+                "distance": 3,
+                "excess": [
+                  "4s",
+                  "5s",
+                  "6s"
+                ],
+                "draws": [
+                  {
+                    "tile": "1m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "2m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "4m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  },
+                  {
+                    "tile": "S",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 4
+                  },
+                  {
+                    "tile": "N",
+                    "left": 4
+                  }
+                ],
+                "effective": 42,
+                "reference": {
+                  "flowers": 34,
+                  "payment": {
+                    "selfDraw": 73,
+                    "discard": [
+                      {
+                        "source": 1,
+                        "amount": 5
+                      },
+                      {
+                        "source": 2,
+                        "amount": 34
+                      },
+                      {
+                        "source": 3,
+                        "amount": 34
+                      }
+                    ]
+                  },
+                  "reference": 38.93333333333333,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 10.171262699564585,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -6.228069666182876,
+                "validSmall": true
+              },
+              {
+                "route": "qing:m",
+                "reachable": true,
+                "distance": 4,
+                "excess": [
+                  "4s",
+                  "5s",
+                  "6s",
+                  "E"
+                ],
+                "draws": [
+                  {
+                    "tile": "1m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "2m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "4m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9m",
+                    "left": 4
+                  }
+                ],
+                "effective": 27,
+                "reference": {
+                  "flowers": 44,
+                  "payment": {
+                    "selfDraw": 93,
+                    "discard": [
+                      {
+                        "source": 1,
+                        "amount": 5
+                      },
+                      {
+                        "source": 2,
+                        "amount": 44
+                      },
+                      {
+                        "source": 3,
+                        "amount": 44
+                      }
+                    ]
+                  },
+                  "reference": 49.599999999999994,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 10.730769230769228,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -14.043076923076924,
+                "validSmall": true
+              },
+              {
+                "route": "qing:s",
+                "reachable": false
+              },
+              {
+                "route": "qing:p",
+                "reachable": false
+              },
+              {
+                "route": "hun:s",
+                "reachable": false
+              },
+              {
+                "route": "hun:p",
+                "reachable": false
+              },
+              {
+                "route": "pairs",
+                "reachable": false
+              },
+              {
+                "route": "doublePairs",
+                "reachable": false
+              }
+            ]
+          }
+        ]
+      },
+      "current": {
+        "action": {
+          "type": "pass"
+        },
+        "pool": [
+          {
+            "type": "pass"
+          }
+        ],
+        "candidates": [
+          {
+            "action": {
+              "type": "pong"
+            },
+            "projectedDiscard": "9p",
+            "score": 2.0257223743428785,
+            "risk": 0.5,
+            "immediate": 0,
+            "conditionalGain": 0,
+            "binding": {
+              "binding": 1,
+              "status": "new",
+              "possibleSource": null
+            },
+            "uncertainty": {
+              "points": 0.5,
+              "basis": "其他家胡牌或更高优先级响应的不确定性，非概率",
+              "ready": 0,
+              "exposed": 0
+            },
+            "branch": {
+              "kind": "conditional-success",
+              "success": {
+                "immediate": 0,
+                "balances": [
+                  500,
+                  5,
+                  500,
+                  500
+                ],
+                "replacement": null,
+                "terminal": false
+              }
+            },
+            "routes": [
+              {
+                "route": "normal",
+                "reachable": true,
+                "distance": 0,
+                "speedDistance": 0,
+                "qualification": "legal-wait",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "E",
+                    "left": 3,
+                    "scoreFlowers": 15
+                  }
+                ],
+                "effective": 3,
+                "drawScore": 1.5807223743428787,
+                "reference": {
+                  "basis": "当前可成牌听张的静态假设",
+                  "scenarios": [
+                    {
+                      "tile": "E",
+                      "left": 3,
+                      "scoreFlowers": 15,
+                      "payment": {
+                        "selfDraw": 5,
+                        "discard": [
+                          {
+                            "source": 1,
+                            "amount": 5
+                          },
+                          {
+                            "source": 2,
+                            "amount": 5
+                          },
+                          {
+                            "source": 3,
+                            "amount": 5
+                          }
+                        ]
+                      },
+                      "reference": 5
+                    }
+                  ],
+                  "reference": 5
+                },
+                "referenceUnavailable": false,
+                "potential": 2.25,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": 2.0257223743428785,
+                "validSmall": true
+              },
+              {
+                "route": "triplets",
+                "reachable": true,
+                "distance": 2,
+                "speedDistance": 2,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "4s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "effective": 12,
+                "drawScore": 5.476233082880389,
+                "reference": {
+                  "flowers": 34,
+                  "payment": {
+                    "selfDraw": 5,
+                    "discard": [
+                      {
+                        "source": 1,
+                        "amount": 5
+                      },
+                      {
+                        "source": 2,
+                        "amount": 5
+                      },
+                      {
+                        "source": 3,
+                        "amount": 5
+                      }
+                    ]
+                  },
+                  "reference": 5,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 1.0714285714285714,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -8.573766917119611,
+                "validSmall": true
+              },
+              {
+                "route": "hun:m",
+                "reachable": true,
+                "distance": 3,
+                "speedDistance": 3,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "4s",
+                  "5s",
+                  "6s"
+                ],
+                "draws": [
+                  {
+                    "tile": "1m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "2m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "4m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  },
+                  {
+                    "tile": "S",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 4
+                  },
+                  {
+                    "tile": "N",
+                    "left": 4
+                  }
+                ],
+                "effective": 42,
+                "drawScore": 12.514593566254602,
+                "reference": {
+                  "flowers": 34,
+                  "payment": {
+                    "selfDraw": 5,
+                    "discard": [
+                      {
+                        "source": 1,
+                        "amount": 5
+                      },
+                      {
+                        "source": 2,
+                        "amount": 5
+                      },
+                      {
+                        "source": 3,
+                        "amount": 5
+                      }
+                    ]
+                  },
+                  "reference": 5,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.8490566037735848,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -8.628802660160494,
+                "validSmall": true
+              },
+              {
+                "route": "qing:m",
+                "reachable": true,
+                "distance": 4,
+                "speedDistance": 4,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "4s",
+                  "5s",
+                  "6s",
+                  "E"
+                ],
+                "draws": [
+                  {
+                    "tile": "1m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "2m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "4m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9m",
+                    "left": 4
+                  }
+                ],
+                "effective": 27,
+                "drawScore": 9.857326242119063,
+                "reference": {
+                  "flowers": 44,
+                  "payment": {
+                    "selfDraw": 5,
+                    "discard": [
+                      {
+                        "source": 1,
+                        "amount": 5
+                      },
+                      {
+                        "source": 2,
+                        "amount": 5
+                      },
+                      {
+                        "source": 3,
+                        "amount": 5
+                      }
+                    ]
+                  },
+                  "reference": 5,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 0.703125,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 0,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -18.347361257880934,
+                "validSmall": true
+              },
+              {
+                "route": "qing:s",
+                "reachable": false
+              },
+              {
+                "route": "qing:p",
+                "reachable": false
+              },
+              {
+                "route": "hun:s",
+                "reachable": false
+              },
+              {
+                "route": "hun:p",
+                "reachable": false
+              },
+              {
+                "route": "pairs",
+                "reachable": false
+              },
+              {
+                "route": "doublePairs",
+                "reachable": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "C04",
+      "old": {
+        "action": {
+          "type": "bukong",
+          "tile": "2s"
+        },
+        "pool": [
+          {
+            "type": "bukong",
+            "tile": "2s"
+          }
+        ],
+        "candidates": [
+          {
+            "action": {
+              "type": "bukong",
+              "tile": "2s"
+            },
+            "score": 11.091905707196029,
+            "risk": 0,
+            "immediate": 15,
+            "routes": [
+              {
+                "route": "normal",
+                "reachable": true,
+                "distance": 1,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "3m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "5m",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 2
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 1
+                  }
+                ],
+                "effective": 33,
+                "reference": {
+                  "flowers": 18,
+                  "payment": {
+                    "selfDraw": 54,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 18
+                      },
+                      {
+                        "source": 2,
+                        "amount": 18
+                      },
+                      {
+                        "source": 3,
+                        "amount": 18
+                      }
+                    ]
+                  },
+                  "reference": 28.799999999999997,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 9.147394540942926,
+                "continuity": 1.5,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": 11.091905707196029,
+                "validSmall": true
+              },
+              {
+                "route": "hun:s",
+                "reachable": true,
+                "distance": 3,
+                "excess": [
+                  "6p",
+                  "6p",
+                  "5m"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  },
+                  {
+                    "tile": "S",
+                    "left": 1
+                  },
+                  {
+                    "tile": "W",
+                    "left": 1
+                  }
+                ],
+                "effective": 26,
+                "reference": {
+                  "flowers": 37,
+                  "payment": {
+                    "selfDraw": 111,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 37
+                      },
+                      {
+                        "source": 2,
+                        "amount": 37
+                      },
+                      {
+                        "source": 3,
+                        "amount": 37
+                      }
+                    ]
+                  },
+                  "reference": 59.199999999999996,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 10.997968069666182,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -5.030853410740205,
+                "validSmall": true
+              },
+              {
+                "route": "triplets",
+                "reachable": true,
+                "distance": 3,
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "5m",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 1
+                  }
+                ],
+                "effective": 13,
+                "reference": {
+                  "flowers": 37,
+                  "payment": {
+                    "selfDraw": 111,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 37
+                      },
+                      {
+                        "source": 2,
+                        "amount": 37
+                      },
+                      {
+                        "source": 3,
+                        "amount": 37
+                      }
+                    ]
+                  },
+                  "reference": 59.199999999999996,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 10.997968069666182,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -9.580853410740204,
+                "validSmall": true
+              },
+              {
+                "route": "qing:m",
+                "reachable": false
+              },
+              {
+                "route": "qing:s",
+                "reachable": false
+              },
+              {
+                "route": "qing:p",
+                "reachable": false
+              },
+              {
+                "route": "hun:m",
+                "reachable": false
+              },
+              {
+                "route": "hun:p",
+                "reachable": false
+              },
+              {
+                "route": "pairs",
+                "reachable": false
+              },
+              {
+                "route": "doublePairs",
+                "reachable": false
+              }
+            ]
+          }
+        ]
+      },
+      "current": {
+        "action": {
+          "type": "discard",
+          "tile": "5m"
+        },
+        "pool": [
+          {
+            "type": "discard",
+            "tile": "5m"
+          }
+        ],
+        "candidates": [
+          {
+            "action": {
+              "type": "bukong",
+              "tile": "2s"
+            },
+            "projectedDiscard": null,
+            "score": 7.941253973397872,
+            "risk": 1.6,
+            "immediate": 0,
+            "conditionalGain": 15,
+            "binding": {
+              "binding": null,
+              "status": "unchanged",
+              "possibleSource": null
+            },
+            "uncertainty": {
+              "points": 1.6,
+              "basis": "公开信息下抢补杠不确定性，非概率",
+              "ready": 0,
+              "exposed": 0
+            },
+            "branch": {
+              "kind": "conditional-success",
+              "success": {
+                "immediate": 15,
+                "balances": [
+                  995,
+                  1015,
+                  995,
+                  995
+                ],
+                "replacement": "unknown",
+                "terminal": false
+              },
+              "robbed": {
+                "immediate": 0,
+                "meld": "pong",
+                "replacement": false,
+                "sourceInGarden": false,
+                "settlement": "抢杠胡家及牌型未知，按实际规则结算"
+              }
+            },
+            "routes": [
+              {
+                "route": "normal",
+                "reachable": true,
+                "distance": 1,
+                "speedDistance": 1,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "3m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "5m",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 2
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 1
+                  }
+                ],
+                "effective": 33,
+                "drawScore": 11.081515263720453,
+                "reference": {
+                  "flowers": 18,
+                  "payment": {
+                    "selfDraw": 54,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 18
+                      },
+                      {
+                        "source": 2,
+                        "amount": 18
+                      },
+                      {
+                        "source": 3,
+                        "amount": 18
+                      }
+                    ]
+                  },
+                  "reference": 28.799999999999997,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 5.945806451612902,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 1.4625,
+                "continuity": 1.5,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": 7.941253973397872,
+                "validSmall": true
+              },
+              {
+                "route": "hun:s",
+                "reachable": true,
+                "distance": 3,
+                "speedDistance": 3,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [
+                  "6p",
+                  "6p",
+                  "5m"
+                ],
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  },
+                  {
+                    "tile": "S",
+                    "left": 1
+                  },
+                  {
+                    "tile": "W",
+                    "left": 1
+                  }
+                ],
+                "effective": 26,
+                "drawScore": 9.62841799345678,
+                "reference": {
+                  "flowers": 37,
+                  "payment": {
+                    "selfDraw": 111,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 37
+                      },
+                      {
+                        "source": 2,
+                        "amount": 37
+                      },
+                      {
+                        "source": 3,
+                        "amount": 37
+                      }
+                    ]
+                  },
+                  "reference": 59.199999999999996,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 7.148679245283018,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 1.4625,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -8.50663672352435,
+                "validSmall": true
+              },
+              {
+                "route": "triplets",
+                "reachable": true,
+                "distance": 3,
+                "speedDistance": 3,
+                "qualification": "progress",
+                "exhausted": [],
+                "insufficient": [],
+                "excess": [],
+                "draws": [
+                  {
+                    "tile": "5m",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 1
+                  }
+                ],
+                "effective": 13,
+                "drawScore": 5.841266144431142,
+                "reference": {
+                  "flowers": 37,
+                  "payment": {
+                    "selfDraw": 111,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 37
+                      },
+                      {
+                        "source": 2,
+                        "amount": 37
+                      },
+                      {
+                        "source": 3,
+                        "amount": 37
+                      }
+                    ]
+                  },
+                  "reference": 59.199999999999996,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "referenceUnavailable": false,
+                "potential": 7.148679245283018,
+                "conditionalDiscount": 0.65,
+                "immediateCredit": 1.4625,
+                "continuity": 0,
+                "shapeCost": 0,
+                "pairProgress": 1,
+                "quadProgress": 1,
+                "score": -12.293788572549989,
+                "validSmall": true
+              },
+              {
+                "route": "qing:m",
+                "reachable": false
+              },
+              {
+                "route": "qing:s",
+                "reachable": false
+              },
+              {
+                "route": "qing:p",
+                "reachable": false
+              },
+              {
+                "route": "hun:m",
+                "reachable": false
+              },
+              {
+                "route": "hun:p",
+                "reachable": false
+              },
+              {
+                "route": "pairs",
+                "reachable": false
+              },
+              {
+                "route": "doublePairs",
+                "reachable": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

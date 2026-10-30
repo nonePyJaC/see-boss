@@ -263,6 +263,19 @@ test('可抢补杠收齐响应，抢胡后补杠不成立且没有杠钱', () =>
   assert.equal(g.players[0].melds[0].type, 'pong')
   assert.equal(g.ledger.filter((x) => x.event === '杠').length, 0)
 })
+test('补杠无人抢胡时只收一次杠款并从墙尾补牌', () => {
+  const initial = responseFixture()
+  initial.players[0].hand = ['E']
+  initial.players[0].melds = [{ type: 'pong', tiles: ['E','E','E'], from: 3 }]
+  initial.players[1].hand = []; initial.players[2].hand = []; initial.players[3].hand = []
+  initial.wall = ['1p', '2p']
+  const g = applyOnlineAction(initial, 0, { type: 'bukong', tile: 'E' })
+  assert.equal(g.players[0].melds[0].type, 'pongkong')
+  assert.deepEqual(g.balances, [1015,995,995,995])
+  assert.equal(g.ledger.filter((x) => x.event === '杠').length, 1)
+  assert.deepEqual(g.wall, ['1p'])
+  assert.ok(g.players[0].hand.includes('2p'))
+})
 test('抢园子玩家补杠由胡家向其余三人各付，仍是合法胡', () => {
   const initial = responseFixture()
   initial.players[0].melds = [{ type: 'pong', tiles: ['E', 'E', 'E'], from: 3 }]

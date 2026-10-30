@@ -113,9 +113,10 @@ test('A09 固定风格和种子重复决策可重现，只在接近候选中随�
   assert.ok(eligible[0].score - chosen.score <= POLICY_PARAMS.near)
   const different = new Set([0, .3, .6, .99].map((n) => decideMahjongV2(obs, { ...fixed, random: () => n }).action.tile))
   assert.ok(different.size > 1)
-  const fast = decideMahjongV2(obs, { ...opt, identity: { seed: 3, style: 'speed' } })
-  const value = decideMahjongV2(obs, { ...opt, identity: { seed: 3, style: 'value' } })
-  assert.equal(fast.route, 'normal'); assert.equal(value.route, 'qing:m')
+  const styleHand = ['4m','4m','6m','1m','1m','3m','3m','6m','6m','4m','3m','2s','3s','4s']
+  const fast = decideMahjongV2(observation(styleHand), { ...opt, randomize: false, identity: { seed: 3, style: 'speed' } })
+  const value = decideMahjongV2(observation(styleHand), { ...opt, randomize: false, identity: { seed: 3, style: 'value' } })
+  assert.equal(fast.route, 'normal'); assert.equal(value.route, 'triplets')
 })
 
 test('A10 之前路线只是小幅偏好，可因条件变化改线', () => {

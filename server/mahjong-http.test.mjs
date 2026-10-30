@@ -287,6 +287,58 @@ test('四真人以及一、二、三真人混合 AI 均能连续完成两手', a
   }
 })
 
+test('一真人与三个真实 v2.2 工作线程连续两手，恢复后继续', { timeout: 240000 }, async (t) => {
+  setMahjongAiDelay(0)
+  setMahjongPolicyRunner()
+  t.after(() => { setMahjongAiDelay(1200); setMahjongPolicyRunner() })
+  const uid = await register(96)
+  const created = await api('/api/room/create', { uid, me: { nickname: '房主' }, createCode: 'test-code',
+    cfg: { mode: 'online', gameType: 'nanjing', initialSeeds: 1000, dealerSeat: 0 } })
+  assert.equal(created.ok, true, created.error)
+  const host = credential(created.data, uid)
+  t.after(() => { const room = rooms.get(host.roomId); if (room?.mjTimer) clearTimeout(room.mjTimer); rooms.delete(host.roomId) })
+  for (let i = 0; i < 3; i++) assert.equal((await api('/api/room/add-ai', host)).ok, true)
+  let identity = { matchId: created.data.matchId, handId: 0 }, restored = false
+  for (let hand = 1; hand <= 2; hand++) {
+    assert.equal((await api('/api/mahjong/ready', { ...host, ...identity })).ok, true)
+    let response = await api('/api/room/start', { ...host, ...identity })
+    assert.equal(response.ok, true, response.error)
+    let state = response.data, steps = 0
+    while (state.phase !== 'finished' && steps++ < 15000) {
+      response = await api('/api/room/state', host)
+      assert.equal(response.ok, true, response.error)
+      state = response.data
+      if (state.phase === 'finished') break
+      const actions = state.myActions ?? []
+      if (actions.length) {
+        const action = actions.find((a) => a.type === 'pass') ?? actions.find((a) => a.type === 'discard') ?? actions[0]
+        response = await api('/api/room/action', { ...host, matchId: state.matchId, handId: state.handId, windowId: state.windowId, action })
+        if (response.ok) state = response.data
+        if (!restored && state.windowId > 5 && state.phase !== 'finished') {
+          const room = rooms.get(host.roomId), snapshot = loadRoomSnapshot(host.roomId)
+          if (room.mjTimer) clearTimeout(room.mjTimer)
+          rooms.delete(host.roomId)
+          assert.ok(restoreRoom(snapshot)); restored = true
+        }
+      } else await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    assert.equal(state.phase, 'finished', `第 ${hand} 手未结束`)
+    assert.equal(state.result.matchOver, false)
+    assert.equal(state.balances.reduce((a,b) => a+b, 0), 4000)
+    identity = { matchId: state.matchId, handId: state.handId }
+  }
+  assert.ok(restored)
+  const reviewDir = path.join(process.env.HAMSTER_DATA_DIR, 'ai-reviews')
+  const records = fs.readdirSync(reviewDir).flatMap((name) => fs.readFileSync(path.join(reviewDir, name), 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse))
+    .filter((record) => record.room === host.roomId && record.model === POLICY_VERSION)
+  for (const hand of [1,2]) {
+    const decisions = records.filter((r) => r.hand === hand).map((r) => JSON.parse(r.input.messages[0].content).diagnostic)
+    assert.ok(decisions.some((d) => !d.fallback && d.candidates?.length), `第 ${hand} 手没有真实策略评分`)
+  }
+  assert.equal(rawDb().prepare("SELECT COUNT(*) AS n FROM history WHERE mode='mahjong' AND room_no=?").get(host.roomId).n, 2)
+  await api('/api/room/leave', host)
+})
+
 test('同房重开生成新场次，旧战绩保留并拒绝旧场请求', async () => {
   const uid = await register(60)
   const created = await api('/api/room/create', { uid, me: { nickname: '房主' }, createCode: 'test-code',

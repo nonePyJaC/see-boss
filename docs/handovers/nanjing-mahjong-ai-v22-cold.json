@@ -1,0 +1,156 @@
+{
+  "kind": "synthetic-cold-workers",
+  "count": 24,
+  "illegal": 0,
+  "fallbacks": {},
+  "mean": 240.11445000000006,
+  "p95": 307.0517,
+  "p99": 320.08100000000013,
+  "max": 320.08100000000013,
+  "samples": [
+    {
+      "seed": 22000,
+      "ms": 240.55589999999998,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22001,
+      "ms": 289.81479999999993,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22002,
+      "ms": 230.6879,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22003,
+      "ms": 196.47739999999988,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22004,
+      "ms": 228.98520000000008,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22005,
+      "ms": 232.68650000000002,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22006,
+      "ms": 213.81150000000002,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22007,
+      "ms": 170.16730000000007,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22008,
+      "ms": 195.98440000000005,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22009,
+      "ms": 264.6315999999997,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22010,
+      "ms": 307.0517,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22011,
+      "ms": 281.9142999999999,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22012,
+      "ms": 320.08100000000013,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22013,
+      "ms": 246.95659999999998,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22014,
+      "ms": 219.23649999999998,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22015,
+      "ms": 243.83029999999962,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22016,
+      "ms": 209.49010000000044,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22017,
+      "ms": 182.96690000000035,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22018,
+      "ms": 250.39180000000033,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22019,
+      "ms": 225.29600000000028,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22020,
+      "ms": 245.71640000000025,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22021,
+      "ms": 275.9890999999998,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22022,
+      "ms": 286.27970000000005,
+      "fallback": null,
+      "legal": true
+    },
+    {
+      "seed": 22023,
+      "ms": 203.7439000000004,
+      "fallback": null,
+      "legal": true
+    }
+  ]
+}

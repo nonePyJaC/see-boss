@@ -1,0 +1,1491 @@
+{
+  "kind": "synthetic",
+  "version": "nanjing-local-policy-v2.2",
+  "mode": "baseline",
+  "style": "balanced",
+  "baseline": "c6f842b2b97e82997bcb4e27518a6782d92ca317",
+  "groups": 12,
+  "startSeed": 93000,
+  "games": 48,
+  "elapsedMs": 15004,
+  "illegal": 0,
+  "stale": 0,
+  "fallback": 0,
+  "decisions": 456,
+  "draws": 0,
+  "wins": {
+    "v1": 36,
+    "v2": 12
+  },
+  "winKinds": {
+    "v2:discard": 10,
+    "v1:discard": 30,
+    "v2:selfDraw": 2,
+    "v1:selfDraw": 6
+  },
+  "flowers": {
+    "v1": [
+      25,
+      25,
+      25,
+      40,
+      40,
+      40,
+      23,
+      23,
+      23,
+      18,
+      18,
+      18,
+      15,
+      15,
+      15,
+      25,
+      25,
+      25,
+      25,
+      25,
+      25,
+      23,
+      23,
+      23,
+      25,
+      25,
+      25,
+      21,
+      21,
+      21,
+      24,
+      24,
+      24,
+      21,
+      21,
+      21
+    ],
+    "v2": [
+      25,
+      40,
+      23,
+      18,
+      15,
+      25,
+      25,
+      23,
+      25,
+      21,
+      24,
+      21
+    ]
+  },
+  "net": {
+    "v1": 0,
+    "v2": 0
+  },
+  "seatNetV2": [
+    139,
+    -45,
+    -21,
+    -73
+  ],
+  "lossFromDiscard": {
+    "v1": 732,
+    "v2": 244
+  },
+  "paymentReasons": {
+    "点炮": 976,
+    "bu杠": 60,
+    "自摸": 492,
+    "ming杠": 80
+  },
+  "routes": {},
+  "changes": 0,
+  "comparison": {
+    "differing": 0,
+    "slowerShape": 0,
+    "sameShape": 0,
+    "quickerShape": 0
+  },
+  "bigChosen": 0,
+  "bigAbandoned": 0,
+  "bigCompleted": 0,
+  "bigFailed": 0,
+  "dominated": 0,
+  "randomizedPools": 0,
+  "randomizedSelections": 0,
+  "sameStateRandomComparison": {
+    "compared": 0,
+    "changed": 0,
+    "fallback": 0
+  },
+  "completedTypes": {
+    "门清": 36,
+    "无花果": 4
+  },
+  "styles": {
+    "balanced": {
+      "decisions": 456,
+      "actions": {
+        "discard": 403,
+        "win": 12,
+        "pass": 31,
+        "pong": 7,
+        "bukong": 1,
+        "kong": 2
+      },
+      "routes": {}
+    }
+  },
+  "records": [
+    {
+      "seed": 93000,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": 25,
+      "balances": [
+        1025,
+        1000,
+        975,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 12
+    },
+    {
+      "seed": 93000,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1025,
+        1000,
+        975,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 12
+    },
+    {
+      "seed": 93000,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": -25,
+      "balances": [
+        1025,
+        1000,
+        975,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 12
+    },
+    {
+      "seed": 93000,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1025,
+        1000,
+        975,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 12
+    },
+    {
+      "seed": 93001,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1000,
+        960,
+        1040,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 40,
+          "types": [
+            "无花果"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 39
+    },
+    {
+      "seed": 93001,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": -40,
+      "balances": [
+        1000,
+        960,
+        1040,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 40,
+          "types": [
+            "无花果"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 39
+    },
+    {
+      "seed": 93001,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": 40,
+      "balances": [
+        1000,
+        960,
+        1040,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 40,
+          "types": [
+            "无花果"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 39
+    },
+    {
+      "seed": 93001,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1000,
+        960,
+        1040,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 40,
+          "types": [
+            "无花果"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 39
+    },
+    {
+      "seed": 93002,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1000,
+        1000,
+        977,
+        1023
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 3,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 47
+    },
+    {
+      "seed": 93002,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1000,
+        1000,
+        977,
+        1023
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 3,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 47
+    },
+    {
+      "seed": 93002,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": -23,
+      "balances": [
+        1000,
+        1000,
+        977,
+        1023
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 3,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 47
+    },
+    {
+      "seed": 93002,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": 23,
+      "balances": [
+        1000,
+        1000,
+        977,
+        1023
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 3,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 47
+    },
+    {
+      "seed": 93003,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": 69,
+      "balances": [
+        1069,
+        977,
+        977,
+        977
+      ],
+      "outcome": "win",
+      "kind": "selfDraw",
+      "source": null,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 18,
+          "types": []
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 31
+    },
+    {
+      "seed": 93003,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": -23,
+      "balances": [
+        1069,
+        977,
+        977,
+        977
+      ],
+      "outcome": "win",
+      "kind": "selfDraw",
+      "source": null,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 18,
+          "types": []
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 31
+    },
+    {
+      "seed": 93003,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": -23,
+      "balances": [
+        1069,
+        977,
+        977,
+        977
+      ],
+      "outcome": "win",
+      "kind": "selfDraw",
+      "source": null,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 18,
+          "types": []
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 31
+    },
+    {
+      "seed": 93003,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": -23,
+      "balances": [
+        1069,
+        977,
+        977,
+        977
+      ],
+      "outcome": "win",
+      "kind": "selfDraw",
+      "source": null,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 18,
+          "types": []
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 31
+    },
+    {
+      "seed": 93004,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": 10,
+      "balances": [
+        1010,
+        985,
+        1005,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 15,
+          "types": []
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 37
+    },
+    {
+      "seed": 93004,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": -15,
+      "balances": [
+        1010,
+        985,
+        1005,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 15,
+          "types": []
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 37
+    },
+    {
+      "seed": 93004,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": 5,
+      "balances": [
+        1010,
+        985,
+        1005,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 15,
+          "types": []
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 37
+    },
+    {
+      "seed": 93004,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1010,
+        985,
+        1005,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 1,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 15,
+          "types": []
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 37
+    },
+    {
+      "seed": 93005,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1000,
+        1025,
+        975,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 1,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 42
+    },
+    {
+      "seed": 93005,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": 25,
+      "balances": [
+        1000,
+        1025,
+        975,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 1,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 42
+    },
+    {
+      "seed": 93005,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": -25,
+      "balances": [
+        1000,
+        1025,
+        975,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 1,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 42
+    },
+    {
+      "seed": 93005,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1000,
+        1025,
+        975,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 1,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 42
+    },
+    {
+      "seed": 93006,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1000,
+        1000,
+        1025,
+        975
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 47
+    },
+    {
+      "seed": 93006,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1000,
+        1000,
+        1025,
+        975
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 47
+    },
+    {
+      "seed": 93006,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": 25,
+      "balances": [
+        1000,
+        1000,
+        1025,
+        975
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 47
+    },
+    {
+      "seed": 93006,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": -25,
+      "balances": [
+        1000,
+        1000,
+        1025,
+        975
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 47
+    },
+    {
+      "seed": 93007,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": 69,
+      "balances": [
+        1069,
+        977,
+        977,
+        977
+      ],
+      "outcome": "win",
+      "kind": "selfDraw",
+      "source": null,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 38
+    },
+    {
+      "seed": 93007,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": -23,
+      "balances": [
+        1069,
+        977,
+        977,
+        977
+      ],
+      "outcome": "win",
+      "kind": "selfDraw",
+      "source": null,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 38
+    },
+    {
+      "seed": 93007,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": -23,
+      "balances": [
+        1069,
+        977,
+        977,
+        977
+      ],
+      "outcome": "win",
+      "kind": "selfDraw",
+      "source": null,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 38
+    },
+    {
+      "seed": 93007,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": -23,
+      "balances": [
+        1069,
+        977,
+        977,
+        977
+      ],
+      "outcome": "win",
+      "kind": "selfDraw",
+      "source": null,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 23,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 38
+    },
+    {
+      "seed": 93008,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1000,
+        1000,
+        1025,
+        975
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 32
+    },
+    {
+      "seed": 93008,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1000,
+        1000,
+        1025,
+        975
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 32
+    },
+    {
+      "seed": 93008,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": 25,
+      "balances": [
+        1000,
+        1000,
+        1025,
+        975
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 32
+    },
+    {
+      "seed": 93008,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": -25,
+      "balances": [
+        1000,
+        1000,
+        1025,
+        975
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 3,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 25,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 32
+    },
+    {
+      "seed": 93009,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": 21,
+      "balances": [
+        1021,
+        1000,
+        979,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 21,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 37
+    },
+    {
+      "seed": 93009,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1021,
+        1000,
+        979,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 21,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 37
+    },
+    {
+      "seed": 93009,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": -21,
+      "balances": [
+        1021,
+        1000,
+        979,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 21,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 37
+    },
+    {
+      "seed": 93009,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        1021,
+        1000,
+        979,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 2,
+      "winners": [
+        {
+          "seat": 0,
+          "flowers": 21,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 37
+    },
+    {
+      "seed": 93010,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": -34,
+      "balances": [
+        966,
+        1010,
+        1024,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 0,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 24,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 51
+    },
+    {
+      "seed": 93010,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": 10,
+      "balances": [
+        966,
+        1010,
+        1024,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 0,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 24,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 51
+    },
+    {
+      "seed": 93010,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": 24,
+      "balances": [
+        966,
+        1010,
+        1024,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 0,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 24,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 51
+    },
+    {
+      "seed": 93010,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        966,
+        1010,
+        1024,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 0,
+      "winners": [
+        {
+          "seat": 2,
+          "flowers": 24,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 51
+    },
+    {
+      "seed": 93011,
+      "v2Seat": 0,
+      "style": "balanced",
+      "v2Net": -21,
+      "balances": [
+        979,
+        1021,
+        1000,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 0,
+      "winners": [
+        {
+          "seat": 1,
+          "flowers": 21,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 43
+    },
+    {
+      "seed": 93011,
+      "v2Seat": 1,
+      "style": "balanced",
+      "v2Net": 21,
+      "balances": [
+        979,
+        1021,
+        1000,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 0,
+      "winners": [
+        {
+          "seat": 1,
+          "flowers": 21,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 43
+    },
+    {
+      "seed": 93011,
+      "v2Seat": 2,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        979,
+        1021,
+        1000,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 0,
+      "winners": [
+        {
+          "seat": 1,
+          "flowers": 21,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 43
+    },
+    {
+      "seed": 93011,
+      "v2Seat": 3,
+      "style": "balanced",
+      "v2Net": 0,
+      "balances": [
+        979,
+        1021,
+        1000,
+        1000
+      ],
+      "outcome": "win",
+      "kind": "discard",
+      "source": 0,
+      "winners": [
+        {
+          "seat": 1,
+          "flowers": 21,
+          "types": [
+            "门清"
+          ]
+        }
+      ],
+      "everBig": false,
+      "lastRoute": null,
+      "targetCompleted": false,
+      "steps": 43
+    }
+  ],
+  "decisionDiffs": [],
+  "sameStateRandomDiffs": [],
+  "ordinaryPairs": {
+    "compared": 0,
+    "ties": 0,
+    "over30": 0,
+    "over30Ties": 0
+  },
+  "selectedIneligible": {},
+  "selectedClaims": {
+    "pong": 7,
+    "bukong": 1,
+    "kong": 2
+  },
+  "newBindings": 0,
+  "conditionalClaims": 0,
+  "snapshotsChecked": 1824,
+  "timing": {
+    "mean": 7.024385307017507,
+    "p95": 44.3761999999997,
+    "p99": 63.139300000000276,
+    "max": 84.8677000000007
+  }
+}

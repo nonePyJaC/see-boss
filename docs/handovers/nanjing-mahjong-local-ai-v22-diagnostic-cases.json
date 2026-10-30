@@ -1,0 +1,1617 @@
+{
+  "kind": "synthetic-diagnostic",
+  "createdDate": "2026-10-30",
+  "policyVersion": "nanjing-local-policy-v2.1",
+  "sourceCommit": "f7ccf178aece5c38bb73ed250754861463b14792",
+  "scope": "只由合成对照的已保存公开字段重建，C03为另行构造。不是生产牌谱或历史完整原始输入。原对照未保存events/dealer，未自行补造。3000ms仅用于本轮离线完整诊断，不修改500ms生产预算。 observed仅保留与问题相关候选及必要路线，非完整诊断列表。",
+  "cases": [
+    {
+      "id": "C01",
+      "topic": "30张硬封顶使60与53张进张被评同分",
+      "source": "nanjing-mahjong-ai-v21-training-random.json#sameStateRandomDiffs",
+      "recordKey": {
+        "seed": 91000,
+        "seat": 1,
+        "window": 9
+      },
+      "observation": {
+        "seat": 1,
+        "phase": "turn",
+        "players": [
+          {
+            "handCount": 13,
+            "flowers": [
+              "f3",
+              "f8"
+            ],
+            "melds": [],
+            "discards": [
+              "1m",
+              "5m"
+            ],
+            "ready": false,
+            "binding": null
+          },
+          {
+            "handCount": 14,
+            "flowers": [
+              "F",
+              "F"
+            ],
+            "melds": [],
+            "discards": [
+              "N"
+            ],
+            "ready": false,
+            "binding": null
+          },
+          {
+            "handCount": 13,
+            "flowers": [
+              "f2"
+            ],
+            "melds": [],
+            "discards": [
+              "9m"
+            ],
+            "ready": false,
+            "binding": null
+          },
+          {
+            "handCount": 13,
+            "flowers": [
+              "f6",
+              "B",
+              "Z"
+            ],
+            "melds": [],
+            "discards": [
+              "8s"
+            ],
+            "ready": false,
+            "binding": null
+          }
+        ],
+        "myHand": [
+          "4s",
+          "9s",
+          "8s",
+          "4s",
+          "2m",
+          "E",
+          "1p",
+          "2p",
+          "7p",
+          "7m",
+          "6m",
+          "1s",
+          "4s",
+          "2p"
+        ],
+        "myActions": [
+          {
+            "type": "discard",
+            "tile": "4s"
+          },
+          {
+            "type": "discard",
+            "tile": "9s"
+          },
+          {
+            "type": "discard",
+            "tile": "8s"
+          },
+          {
+            "type": "discard",
+            "tile": "2m"
+          },
+          {
+            "type": "discard",
+            "tile": "E"
+          },
+          {
+            "type": "discard",
+            "tile": "1p"
+          },
+          {
+            "type": "discard",
+            "tile": "2p"
+          },
+          {
+            "type": "discard",
+            "tile": "7p"
+          },
+          {
+            "type": "discard",
+            "tile": "7m"
+          },
+          {
+            "type": "discard",
+            "tile": "6m"
+          },
+          {
+            "type": "discard",
+            "tile": "1s"
+          }
+        ],
+        "balances": [
+          1000,
+          1000,
+          1000,
+          1000
+        ],
+        "wallCount": 78,
+        "response": null,
+        "myContext": {
+          "initialDealerTurn": false,
+          "lastDraw": "2p",
+          "draw": {
+            "reason": "normal",
+            "flower": true,
+            "kongSource": null
+          }
+        },
+        "double": false
+      },
+      "options": {
+        "identity": {
+          "seed": 952905614,
+          "style": "balanced"
+        },
+        "previousRoute": "normal",
+        "observationId": "91000:1:9:1",
+        "budgetMs": 3000,
+        "randomize": false
+      },
+      "observed": {
+        "action": {
+          "type": "discard",
+          "tile": "1p"
+        },
+        "route": "normal",
+        "fallback": null,
+        "candidates": [
+          {
+            "action": {
+              "type": "discard",
+              "tile": "1p"
+            },
+            "score": -3.4211320754717,
+            "risk": 0,
+            "immediate": 0,
+            "topRoutes": [
+              {
+                "route": "normal",
+                "distance": 3,
+                "effective": 60,
+                "draws": [
+                  {
+                    "tile": "1m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "3m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 1.5,
+                "reference": {
+                  "flowers": 22,
+                  "payment": {
+                    "selfDraw": 66,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 22
+                      },
+                      {
+                        "source": 2,
+                        "amount": 22
+                      },
+                      {
+                        "source": 3,
+                        "amount": 22
+                      }
+                    ]
+                  },
+                  "reference": 35.2,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "potential": 13.283018867924527,
+                "score": -3.4211320754717
+              }
+            ]
+          },
+          {
+            "action": {
+              "type": "discard",
+              "tile": "2m"
+            },
+            "score": -3.4211320754717,
+            "risk": 0,
+            "immediate": 0,
+            "topRoutes": [
+              {
+                "route": "normal",
+                "distance": 3,
+                "effective": 53,
+                "draws": [
+                  {
+                    "tile": "5m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "1p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 1.5,
+                "reference": {
+                  "flowers": 22,
+                  "payment": {
+                    "selfDraw": 66,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 22
+                      },
+                      {
+                        "source": 2,
+                        "amount": 22
+                      },
+                      {
+                        "source": 3,
+                        "amount": 22
+                      }
+                    ]
+                  },
+                  "reference": 35.2,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "potential": 13.283018867924527,
+                "score": -3.4211320754717
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "C02",
+      "topic": "3硬花碰后无合法胡张，仍被零向听和连贯奖励选中",
+      "source": "nanjing-mahjong-ai-v21-holdout-routes.json#decisionDiffs",
+      "recordKey": {
+        "seed": 92001,
+        "seat": 3,
+        "window": 69
+      },
+      "observation": {
+        "seat": 3,
+        "phase": "response",
+        "players": [
+          {
+            "handCount": 13,
+            "flowers": [
+              "f3",
+              "F",
+              "Z"
+            ],
+            "melds": [],
+            "discards": [
+              "2m",
+              "2s",
+              "2m",
+              "5p",
+              "N",
+              "S",
+              "6s",
+              "8s",
+              "3p",
+              "3m",
+              "1p",
+              "2m",
+              "9p",
+              "8p",
+              "4p",
+              "S"
+            ],
+            "ready": false,
+            "binding": null
+          },
+          {
+            "handCount": 13,
+            "flowers": [
+              "f2",
+              "F",
+              "F",
+              "f7"
+            ],
+            "melds": [],
+            "discards": [
+              "1m",
+              "6s",
+              "8p",
+              "2s",
+              "E",
+              "W",
+              "5m",
+              "8s",
+              "4m",
+              "W",
+              "1p",
+              "1s",
+              "3p",
+              "4m",
+              "3m"
+            ],
+            "ready": false,
+            "binding": null
+          },
+          {
+            "handCount": 10,
+            "flowers": [
+              "B",
+              "Z",
+              "f4",
+              "B",
+              "Z",
+              "F",
+              "f5"
+            ],
+            "melds": [
+              {
+                "type": "pong",
+                "tiles": [
+                  "9p",
+                  "9p",
+                  "9p"
+                ],
+                "from": 3
+              }
+            ],
+            "discards": [
+              "2p",
+              "5m",
+              "1p",
+              "1m",
+              "1p",
+              "N",
+              "1s",
+              "9m",
+              "4s",
+              "5p",
+              "9m",
+              "8m",
+              "N",
+              "E",
+              "2m",
+              "3m"
+            ],
+            "ready": false,
+            "binding": null
+          },
+          {
+            "handCount": 13,
+            "flowers": [
+              "f6",
+              "B",
+              "B"
+            ],
+            "melds": [],
+            "discards": [
+              "1m",
+              "4m",
+              "9m",
+              "E",
+              "7m",
+              "8s",
+              "W",
+              "1m",
+              "1s",
+              "E",
+              "8m",
+              "N",
+              "8m",
+              "4s",
+              "4s"
+            ],
+            "ready": false,
+            "binding": null
+          }
+        ],
+        "myHand": [
+          "7s",
+          "3s",
+          "7p",
+          "7s",
+          "6p",
+          "S",
+          "4p",
+          "2s",
+          "S",
+          "7s",
+          "7p",
+          "2p",
+          "4s"
+        ],
+        "myActions": [
+          {
+            "type": "pong"
+          },
+          {
+            "type": "pass"
+          }
+        ],
+        "balances": [
+          1000,
+          1000,
+          1000,
+          1000
+        ],
+        "wallCount": 13,
+        "response": {
+          "kind": "discard",
+          "source": 0,
+          "tile": "S",
+          "sourceInGarden": false
+        },
+        "myContext": null,
+        "double": false
+      },
+      "options": {
+        "identity": {
+          "seed": 4282845482,
+          "style": "balanced"
+        },
+        "previousRoute": "normal",
+        "observationId": "92001:3:69:3",
+        "budgetMs": 3000,
+        "randomize": false
+      },
+      "observed": {
+        "action": {
+          "type": "pong"
+        },
+        "route": "normal",
+        "fallback": null,
+        "candidates": [
+          {
+            "action": {
+              "type": "pong"
+            },
+            "projectedDiscard": "2p",
+            "score": 0.84032,
+            "risk": 0.6832,
+            "immediate": 0,
+            "topRoutes": [
+              {
+                "route": "normal",
+                "distance": 0,
+                "effective": 0,
+                "draws": [],
+                "validSmall": false,
+                "continuity": 1.5,
+                "reference": {
+                  "flowers": 14,
+                  "payment": {
+                    "selfDraw": 42,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 14
+                      },
+                      {
+                        "source": 1,
+                        "amount": 14
+                      },
+                      {
+                        "source": 2,
+                        "amount": 14
+                      }
+                    ]
+                  },
+                  "reference": 22.4,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "potential": 0.055999999999999994,
+                "score": 0.84032
+              },
+              {
+                "route": "triplets",
+                "distance": 3,
+                "effective": 11,
+                "draws": [
+                  {
+                    "tile": "2s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 2
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 0,
+                "reference": {
+                  "flowers": 33,
+                  "payment": {
+                    "selfDraw": 99,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 33
+                      },
+                      {
+                        "source": 1,
+                        "amount": 33
+                      },
+                      {
+                        "source": 2,
+                        "amount": 33
+                      }
+                    ]
+                  },
+                  "reference": 52.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "potential": 3.984905660377358,
+                "score": -16.15953962264151
+              },
+              {
+                "route": "hun:s",
+                "distance": 4,
+                "effective": 18,
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "2s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "9s",
+                    "left": 4
+                  },
+                  {
+                    "tile": "W",
+                    "left": 1
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 0,
+                "reference": {
+                  "flowers": 33,
+                  "payment": {
+                    "selfDraw": 99,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 33
+                      },
+                      {
+                        "source": 1,
+                        "amount": 33
+                      },
+                      {
+                        "source": 2,
+                        "amount": 33
+                      }
+                    ]
+                  },
+                  "reference": 52.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "potential": 3.3,
+                "score": -20.9972
+              }
+            ]
+          },
+          {
+            "action": {
+              "type": "pass"
+            },
+            "score": -0.7056774193548394,
+            "risk": 0,
+            "immediate": 0,
+            "topRoutes": [
+              {
+                "route": "normal",
+                "distance": 1,
+                "effective": 8,
+                "draws": [
+                  {
+                    "tile": "3p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 2
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 1.5,
+                "reference": {
+                  "flowers": 23,
+                  "payment": {
+                    "selfDraw": 69,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 23
+                      },
+                      {
+                        "source": 1,
+                        "amount": 23
+                      },
+                      {
+                        "source": 2,
+                        "amount": 23
+                      }
+                    ]
+                  },
+                  "reference": 36.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "potential": 4.748387096774193,
+                "score": -0.7056774193548394
+              },
+              {
+                "route": "doublePairs",
+                "distance": 3,
+                "effective": 12,
+                "draws": [
+                  {
+                    "tile": "2s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "4p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 3
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 0,
+                "reference": {
+                  "flowers": 103,
+                  "payment": {
+                    "selfDraw": 309,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 103
+                      },
+                      {
+                        "source": 1,
+                        "amount": 103
+                      },
+                      {
+                        "source": 2,
+                        "amount": 103
+                      }
+                    ]
+                  },
+                  "reference": 164.8,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "potential": 1.7412830188679245,
+                "score": -16.068661132075473
+              },
+              {
+                "route": "pairs",
+                "distance": 3,
+                "effective": 11,
+                "draws": [
+                  {
+                    "tile": "2s",
+                    "left": 1
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "2p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "4p",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 3
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 0,
+                "reference": {
+                  "flowers": 53,
+                  "payment": {
+                    "selfDraw": 159,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 53
+                      },
+                      {
+                        "source": 1,
+                        "amount": 53
+                      },
+                      {
+                        "source": 2,
+                        "amount": 53
+                      }
+                    ]
+                  },
+                  "reference": 84.79999999999998,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "potential": 1.2799999999999996,
+                "score": -16.6124
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "C03",
+      "topic": "第三嘴候选后应更新绑定与付款上限",
+      "source": "本轮自建合成公开观察",
+      "recordKey": {
+        "seed": "constructed-third-feed",
+        "seat": 0,
+        "window": 1
+      },
+      "observation": {
+        "seat": 0,
+        "phase": "response",
+        "players": [
+          {
+            "melds": [
+              {
+                "type": "pong",
+                "tiles": [
+                  "1m",
+                  "1m",
+                  "1m"
+                ],
+                "from": 1
+              },
+              {
+                "type": "pong",
+                "tiles": [
+                  "2m",
+                  "2m",
+                  "2m"
+                ],
+                "from": 1
+              }
+            ],
+            "flowers": [
+              "Z",
+              "F",
+              "B",
+              "f1"
+            ],
+            "discards": [],
+            "binding": null,
+            "ready": false
+          },
+          {
+            "melds": [],
+            "flowers": [],
+            "discards": [
+              "3m"
+            ],
+            "binding": null,
+            "ready": false
+          },
+          {
+            "melds": [],
+            "flowers": [],
+            "discards": [],
+            "binding": null,
+            "ready": false
+          },
+          {
+            "melds": [],
+            "flowers": [],
+            "discards": [],
+            "binding": null,
+            "ready": false
+          }
+        ],
+        "myHand": [
+          "3m",
+          "3m",
+          "4s",
+          "5s",
+          "6s",
+          "E",
+          "9p"
+        ],
+        "myActions": [
+          {
+            "type": "pong"
+          },
+          {
+            "type": "pass"
+          }
+        ],
+        "balances": [
+          500,
+          5,
+          500,
+          500
+        ],
+        "wallCount": 45,
+        "response": {
+          "kind": "discard",
+          "source": 1,
+          "tile": "3m",
+          "sourceInGarden": false
+        },
+        "myContext": null,
+        "double": false
+      },
+      "options": {
+        "identity": {
+          "seed": 1,
+          "style": "balanced"
+        },
+        "previousRoute": null,
+        "observationId": "constructed-third-feed:0:1:0",
+        "budgetMs": 3000,
+        "randomize": false
+      },
+      "observed": {
+        "action": {
+          "type": "pong"
+        },
+        "route": "normal",
+        "fallback": null,
+        "candidates": [
+          {
+            "action": {
+              "type": "pong"
+            },
+            "projectedDiscard": "9p",
+            "score": 6.4776923076923065,
+            "risk": 0,
+            "immediate": 0,
+            "topRoutes": [
+              {
+                "route": "normal",
+                "distance": 0,
+                "effective": 3,
+                "draws": [
+                  {
+                    "tile": "E",
+                    "left": 3,
+                    "scoreFlowers": 15
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 0,
+                "reference": {
+                  "basis": "当前可成牌听张的静态假设",
+                  "scenarios": [
+                    {
+                      "tile": "E",
+                      "left": 3,
+                      "scoreFlowers": 15,
+                      "payment": {
+                        "selfDraw": 35,
+                        "discard": [
+                          {
+                            "source": 1,
+                            "amount": 5
+                          },
+                          {
+                            "source": 2,
+                            "amount": 15
+                          },
+                          {
+                            "source": 3,
+                            "amount": 15
+                          }
+                        ]
+                      },
+                      "reference": 18.666666666666664
+                    }
+                  ],
+                  "reference": 18.666666666666664
+                },
+                "potential": 12.923076923076922,
+                "score": 6.4776923076923065
+              }
+            ]
+          },
+          {
+            "action": {
+              "type": "pass"
+            },
+            "score": 1.7517369727047138,
+            "risk": 0,
+            "immediate": 0,
+            "topRoutes": [
+              {
+                "route": "normal",
+                "distance": 1,
+                "effective": 15,
+                "draws": [
+                  {
+                    "tile": "3m",
+                    "left": 1
+                  },
+                  {
+                    "tile": "7p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "8p",
+                    "left": 4
+                  },
+                  {
+                    "tile": "9p",
+                    "left": 3
+                  },
+                  {
+                    "tile": "E",
+                    "left": 3
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 0,
+                "reference": {
+                  "flowers": 15,
+                  "payment": {
+                    "selfDraw": 35,
+                    "discard": [
+                      {
+                        "source": 1,
+                        "amount": 5
+                      },
+                      {
+                        "source": 2,
+                        "amount": 15
+                      },
+                      {
+                        "source": 3,
+                        "amount": 15
+                      }
+                    ]
+                  },
+                  "reference": 18.666666666666664,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "potential": 8.337468982630272,
+                "score": 1.7517369727047138
+              }
+            ]
+          }
+        ]
+      },
+      "expectedAfterSuccessfulPong": {
+        "binding": 1,
+        "share": 15,
+        "payment": {
+          "selfDraw": 5,
+          "discard": [
+            {
+              "source": 1,
+              "amount": 5
+            },
+            {
+              "source": 2,
+              "amount": 5
+            },
+            {
+              "source": 3,
+              "amount": 5
+            }
+          ]
+        }
+      },
+      "note": "不要求固定选碰或过；要求候选成立后的收付按新责任计算。"
+    },
+    {
+      "id": "C04",
+      "topic": "补杠的15瓜子属于成功条件分支，不能作为已确定收款",
+      "source": "nanjing-mahjong-ai-v21-holdout-routes.json#decisionDiffs",
+      "recordKey": {
+        "seed": 92004,
+        "seat": 1,
+        "window": 49
+      },
+      "observation": {
+        "seat": 1,
+        "phase": "turn",
+        "players": [
+          {
+            "handCount": 13,
+            "flowers": [
+              "f1",
+              "F",
+              "f6",
+              "Z",
+              "B",
+              "f2"
+            ],
+            "melds": [],
+            "discards": [
+              "7m",
+              "1s",
+              "N",
+              "9p",
+              "6p",
+              "6m",
+              "1m",
+              "9p",
+              "8p",
+              "8p"
+            ],
+            "ready": false,
+            "binding": null
+          },
+          {
+            "handCount": 8,
+            "flowers": [
+              "f3",
+              "F",
+              "B",
+              "B",
+              "f7"
+            ],
+            "melds": [
+              {
+                "type": "pong",
+                "tiles": [
+                  "2s",
+                  "2s",
+                  "2s"
+                ],
+                "from": 2
+              },
+              {
+                "type": "pong",
+                "tiles": [
+                  "S",
+                  "S",
+                  "S"
+                ],
+                "from": 3
+              }
+            ],
+            "discards": [
+              "1m",
+              "1p",
+              "9p",
+              "8s",
+              "3p",
+              "7s",
+              "4s",
+              "7p",
+              "E",
+              "2p",
+              "4m"
+            ],
+            "ready": false,
+            "binding": null
+          },
+          {
+            "handCount": 13,
+            "flowers": [
+              "f4",
+              "F",
+              "B"
+            ],
+            "melds": [],
+            "discards": [
+              "W",
+              "N",
+              "1p",
+              "1s",
+              "8m",
+              "7p",
+              "7m",
+              "9s",
+              "2p",
+              "W"
+            ],
+            "ready": false,
+            "binding": null
+          },
+          {
+            "handCount": 13,
+            "flowers": [
+              "Z",
+              "Z",
+              "f5",
+              "f8",
+              "Z"
+            ],
+            "melds": [],
+            "discards": [
+              "W",
+              "N",
+              "8m",
+              "6s",
+              "8m",
+              "N",
+              "1p",
+              "3p",
+              "5m"
+            ],
+            "ready": false,
+            "binding": null
+          }
+        ],
+        "myHand": [
+          "6p",
+          "6p",
+          "5m",
+          "5s",
+          "3s",
+          "4s",
+          "6s",
+          "2s"
+        ],
+        "myActions": [
+          {
+            "type": "bukong",
+            "tile": "2s"
+          },
+          {
+            "type": "discard",
+            "tile": "6p"
+          },
+          {
+            "type": "discard",
+            "tile": "5m"
+          },
+          {
+            "type": "discard",
+            "tile": "5s"
+          },
+          {
+            "type": "discard",
+            "tile": "3s"
+          },
+          {
+            "type": "discard",
+            "tile": "4s"
+          },
+          {
+            "type": "discard",
+            "tile": "6s"
+          },
+          {
+            "type": "discard",
+            "tile": "2s"
+          }
+        ],
+        "balances": [
+          1000,
+          1000,
+          1000,
+          1000
+        ],
+        "wallCount": 32,
+        "response": null,
+        "myContext": {
+          "initialDealerTurn": false,
+          "lastDraw": "2s",
+          "draw": {
+            "reason": "normal",
+            "flower": true,
+            "kongSource": null
+          }
+        },
+        "double": false
+      },
+      "options": {
+        "identity": {
+          "seed": 2638496297,
+          "style": "balanced"
+        },
+        "previousRoute": "normal",
+        "observationId": "92004:1:49:1",
+        "budgetMs": 3000,
+        "randomize": false
+      },
+      "observed": {
+        "action": {
+          "type": "bukong",
+          "tile": "2s"
+        },
+        "route": "normal",
+        "fallback": null,
+        "candidates": [
+          {
+            "action": {
+              "type": "bukong",
+              "tile": "2s"
+            },
+            "score": 11.091905707196029,
+            "risk": 0,
+            "immediate": 15,
+            "topRoutes": [
+              {
+                "route": "normal",
+                "distance": 1,
+                "effective": 33,
+                "draws": [
+                  {
+                    "tile": "3m",
+                    "left": 4
+                  },
+                  {
+                    "tile": "4m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "5m",
+                    "left": 2
+                  },
+                  {
+                    "tile": "6m",
+                    "left": 3
+                  },
+                  {
+                    "tile": "7m",
+                    "left": 2
+                  },
+                  {
+                    "tile": "1s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "3s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "5s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6s",
+                    "left": 2
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "8s",
+                    "left": 3
+                  },
+                  {
+                    "tile": "6p",
+                    "left": 1
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 1.5,
+                "reference": {
+                  "flowers": 18,
+                  "payment": {
+                    "selfDraw": 54,
+                    "discard": [
+                      {
+                        "source": 0,
+                        "amount": 18
+                      },
+                      {
+                        "source": 2,
+                        "amount": 18
+                      },
+                      {
+                        "source": 3,
+                        "amount": 18
+                      }
+                    ]
+                  },
+                  "reference": 28.799999999999997,
+                  "basis": "示例牌型与当前余额的静态假设，未来成牌未知"
+                },
+                "potential": 9.147394540942926,
+                "score": 11.091905707196029
+              }
+            ]
+          },
+          {
+            "action": {
+              "type": "discard",
+              "tile": "5m"
+            },
+            "score": 9.243292307692307,
+            "risk": 0,
+            "immediate": 0,
+            "topRoutes": [
+              {
+                "route": "normal",
+                "distance": 0,
+                "effective": 7,
+                "draws": [
+                  {
+                    "tile": "1s",
+                    "left": 2,
+                    "scoreFlowers": 16
+                  },
+                  {
+                    "tile": "4s",
+                    "left": 2,
+                    "scoreFlowers": 16
+                  },
+                  {
+                    "tile": "7s",
+                    "left": 3,
+                    "scoreFlowers": 16
+                  }
+                ],
+                "validSmall": true,
+                "continuity": 1.5,
+                "reference": {
+                  "basis": "当前可成牌听张的静态假设",
+                  "scenarios": [
+                    {
+                      "tile": "1s",
+                      "left": 2,
+                      "scoreFlowers": 16,
+                      "payment": {
+                        "selfDraw": 48,
+                        "discard": [
+                          {
+                            "source": 0,
+                            "amount": 16
+                          },
+                          {
+                            "source": 2,
+                            "amount": 16
+                          },
+                          {
+                            "source": 3,
+                            "amount": 16
+                          }
+                        ]
+                      },
+                      "reference": 25.599999999999998
+                    },
+                    {
+                      "tile": "4s",
+                      "left": 2,
+                      "scoreFlowers": 16,
+                      "payment": {
+                        "selfDraw": 48,
+                        "discard": [
+                          {
+                            "source": 0,
+                            "amount": 16
+                          },
+                          {
+                            "source": 2,
+                            "amount": 16
+                          },
+                          {
+                            "source": 3,
+                            "amount": 16
+                          }
+                        ]
+                      },
+                      "reference": 25.599999999999998
+                    },
+                    {
+                      "tile": "7s",
+                      "left": 3,
+                      "scoreFlowers": 16,
+                      "payment": {
+                        "selfDraw": 48,
+                        "discard": [
+                          {
+                            "source": 0,
+                            "amount": 16
+                          },
+                          {
+                            "source": 2,
+                            "amount": 16
+                          },
+                          {
+                            "source": 3,
+                            "amount": 16
+                          }
+                        ]
+                      },
+                      "reference": 25.599999999999998
+                    }
+                  ],
+                  "reference": 25.599999999999998
+                },
+                "potential": 12.603076923076923,
+                "score": 9.243292307692307
+              }
+            ]
+          }
+        ]
+      },
+      "note": "本例不证明补杠动作本身错误。对手能否抢胡未知；需分离成功收款与被抢胡分支，禁止读取对手暗牌作预测。"
+    }
+  ]
+}

@@ -2,12 +2,17 @@
 import { performance } from 'node:perf_hooks'
 import { NUMBER_TILES, countsOf } from '../shared/logic/mahjong/tiles.mjs'
 import { scoreHand } from '../shared/logic/mahjong/score.mjs'
-import { settleOnlineWin, settleOnlineKong } from '../shared/logic/mahjong/online-payments.mjs'
+import { settleOnlineWin } from '../shared/logic/mahjong/online-payments.mjs'
 import { mahjongVisibleCounts, estimateMahjongWin, safeMahjongAction as baseline } from './mahjong-ai-v1.mjs'
+import { buildCandidateStates } from './mahjong-ai-candidates.mjs'
 
-export const POLICY_VERSION = 'nanjing-local-policy-v2.1'
+export const POLICY_VERSION = 'nanjing-local-policy-v2.2'
 export const POLICY_PARAMS = Object.freeze({ budgetMs: 500, cacheLimit: 20000, near: .75, randomTemperature: .4, continuity: 1.5,
-  switchThreshold: 3, riskCap: 12, speedWeight: 7, drawWeight: .35, futureWeight: .42 })
+  switchThreshold: 3, riskCap: 12, speedWeight: 7, drawWeight: .35, futureWeight: .42, conditionalKongCredit: .65 })
+/** 在 30 张时与旧进张分相同；连续递增、边际递减且上限约 16.61 排序分。 */
+export function effectiveProgressScore(n) {
+  return (30 * POLICY_PARAMS.drawWeight / (1 - Math.exp(-1))) * (1 - Math.exp(-Math.max(0, n) / 30))
+}
 const TYPES = new Set(['pong', 'kong', 'pongkong', 'ankong'])
 const SUITS = ['m', 's', 'p']
 const ROUTES = ['normal', ...SUITS.map((s) => `qing:${s}`), ...SUITS.map((s) => `hun:${s}`), 'triplets', 'pairs', 'doublePairs']
@@ -86,24 +91,28 @@ export function routeDistance(route, hand, melds = [], visible = {}, budget = { 
 
 export function routeEffectiveTiles(route, hand, melds, visible, budget = { end: Infinity }, flowers = []) {
   const distance = routeDistance(route, hand, melds, visible, budget)
-  const draws = []
-  if (!Number.isFinite(distance)) return { distance, draws, count: 0 }
+  const draws = [], exhausted = [], insufficient = []
+  if (!Number.isFinite(distance)) return { distance, draws, count: 0, qualification: 'unreachable', exhausted, insufficient }
   for (const tile of NUMBER_TILES) {
     guard(budget)
     const left = Math.max(0, 4 - (visible[tile] ?? 0))
-    if (!left || !suitsAllowed(route, tile) || hand.filter((t) => t === tile).length >= 4) continue
+    if ((!left && distance !== 0) || !suitsAllowed(route, tile) || hand.filter((t) => t === tile).length >= 4) continue
     const after = [...hand, tile]
     if (routeDistance(route, after, melds, { ...visible, [tile]: (visible[tile] ?? 0) + 1 }, budget) >= distance) continue
     let scoreFlowers = null
     if (distance === 0) {
       const score = scoreHand({ concealed: after, melds, flowers, winTile: tile })
       const required = route.startsWith('qing:') ? 'qingyise' : route.startsWith('hun:') ? 'hunyise' : ({ triplets: 'duiduihu', pairs: 'qidui', doublePairs: 'shuangqidui' })[route]
-      if (!score.info.valid || (!score.isBigWin && !score.info.meldsConcealed && score.info.hardCount < 4) || (required && !score.info.types[required])) continue
+      if (!score.info.valid || (required && !score.info.types[required])) continue
+      if (!score.isBigWin && !score.info.meldsConcealed && score.info.hardCount < 4) { insufficient.push(tile); continue }
       scoreFlowers = score.flowers.total
+      if (!left) { exhausted.push(tile); continue }
     }
     draws.push({ tile, left, ...(scoreFlowers != null ? { scoreFlowers } : {}) })
   }
-  return { distance, draws, count: draws.reduce((sum, d) => sum + d.left, 0) }
+  const count = draws.reduce((sum, d) => sum + d.left, 0)
+  const qualification = distance !== 0 ? 'progress' : count ? 'legal-wait' : exhausted.length ? 'exhausted' : insufficient.length ? 'qualification-gap' : 'no-valid-completion'
+  return { distance, draws, count, qualification, exhausted, insufficient }
 }
 
 /** 用公开证据形成有上限的相对风险；不声明听口或放炮概率。 */
@@ -129,6 +138,17 @@ export function hypotheticalPayment(obs, flowers) {
   return { selfDraw: net('selfDraw'), discard: seats.map((s) => ({ source: s, amount: net('discard', s) })) }
 }
 
+function paymentReference(obs, flowers, possibleSource = null) {
+  const alternatives = [{ assumption: '当前已知绑定', payment: hypotheticalPayment(obs, flowers) }]
+  if (Number.isInteger(possibleSource) && possibleSource !== obs.seat) {
+    const players = obs.players.map((p, i) => i === obs.seat ? { ...p, binding: possibleSource } : p)
+    alternatives.push({ assumption: `来源缺失，假设座位${possibleSource}已绑定`, payment: hypotheticalPayment({ ...obs, players }, flowers) })
+  }
+  for (const item of alternatives) item.reference = item.payment.selfDraw * .3 + item.payment.discard.reduce((sum, p) => sum + p.amount, 0) / 3 * .7
+  const conservative = alternatives.reduce((a, b) => a.reference <= b.reference ? a : b)
+  return { flowers, payment: conservative.payment, reference: conservative.reference, ...(alternatives.length > 1 ? { alternatives, bindingUncertain: true } : {}) }
+}
+
 // 用已完成、可验证的标准例作为花数参考，再通过权威计分函数计分；不是保证能得到该牌。
 const EXAMPLES = {
   normal: ['1m','2m','3m','4m','5m','6m','1p','2p','3p','4s','5s','6s','E','E'],
@@ -138,7 +158,7 @@ const EXAMPLES = {
   pairs: ['1m','1m','2m','2m','3s','3s','4s','4s','5p','5p','E','E','S','S'],
   doublePairs: ['1m','1m','1m','1m','2m','2m','3s','3s','4p','4p','E','E','S','S'],
 }
-function routeReference(obs, route, melds = obs.players[obs.seat].melds, budget = { end: Infinity }) {
+function routeReference(obs, route, melds = obs.players[obs.seat].melds, budget = { end: Infinity }, possibleSource = null) {
   const key = route.startsWith('qing:') ? 'qing' : route.startsWith('hun:') ? 'hun' : route
   const suit = route.includes(':') ? route.split(':')[1] : 'm'
   const sample = EXAMPLES[key].map((tile) => tile.endsWith('m') && (key === 'qing' || key === 'hun') ? `${tile[0]}${suit}` : tile)
@@ -166,10 +186,8 @@ function routeReference(obs, route, melds = obs.players[obs.seat].melds, budget 
   }
   if (!chosen) return null
   const flowers = chosen.flowers.total
-  const payment = hypotheticalPayment(obs, flowers)
   // 30% 自摸 + 70% 三个点炮者均摊仅是固定场景权重，不是统计概率。
-  const reference = payment.selfDraw * .3 + payment.discard.reduce((sum, p) => sum + p.amount, 0) / 3 * .7
-  return { flowers, payment, reference }
+  return paymentReference(obs, flowers, possibleSource)
 }
 
 function stableHash(text) {
@@ -180,28 +198,6 @@ function stableHash(text) {
 export function policyIdentity(matchId, seat) {
   const seed = stableHash(`${POLICY_VERSION}:${matchId}:${seat}`)
   return { seed, style: ['balanced', 'speed', 'value'][seed % 3] }
-}
-
-function candidateStates(obs) {
-  const me = obs.players[obs.seat], result = []
-  const groups = me.melds ?? []
-  for (const action of obs.myActions) {
-    if (action.type === 'discard') result.push({ action, hand: remove(obs.myHand, action.tile), melds: groups, risk: publicRisk(obs, action.tile), immediate: 0 })
-    else if (action.type === 'pass' && obs.response) result.push({ action, hand: obs.myHand, melds: groups, risk: 0, immediate: 0 })
-    else if (['pong', 'kong', 'ankong', 'bukong'].includes(action.type)) {
-      const t = action.tile ?? obs.response?.tile, n = action.type === 'pong' ? 2 : action.type === 'kong' ? 3 : action.type === 'ankong' ? 4 : 1
-      const hand = remove(obs.myHand, t, n), melds = structuredClone(groups)
-      if (action.type === 'bukong') { const m = melds.find((x) => x.type === 'pong' && x.tiles[0] === t); m.type = 'pongkong'; m.tiles.push(t) }
-      else melds.push({ type: action.type === 'pong' ? 'pong' : action.type === 'kong' ? 'kong' : 'ankong', tiles: Array(action.type === 'pong' ? 3 : 4).fill(t), ...(action.type === 'pong' || action.type === 'kong' ? { from: obs.response.source } : {}) })
-      let immediate = 0, balances = obs.balances
-      if (action.type !== 'pong') { const pay = settleOnlineKong({ balances: obs.balances, seat: obs.seat, type: action.type === 'kong' ? 'ming' : action.type === 'ankong' ? 'an' : 'bu', from: obs.response?.source, double: !!obs.double }); immediate = pay.balances[obs.seat] - obs.balances[obs.seat]; balances = pay.balances }
-      if (action.type === 'pong') {
-        // 碰后必须打出一张，评估每种后续弃牌，但不预先提交那张牌。
-        for (const tile of new Set(hand)) result.push({ action, hand: remove(hand, tile), melds, risk: publicRisk(obs, tile), immediate, balances, projectedDiscard: tile })
-      } else result.push({ action, hand, melds, risk: 0, immediate, balances })
-    }
-  }
-  return result
 }
 
 function brokenShape(hand, tile) {
@@ -265,47 +261,63 @@ export function decideMahjongV2(obs, options = {}) {
     }
     const ready = actions.find((a) => a.type === 'ready')
     if (ready) return { action: { ...ready }, diagnostic: { ...diagnostic, reason: '起手可报听' }, route: null, ms: performance.now() - start }
-    const visible = mahjongVisibleCounts(obs), candidates = candidateStates(obs)
+    const candidates = buildCandidateStates(obs, publicRisk)
     const referenceCache = new Map()
     const stage = Math.max(.08, Math.min(1, (obs.wallCount ?? 0) / 65))
     const styleBias = identity.style === 'speed' ? -.7 : identity.style === 'value' ? .7 : 0
     for (const candidate of candidates) {
       guard(budget)
       candidate.routes = []
+      if (candidate.terminal) {
+        const credit = (candidate.immediate + candidate.conditionalGain * POLICY_PARAMS.conditionalKongCredit) * .15
+        candidate.routes.push({ route: 'match-end', reachable: true, qualification: 'match-end', distance: null, effective: 0,
+          futureScore: 0, immediateCredit: credit, continuity: 0, score: credit - candidate.risk })
+        candidate.best = candidate.routes[0]; candidate.score = candidate.best.score
+        continue
+      }
       for (const route of ROUTES) {
         guard(budget)
-        const effective = routeEffectiveTiles(route, candidate.hand, candidate.melds, visible, budget, obs.players[obs.seat].flowers ?? [])
+        const effective = routeEffectiveTiles(route, candidate.hand, candidate.melds, candidate.visible, budget, candidate.observation.players[obs.seat].flowers ?? [])
         const distance = effective.distance
         if (!Number.isFinite(distance)) { candidate.routes.push({ route, reachable: false }); continue }
         const excess = candidate.hand.filter((t) => !suitsAllowed(route, t))
         const validSmall = route !== 'normal' || !candidate.melds.some((m) => ['pong', 'pongkong'].includes(m.type)) ||
           (obs.players[obs.seat].flowers?.length ?? 0) + candidate.melds.filter((m) => m.type === 'huagang').reduce((n, m) => n + m.tiles.length, 0) >= 4
-        const referenceKey = `${route}:${JSON.stringify(candidate.balances ?? obs.balances)}:${JSON.stringify(candidate.melds)}`
-        if (!referenceCache.has(referenceKey)) referenceCache.set(referenceKey, routeReference({ ...obs, balances: candidate.balances ?? obs.balances }, route, candidate.melds, budget))
-        let ref = referenceCache.get(referenceKey)
+        const referenceKey = `${route}:${JSON.stringify(candidate.balances)}:${JSON.stringify(candidate.melds)}:${JSON.stringify(candidate.observation.players.map((p) => p.binding))}:${candidate.binding.possibleSource}`
+        const noCurrentWin = distance === 0 && effective.count === 0
+        if (!noCurrentWin && !referenceCache.has(referenceKey)) referenceCache.set(referenceKey, routeReference(candidate.observation, route, candidate.melds, budget, candidate.binding.possibleSource))
+        let ref = noCurrentWin ? null : referenceCache.get(referenceKey)
         if (distance === 0 && effective.draws.length) {
           const scenarios = effective.draws.map((d) => {
-            const payment = hypotheticalPayment({ ...obs, balances: candidate.balances ?? obs.balances }, d.scoreFlowers)
-            return { ...d, payment, reference: payment.selfDraw * .3 + payment.discard.reduce((sum, item) => sum + item.amount, 0) / 3 * .7 }
+            const projected = paymentReference(candidate.observation, d.scoreFlowers, candidate.binding.possibleSource)
+            return { ...d, payment: projected.payment, reference: projected.reference,
+              ...(projected.bindingUncertain ? { bindingUncertain: true, alternatives: projected.alternatives } : {}) }
           })
           ref = { basis: '当前可成牌听张的静态假设', scenarios,
             reference: scenarios.reduce((sum, item) => sum + item.left * item.reference, 0) / effective.count }
         } else if (ref) ref = { ...ref, basis: '示例牌型与当前余额的静态假设，未来成牌未知' }
-        const difficulty = 1 + Math.max(0, distance) * .55
+        const speedDistance = noCurrentWin ? 1 : distance
+        const difficulty = 1 + Math.max(0, speedDistance) * .55
         const handCounts = countsOf(candidate.hand)
         const pairCount = Object.values(handCounts).reduce((sum, n) => sum + Math.floor(n / 2), 0)
         const pairProgress = ['pairs', 'doublePairs'].includes(route) ? Math.min(1, Math.max(.15, (pairCount - 2) * .2)) : 1
         const quadProgress = route === 'doublePairs' ? Math.max(.15, ...Object.values(handCounts).map((n) => n >= 4 ? 1 : n === 3 ? .7 : n === 2 ? .35 : .15)) : 1
         // 示例生成失败不代表路线不可达；仅暂不计入该路线未来收益。
-        const potential = (ref?.reference ?? 0) * stage / difficulty * (validSmall ? 1 : .25) * (effective.count ? 1 : .05) * pairProgress * quadProgress
+        const conditionalDiscount = candidate.branch.kind === 'conditional-success' ? POLICY_PARAMS.conditionalKongCredit : 1
+        const qualificationFactor = distance === 0 && effective.count ? 1 : validSmall ? 1 : .25
+        const potential = noCurrentWin ? 0 : (ref?.reference ?? 0) * stage / difficulty * qualificationFactor * (effective.count ? 1 : .05) * pairProgress * quadProgress * conditionalDiscount
         const bias = route === 'normal' ? -styleBias : styleBias
-        const shapeCost = brokenShape(obs.myHand, candidate.action.type === 'discard' ? candidate.action.tile : candidate.projectedDiscard)
-        const score = -distance * POLICY_PARAMS.speedWeight + potential * POLICY_PARAMS.futureWeight + bias + Math.min(30, effective.count) * POLICY_PARAMS.drawWeight + Math.min(candidate.immediate, 30) * .15 - candidate.risk - shapeCost
-        candidate.routes.push({ route, reachable: true, distance, excess, draws: effective.draws, effective: effective.count, reference: ref, referenceUnavailable: !ref, potential, continuity: 0, shapeCost, pairProgress, quadProgress, score, validSmall })
+        const shapeCost = brokenShape(candidate.preDiscardHand, candidate.action.type === 'discard' ? candidate.action.tile : candidate.projectedDiscard)
+        const drawScore = effectiveProgressScore(effective.count)
+        const immediateCredit = Math.min(candidate.immediate + candidate.conditionalGain * conditionalDiscount, 30) * .15
+        const score = -speedDistance * POLICY_PARAMS.speedWeight + potential * POLICY_PARAMS.futureWeight + bias + drawScore + immediateCredit - candidate.risk - shapeCost
+        candidate.routes.push({ route, reachable: true, distance, speedDistance, qualification: effective.qualification, exhausted: effective.exhausted,
+          insufficient: effective.insufficient, excess, draws: effective.draws, effective: effective.count, drawScore, reference: ref, referenceUnavailable: !ref,
+          potential, conditionalDiscount, immediateCredit, continuity: 0, shapeCost, pairProgress, quadProgress, score, validSmall })
       }
       const maximum = Math.max(...candidate.routes.map((r) => r.score ?? -Infinity))
       const previous = candidate.routes.find((r) => r.route === options.previousRoute && r.reachable)
-      if (previous && maximum - previous.score <= POLICY_PARAMS.switchThreshold) { previous.continuity = POLICY_PARAMS.continuity; previous.score += POLICY_PARAMS.continuity }
+      if (previous && !(previous.distance === 0 && previous.effective === 0) && maximum - previous.score <= POLICY_PARAMS.switchThreshold) { previous.continuity = POLICY_PARAMS.continuity; previous.score += POLICY_PARAMS.continuity }
       candidate.routes.sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity))
       candidate.best = candidate.routes[0]
       candidate.score = candidate.best?.score ?? -Infinity
@@ -329,10 +341,13 @@ export function decideMahjongV2(obs, options = {}) {
       chosen = near.at(-1)
       for (let i = 0; i < near.length; i++) { target -= weights[i]; if (target <= 0) { chosen = near[i]; break } }
     }
-    diagnostic.candidates = ranked.map((c) => ({ action: c.action, projectedDiscard: c.projectedDiscard, score: c.score, risk: c.risk, immediate: c.immediate, routes: c.routes }))
+    diagnostic.candidates = ranked.map((c) => ({ action: c.action, projectedDiscard: c.projectedDiscard, score: c.score, risk: c.risk, discardRisk: c.discardRisk,
+      immediate: c.immediate, conditionalGain: c.conditionalGain, binding: c.binding, uncertainty: c.uncertainty, branch: c.branch, routes: c.routes }))
+    if (options.includeVariants) diagnostic.candidateVariants = candidates.map((c) => ({ action: c.action, projectedDiscard: c.projectedDiscard, score: c.score,
+      risk: c.risk, immediate: c.immediate, conditionalGain: c.conditionalGain, binding: c.binding, uncertainty: c.uncertainty, branch: c.branch, routes: c.routes }))
     diagnostic.randomPool = near.map((c) => c.action)
     diagnostic.dominated = ranked.filter((c) => !undominated.includes(c)).map((c) => c.action)
-    diagnostic.reason = `${chosen.best.route}：距离 ${chosen.best.distance}，有效未见 ${chosen.best.effective}，公开风险 ${chosen.risk.toFixed(1)}`
+    diagnostic.reason = `${chosen.best.route}：结构距离 ${chosen.best.distance}，${chosen.best.qualification}，有效未见 ${chosen.best.effective}，风险 ${chosen.risk.toFixed(1)}`
     return { action: { ...chosen.action }, diagnostic, route: chosen.best.route, ms: performance.now() - start }
   } catch (error) { return chooseBaseline(error instanceof BudgetError ? '预算耗尽' : '策略异常') }
 }
