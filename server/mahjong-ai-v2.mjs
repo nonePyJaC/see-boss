@@ -342,9 +342,9 @@ export function decideMahjongV2(obs, options = {}) {
       for (let i = 0; i < near.length; i++) { target -= weights[i]; if (target <= 0) { chosen = near[i]; break } }
     }
     diagnostic.candidates = ranked.map((c) => ({ action: c.action, projectedDiscard: c.projectedDiscard, score: c.score, risk: c.risk, discardRisk: c.discardRisk,
-      immediate: c.immediate, conditionalGain: c.conditionalGain, binding: c.binding, uncertainty: c.uncertainty, branch: c.branch, routes: c.routes }))
+      immediate: c.immediate, conditionalGain: c.conditionalGain, discardPayment: c.discardPayment, binding: c.binding, uncertainty: c.uncertainty, branch: c.branch, routes: c.routes }))
     if (options.includeVariants) diagnostic.candidateVariants = candidates.map((c) => ({ action: c.action, projectedDiscard: c.projectedDiscard, score: c.score,
-      risk: c.risk, immediate: c.immediate, conditionalGain: c.conditionalGain, binding: c.binding, uncertainty: c.uncertainty, branch: c.branch, routes: c.routes }))
+      risk: c.risk, immediate: c.immediate, conditionalGain: c.conditionalGain, discardPayment: c.discardPayment, binding: c.binding, uncertainty: c.uncertainty, branch: c.branch, routes: c.routes }))
     diagnostic.randomPool = near.map((c) => c.action)
     diagnostic.dominated = ranked.filter((c) => !undominated.includes(c)).map((c) => c.action)
     diagnostic.reason = `${chosen.best.route}：结构距离 ${chosen.best.distance}，${chosen.best.qualification}，有效未见 ${chosen.best.effective}，风险 ${chosen.risk.toFixed(1)}`
