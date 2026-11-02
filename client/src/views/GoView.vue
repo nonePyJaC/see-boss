@@ -61,18 +61,18 @@ function clickPoint(i) {
   }
   if (setup.value) {
     const removing = board.value[i] === setupColor.value
-    snapshot(); const placed = placeSetup(board.value, i, setupColor.value, autoCapture.value)
-    board.value = placed.board; captures.value[setupColor.value - 1] += placed.captured
+    const placed = placeSetup(board.value, i, setupColor.value, autoCapture.value)
+    if (!removing) playSound(placed.captured)
+    snapshot(); board.value = placed.board; captures.value[setupColor.value - 1] += placed.captured
     positions.value = [placed.board.join('')]; passes.value = 0; lastMove.value = null
     message.value = placed.captured ? `提掉 ${placed.captured} 子` : ''
-    if (!removing) playSound(placed.captured)
     return
   }
   const move = play(board.value, i, turn.value, positions.value)
   if (move.error) { message.value = move.error; return }
+  playSound(move.captured)
   snapshot(); chooseTurn.value = false; const player = turn.value; board.value = move.board; positions.value.push(move.board.join(''))
   captures.value[player - 1] += move.captured; turn.value = 3 - player; passes.value = 0; lastMove.value = i; message.value = move.captured ? `提掉 ${move.captured} 子` : ''
-  playSound(move.captured)
 }
 function pass() {
   snapshot(); chooseTurn.value = false; passes.value++; turn.value = 3 - turn.value; lastMove.value = null
