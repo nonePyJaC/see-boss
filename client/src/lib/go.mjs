@@ -9,17 +9,29 @@ export function group(board, start) {
   }
   return { stones, liberties }
 }
+// Remove neighboring opposing groups with no liberties after placing a stone.
+function captureNeighbors(board, index, color) {
+  let captured = 0
+  for (const n of neighbors(index)) if (board[n] === 3 - color) {
+    const g = group(board, n)
+    if (!g.liberties.size) for (const s of g.stones) { board[s] = 0; captured++ }
+  }
+  return captured
+}
 export function play(board, index, color, previousBoards = []) {
   if (index < 0 || index >= board.length || board[index]) return { error: '此处已有棋子' }
   const next = board.slice(); next[index] = color
-  let captured = 0
-  for (const n of neighbors(index)) if (next[n] === 3 - color) {
-    const g = group(next, n)
-    if (!g.liberties.size) for (const s of g.stones) { next[s] = 0; captured++ }
-  }
+  const captured = captureNeighbors(next, index, color)
   if (!group(next, index).liberties.size) return { error: '不能下在无气的位置' }
   if (previousBoards.includes(next.join(''))) return { error: '不能重复此前的棋形（禁全局同形）' }
   return { board: next, captured }
+}
+// Setup can also create otherwise illegal positions for teaching; capture can be disabled.
+export function placeSetup(board, index, color, autoCapture = true) {
+  const next = board.slice()
+  if (next[index] === color) { next[index] = 0; return { board: next, captured: 0 } }
+  next[index] = color
+  return { board: next, captured: autoCapture ? captureNeighbors(next, index, color) : 0 }
 }
 export function handicapBoard(count) {
   const board = emptyBoard()
