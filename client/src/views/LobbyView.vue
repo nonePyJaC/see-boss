@@ -108,6 +108,12 @@ onActivated(async () => {
         <div class="mode-arrow">›</div>
       </button>
 
+      <button class="mode-card card" @click="router.push('/go')">
+        <div class="mode-icon mode-icon--go"><span>⚫</span></div>
+        <div class="mode-info"><h2>围棋</h2><p>单机落子、摆棋与数目</p><div class="mode-tags"><span>19 路棋盘</span><span>无需房间码</span></div></div>
+        <div class="mode-arrow">›</div>
+      </button>
+
       <button class="mode-card card" @click="router.push('/room/mahjong')">
         <div class="mode-icon mode-icon--mahjong"><span>🀄</span></div>
         <div class="mode-info">
@@ -195,6 +201,7 @@ onActivated(async () => {
 .mode-icon--online {
   background: linear-gradient(160deg, #FFCCBC, #FFAB91);
 }
+.mode-icon--go { background: linear-gradient(160deg, #f8e5bd, #d5aa68); }
 .mode-icon--mahjong { background: linear-gradient(160deg, #d7eee2, #a5d6b6); }
 
 .mode-info {
@@ -239,3 +246,4 @@ onActivated(async () => {
   margin-top: auto;
 }
 </style>
+
