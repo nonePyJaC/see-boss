@@ -7,25 +7,31 @@ import captureSound from '../assets/go-sounds/capture.wav'
 
 const router = useRouter()
 const soundEnabled = ref(readSoundPreference())
-const sounds = {}
+const placeAudio = ref(null), captureAudio = ref(null), soundError = ref('')
 function readSoundPreference() {
   try { return localStorage.getItem('go-sound-enabled') !== 'false' } catch { return true }
 }
 function toggleSound() {
   soundEnabled.value = !soundEnabled.value
   try { localStorage.setItem('go-sound-enabled', String(soundEnabled.value)) } catch { /* storage may be unavailable */ }
+  soundError.value = ''
+  if (soundEnabled.value) playSound(false)
+  else { placeAudio.value?.pause(); captureAudio.value?.pause() }
 }
 function playSound(captured) {
   if (!soundEnabled.value) return
+  const sound = captured ? captureAudio.value : placeAudio.value
+  if (!sound) return
   try {
-    const kind = captured ? 'capture' : 'place'
-    const sound = sounds[kind] || (sounds[kind] = new Audio(captured ? captureSound : placeSound))
-    sound.volume = 0.55
-    sound.currentTime = 0
-    sound.play()?.catch(() => {})
-  } catch { /* Sound must never interrupt the game. */ }
+    if (sound.readyState > 0) sound.currentTime = 0
+    const playing = sound.play()
+    if (playing) playing.then(() => { soundError.value = '' }).catch(() => {
+      soundError.value = '音效未能播放，请检查浏览器或设备的静音设置。'
+    })
+  } catch {
+    soundError.value = '音效未能播放，请检查浏览器或设备的静音设置。'
+  }
 }
-
 const started = ref(false), mode = ref('solo'), handicap = ref(0), komi = ref(7.5)
 const board = ref(handicapBoard(0)), turn = ref(1), setup = ref(false), setupColor = ref(1)
 const scoring = ref(false), dead = ref(new Set()), history = ref([]), positions = ref([]), chooseTurn = ref(false)
@@ -84,7 +90,10 @@ function reset() { if (confirm('重新设置将清除当前棋局，确定继续
 
 <template>
   <main class="go-page">
+    <audio ref="placeAudio" :src="placeSound" preload="auto"></audio>
+    <audio ref="captureAudio" :src="captureSound" preload="auto"></audio>
     <header class="go-head"><button class="plain" @click="started ? reset() : router.push('/lobby')">‹ {{ started ? '重新设置' : '游戏大厅' }}</button><h1>围棋</h1><button class="sound-toggle" :aria-pressed="soundEnabled" @click="toggleSound">{{ soundEnabled ? '音效：开' : '音效：关' }}</button></header>
+    <p v-if="soundError" class="sound-error" role="status">{{ soundError }}</p>
     <section v-if="!started" class="panel settings">
       <h2>开始一局</h2><p>无需房间码，在这台设备上轮流落子。</p>
       <div class="mode-options"><button :class="{ selected: mode === 'solo' }" @click="mode = 'solo'">单机模式<small>本地轮流落子</small></button><button :class="{ selected: mode === 'online' }" @click="mode = 'online'">对弈模式<small>暂未开放</small></button></div>
@@ -105,14 +114,14 @@ function reset() { if (confirm('重新设置将清除当前棋局，确定继续
         </section>
         <aside class="panel controls">
           <template v-if="scoring"><h2>数目结果</h2><p>中国数子法：活子 + 围空；白棋加贴目。中立点不计入双方。</p><div class="score-row"><span>黑棋</span><strong>{{ result.black }} 目</strong><small>{{ result.blackStones }} 子 + {{ result.blackTerritory }} 空</small></div><div class="score-row"><span>白棋</span><strong>{{ result.white }} 目</strong><small>{{ result.whiteStones }} 子 + {{ result.whiteTerritory }} 空 + {{ komi }} 贴目</small></div><p>中立 {{ result.neutral }} 点 · {{ result.black === result.white ? '平局' : (result.black > result.white ? '黑棋' : '白棋') + '领先 ' + Math.abs(result.black - result.white) + ' 目' }}</p><p class="hint">请先确认双方活死，点击棋块标记死子；未完成的棋局结果仅供参考。</p><button @click="scoring = false; message = ''">返回棋局</button></template>
-          <template v-else><h2>棋局操作</h2><div v-if="setup" class="choose"><span>摆放颜色</span><button :class="{ active: setupColor === 1 }" @click="setupColor = 1">⚫ 黑</button><button :class="{ active: setupColor === 2 }" @click="setupColor = 2">⚪ 白</button></div><label v-if="setup" class="capture-option"><input v-model="autoCapture" type="checkbox" /> 自动提子 <small>关闭后可自由摆出任意局面</small></label><div v-else-if="chooseTurn" class="choose"><span>下一手</span><button :class="{ active: turn === 1 }" @click="turn = 1; passes = 0">⚫ 黑</button><button :class="{ active: turn === 2 }" @click="turn = 2; passes = 0">⚪ 白</button></div><div class="actions"><button @click="toggleSetup">{{ setup ? '完成摆棋' : '摆子模式' }}</button><button :disabled="setup" @click="pass">停一手</button><button :disabled="!history.length" @click="undo">悔棋</button><button class="primary" @click="beginScore">结算数目</button></div><p class="hint">禁止自杀和重复此前棋形。双方连续停一手进入数目；摆棋后从当前棋形重新记录同形。棋局仅保存在当前页面，离开或刷新后将清空。</p></template>
+          <template v-else><h2>棋局操作</h2><button v-if="soundEnabled" class="sound-test" @click="playSound(false)">试听落子音效</button><div v-if="setup" class="choose"><span>摆放颜色</span><button :class="{ active: setupColor === 1 }" @click="setupColor = 1">⚫ 黑</button><button :class="{ active: setupColor === 2 }" @click="setupColor = 2">⚪ 白</button></div><label v-if="setup" class="capture-option"><input v-model="autoCapture" type="checkbox" /> 自动提子 <small>关闭后可自由摆出任意局面</small></label><div v-else-if="chooseTurn" class="choose"><span>下一手</span><button :class="{ active: turn === 1 }" @click="turn = 1; passes = 0">⚫ 黑</button><button :class="{ active: turn === 2 }" @click="turn = 2; passes = 0">⚪ 白</button></div><div class="actions"><button @click="toggleSetup">{{ setup ? '完成摆棋' : '摆子模式' }}</button><button :disabled="setup" @click="pass">停一手</button><button :disabled="!history.length" @click="undo">悔棋</button><button class="primary" @click="beginScore">结算数目</button></div><p class="hint">禁止自杀和重复此前棋形。双方连续停一手进入数目；摆棋后从当前棋形重新记录同形。棋局仅保存在当前页面，离开或刷新后将清空。</p></template>
         </aside>
       </div>
     </template>
   </main>
 </template>
 <style scoped>
-.go-page{max-width:1440px;margin:auto;padding:16px;color:#332b22}.go-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-bottom:16px}.go-head h1{font-size:22px;margin:0}.sound-toggle{justify-self:end;font-size:13px;white-space:nowrap}.plain{justify-self:start;background:none;border:0;color:#77532f;font-size:15px}.panel{background:#fffaf2;border:1px solid #e6d4b8;border-radius:18px;padding:20px;box-shadow:0 4px 20px #71532a12}.settings{max-width:480px;margin:30px auto}.panel h2{font-size:19px;margin:0 0 12px}.panel p{font-size:14px;line-height:1.6;color:#756653}.mode-options{display:flex;gap:10px;margin:20px 0}.mode-options button{flex:1;text-align:left}.mode-options small{display:block;margin-top:5px;color:#806f5e}.selected,.active{border-color:#aa6925!important;background:#f7e3c2!important}.settings label{display:flex;justify-content:space-between;align-items:center;margin:15px 0}.settings select,.settings input{width:145px;padding:9px;border:1px solid #d7c5ad;border-radius:8px;background:white}.hint{font-size:12px!important;color:#8c7c68!important}.settings>.primary{width:100%;margin-top:10px}.game-layout{display:grid;grid-template-columns:minmax(0, min(1050px, calc(100dvh - 125px))) minmax(250px, 320px);gap:20px}.board-section{min-width:0}.status{display:flex;justify-content:space-between;gap:8px;margin:4px 0 10px;font-size:14px}.status span{color:#78644d}.board{position:relative;display:grid;grid-template-columns:repeat(19,minmax(0,1fr));grid-template-rows:repeat(19,minmax(0,1fr));aspect-ratio:1;background:#d9a95f;box-shadow:0 4px 16px #69452133;border:5px solid #a9773d;border-radius:4px}.board-lines{position:absolute;width:100%;height:100%;fill:#5c3f24;stroke:#6c4928;stroke-width:.035;pointer-events:none}.board-lines circle{stroke:none}.point{position:relative;display:grid;place-items:center;padding:0;border:0;background:none;min-width:0;cursor:pointer;z-index:1}.point:focus-visible{outline:2px solid #c22;z-index:3}.stone{width:92%;height:92%;border-radius:50%;display:grid;place-items:center;box-shadow:1px 2px 3px #38271370}.black{background:#242424}.white{background:#f9f7ef;border:1px solid #aaa}.stone.dead{opacity:.55}.stone b{color:#e33;font-size:clamp(9px,2vw,20px);line-height:1}.stone i{width:22%;height:22%;border-radius:50%;background:#d75939}.territory{width:24%;height:24%}.message{min-height:24px;font-size:13px;color:#795b39}.controls{align-self:start}.capture-option{display:flex;align-items:center;gap:6px;margin:12px 0;flex-wrap:wrap;font-size:14px}.capture-option small{color:#8c7c68}.choose{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:12px 0}.choose span{margin-right:auto;font-size:14px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.go-page button:not(.point):not(.plain){border:1px solid #dbc8ae;border-radius:10px;padding:10px;background:#fff;color:#493c2c;cursor:pointer}.go-page button.primary{background:#80552c!important;color:white!important;border-color:#80552c!important}.go-page button:disabled{opacity:.5;cursor:not-allowed}.score-row{display:grid;grid-template-columns:1fr auto;gap:4px;padding:12px 0;border-bottom:1px solid #eadcc8}.score-row small{grid-column:1/-1;color:#8a7b68}.controls>button{width:100%}@media(max-width:800px){.go-page{padding:12px}.game-layout{grid-template-columns:1fr;gap:8px}.controls{padding:16px}.board{border-width:3px}.status{font-size:12px}.settings{margin:16px auto}}
+.go-page{max-width:1440px;margin:auto;padding:16px;color:#332b22}.go-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-bottom:16px}.go-head h1{font-size:22px;margin:0}.sound-error{font-size:13px;color:#a14128}.sound-test{width:100%;margin-bottom:12px}.sound-toggle{justify-self:end;font-size:13px;white-space:nowrap}.plain{justify-self:start;background:none;border:0;color:#77532f;font-size:15px}.panel{background:#fffaf2;border:1px solid #e6d4b8;border-radius:18px;padding:20px;box-shadow:0 4px 20px #71532a12}.settings{max-width:480px;margin:30px auto}.panel h2{font-size:19px;margin:0 0 12px}.panel p{font-size:14px;line-height:1.6;color:#756653}.mode-options{display:flex;gap:10px;margin:20px 0}.mode-options button{flex:1;text-align:left}.mode-options small{display:block;margin-top:5px;color:#806f5e}.selected,.active{border-color:#aa6925!important;background:#f7e3c2!important}.settings label{display:flex;justify-content:space-between;align-items:center;margin:15px 0}.settings select,.settings input{width:145px;padding:9px;border:1px solid #d7c5ad;border-radius:8px;background:white}.hint{font-size:12px!important;color:#8c7c68!important}.settings>.primary{width:100%;margin-top:10px}.game-layout{display:grid;grid-template-columns:minmax(0, min(1050px, calc(100dvh - 125px))) minmax(250px, 320px);gap:20px}.board-section{min-width:0}.status{display:flex;justify-content:space-between;gap:8px;margin:4px 0 10px;font-size:14px}.status span{color:#78644d}.board{position:relative;display:grid;grid-template-columns:repeat(19,minmax(0,1fr));grid-template-rows:repeat(19,minmax(0,1fr));aspect-ratio:1;background:#d9a95f;box-shadow:0 4px 16px #69452133;border:5px solid #a9773d;border-radius:4px}.board-lines{position:absolute;width:100%;height:100%;fill:#5c3f24;stroke:#6c4928;stroke-width:.035;pointer-events:none}.board-lines circle{stroke:none}.point{position:relative;display:grid;place-items:center;padding:0;border:0;background:none;min-width:0;cursor:pointer;z-index:1}.point:focus-visible{outline:2px solid #c22;z-index:3}.stone{width:92%;height:92%;border-radius:50%;display:grid;place-items:center;box-shadow:1px 2px 3px #38271370}.black{background:#242424}.white{background:#f9f7ef;border:1px solid #aaa}.stone.dead{opacity:.55}.stone b{color:#e33;font-size:clamp(9px,2vw,20px);line-height:1}.stone i{width:22%;height:22%;border-radius:50%;background:#d75939}.territory{width:24%;height:24%}.message{min-height:24px;font-size:13px;color:#795b39}.controls{align-self:start}.capture-option{display:flex;align-items:center;gap:6px;margin:12px 0;flex-wrap:wrap;font-size:14px}.capture-option small{color:#8c7c68}.choose{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:12px 0}.choose span{margin-right:auto;font-size:14px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.go-page button:not(.point):not(.plain){border:1px solid #dbc8ae;border-radius:10px;padding:10px;background:#fff;color:#493c2c;cursor:pointer}.go-page button.primary{background:#80552c!important;color:white!important;border-color:#80552c!important}.go-page button:disabled{opacity:.5;cursor:not-allowed}.score-row{display:grid;grid-template-columns:1fr auto;gap:4px;padding:12px 0;border-bottom:1px solid #eadcc8}.score-row small{grid-column:1/-1;color:#8a7b68}.controls>button{width:100%}@media(max-width:800px){.go-page{padding:12px}.game-layout{grid-template-columns:1fr;gap:8px}.controls{padding:16px}.board{border-width:3px}.status{font-size:12px}.settings{margin:16px auto}}
 </style>
 
 

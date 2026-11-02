@@ -2192,7 +2192,33 @@ function createShuffledDeckSafe(gameType) {
 
 // ── 账号 API ────────────────────────────────────────────
 
-/** * 账号名登录。无密码，知道名字就能登（朋友局设定）。 * 账号不存在返回 NOT_FOUND，前端据此切到注册 tab。 */function handleAccountLogin(body) {  const uid = String(body?.uid ?? '').trim()  if (!uid) return fail('缺少设备身份')  const r = loginAccount(body?.account, uid, {    nickname: body?.nickname, avatar: body?.avatar,  })  if (!r.ok) return fail(r.error, r.code)  return ok(r)}/** * 注册。账号名和昵称都查重。 * 账号名占用 → TAKEN；昵称占用 → NICK_TAKEN。 */function handleAccountRegister(body) {  const uid = String(body?.uid ?? '').trim()  if (!uid) return fail('缺少设备身份')  const r = registerAccount(body?.account, uid, {    nickname: body?.nickname, avatar: body?.avatar,  })  if (!r.ok) return fail(r.error, r.code)  return ok(r)}
+/**
+ * 账号名登录。无密码，知道名字就能登（朋友局设定）。
+ * 账号不存在返回 NOT_FOUND，前端据此切到注册 tab。
+ */
+function handleAccountLogin(body) {
+  const uid = String(body?.uid ?? '').trim()
+  if (!uid) return fail('缺少设备身份')
+  const r = loginAccount(body?.account, uid, {
+    nickname: body?.nickname, avatar: body?.avatar,
+  })
+  if (!r.ok) return fail(r.error, r.code)
+  return ok(r)
+}
+
+/**
+ * 注册。账号名和昵称都查重。
+ * 账号名占用 → TAKEN；昵称占用 → NICK_TAKEN。
+ */
+function handleAccountRegister(body) {
+  const uid = String(body?.uid ?? '').trim()
+  if (!uid) return fail('缺少设备身份')
+  const r = registerAccount(body?.account, uid, {
+    nickname: body?.nickname, avatar: body?.avatar,
+  })
+  if (!r.ok) return fail(r.error, r.code)
+  return ok(r)
+}
 
 /** 当前身份 + 金瓜子 + 局数 */
 function handleAccountMe(body) {
@@ -2388,6 +2414,7 @@ const MIME = {
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
+  '.wav': 'audio/wav',
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
