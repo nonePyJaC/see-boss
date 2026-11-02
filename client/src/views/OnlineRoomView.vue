@@ -410,7 +410,7 @@ async function joinOnce() {
 async function createRoom() {
   const seeds = formSeeds.value
   if (formSettingError.value) { createError.value = formSettingError.value; return }
-  if (!createCode.value.trim()) { createError.value = '请输入创建码'; return }
+  if (!user.value?.canCreateWithoutCode && !createCode.value.trim()) { createError.value = '请输入创建码'; return }
   createBusy.value = true
   createError.value = ''
   try {
@@ -620,11 +620,13 @@ onUnmounted(() => {
       </div>
 
       <div v-if="setupTab === 'create'" class="card config">
-        <label class="field-label">创建码</label>
-        <input
-          v-model="createCode" class="input" type="password"
-          placeholder="房间创建授权码" inputmode="numeric"
-        />
+        <template v-if="!user?.canCreateWithoutCode">
+          <label class="field-label">创建码</label>
+          <input
+            v-model="createCode" class="input" type="password"
+            placeholder="房间创建授权码" inputmode="numeric"
+          />
+        </template>
 
         <label class="field-label">游戏类型</label>
         <div class="chip-row">

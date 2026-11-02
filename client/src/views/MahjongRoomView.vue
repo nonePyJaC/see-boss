@@ -237,7 +237,7 @@ onUnmounted(() => {
 
 async function create() {
   if (createBusy.value) return
-  if (!createCode.value.trim()) { notice('请输入创建码'); return }
+  if (!user.value?.canCreateWithoutCode && !createCode.value.trim()) { notice('请输入创建码'); return }
   if (!Number.isSafeInteger(Number(seeds.value)) || Number(seeds.value) <= 0 || Number(seeds.value) > 100000000) { notice('初始瓜子请输入正整数'); return }
   createBusy.value = true
   try {
@@ -354,7 +354,7 @@ async function tryLandscape() {
       <div class="entry-icon">🀄</div><h1>南京麻将</h1><p>和朋友围坐一桌，也可以请 AI 凑一局。</p>
       <div class="entry-tabs"><button :class="{ active: setupTab === 'create' }" @click="setupTab = 'create'">创建房间</button><button :class="{ active: setupTab === 'join' }" @click="setupTab = 'join'">加入房间</button></div>
       <template v-if="setupTab === 'create'">
-        <label>房间创建码<input v-model="createCode" type="password" autocomplete="off" placeholder="输入创建码" /></label>
+        <label v-if="!user?.canCreateWithoutCode">房间创建码<input v-model="createCode" type="password" autocomplete="off" placeholder="输入创建码" /></label>
         <label>每人初始瓜子<input v-model.number="seeds" type="number" min="1" max="100000000" inputmode="numeric" /></label>
         <p class="entry-note">四人一桌 · 瓜子只用于本场 · 对局时请横屏</p>
         <button class="entry-primary" :disabled="createBusy" @click="create">{{ createBusy ? '创建中…' : '创建牌桌' }}</button>

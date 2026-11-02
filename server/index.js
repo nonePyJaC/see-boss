@@ -534,20 +534,24 @@ function handleMahjongReset(body, uid) {
 
 // ── 接口实现 ────────────────────────────────────────────
 
+function canCreateWithoutCode(account, uid) {
+  return account?.account === 'gaoyuan' && uid !== 'unbound:gaoyuan'
+}
+
 function handleCreate(body, uid) {
   const cfg = body?.cfg ?? {}
   const host = body?.me ?? {}
   if (!host.nickname) return fail('缺少昵称')
 
-  // 线上建房要授权码：全站一个，由环境变量提供；未配置 = 功能未启用。
-  // 只校验「能不能建」，不是房间密码 —— 扫码/输房号加入的人不需要它。
+  // 创建码只校验建房权限，不是房间密码。特定登录账号可免输入。
   if (cfg.mode === 'online') {
     const expect = process.env.HAMSTER_ONLINE_CREATE_CODE
     if (!expect) return fail('线上建房未启用', 'CREATE_DISABLED')
-    if (!tokenEq(body?.createCode, expect)) {
+    const account = accountByUid(uid)
+    if (!canCreateWithoutCode(account, uid) && !tokenEq(body?.createCode, expect)) {
       return fail('创建码错误', 'BAD_CREATE_CODE')
     }
-    if (!accountByUid(uid)) return fail('请先登录或注册账号再创建线上房间', 'LOGIN_REQUIRED')
+    if (!account || uid === `unbound:${account.account}`) return fail('请先登录或注册账号再创建线上房间', 'LOGIN_REQUIRED')
     let onlineCount = 0
     for (const r of rooms.values()) if (r.mode === 'online') onlineCount++
     if (onlineCount >= MAX_ONLINE_ROOMS) {
@@ -2199,7 +2203,7 @@ function handleAccountMe(body) {
   const uid = String(body?.uid ?? '').trim()
   const me = accountByUid(uid)
   if (!me) return ok({ loggedIn: false })
-  return ok({ loggedIn: true, ...me, ledger: accountLedgerRows(me.account) })
+  return ok({ loggedIn: true, ...me, canCreateWithoutCode: canCreateWithoutCode(me, uid), ledger: accountLedgerRows(me.account) })
 }
 
 function handleAccountUpdate(body) {
