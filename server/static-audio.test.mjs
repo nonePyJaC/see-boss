@@ -21,3 +21,31 @@ test('静态 WAV 音效以音频类型提供', async () => {
   assert.equal(response.headers.get('content-type'), 'audio/wav')
   assert.equal(await response.text(), 'RIFF test')
 })
+
+test('iOS 音频分段请求返回正确的数据和响应头', async () => {
+  const url = `http://127.0.0.1:${server.address().port}/stone.wav`
+  for (const [range, expected, contentRange] of [
+    ['bytes=0-1', 'RI', 'bytes 0-1/9'],
+    ['bytes=5-', 'test', 'bytes 5-8/9'],
+    ['bytes=-4', 'test', 'bytes 5-8/9'],
+    ['bytes=7-99', 'st', 'bytes 7-8/9'],
+  ]) {
+    const r = await fetch(url, { headers: { range } })
+    assert.equal(r.status, 206)
+    assert.equal(r.headers.get('accept-ranges'), 'bytes')
+    assert.equal(r.headers.get('content-range'), contentRange)
+    assert.equal(Number(r.headers.get('content-length')), expected.length)
+    assert.equal(await r.text(), expected)
+  }
+  for (const range of ['bytes=100-', 'bytes=4-2', 'bytes=-0']) {
+    const r = await fetch(url, { headers: { range } })
+    assert.equal(r.status, 416)
+    assert.equal(r.headers.get('content-range'), 'bytes */9')
+  }
+  const full = await fetch(url)
+  assert.equal(full.headers.get('content-length'), '9')
+  assert.equal(await full.text(), 'RIFF test')
+  const head = await fetch(url, { method: 'HEAD', headers: { range: 'bytes=0-1' } })
+  assert.equal(head.status, 200)
+  assert.equal(head.headers.get('content-length'), '9')
+})

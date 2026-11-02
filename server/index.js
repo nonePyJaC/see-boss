@@ -2397,7 +2397,7 @@ const MIME = {
 }
 
 /** 静态资源；SPA 回退到 index.html（hash 路由，其实用不上，但兜底） */
-function serveStatic(url, res) {
+function serveStatic(url, req, res) {
   let p = decodeURIComponent(url.pathname)
   if (p === '/') p = '/index.html'
   // 防目录穿越。必须带 path.sep 比 —— 裸 startsWith 会被
@@ -2428,11 +2428,31 @@ function serveStatic(url, res) {
         res.end(b2)
       })
     }
-    res.writeHead(200, {
-      'Content-Type': MIME[path.extname(full).toLowerCase()] || 'application/octet-stream',
-      'Cache-Control': path.extname(full) === '.html' ? 'no-cache' : 'public, max-age=31536000',
-    })
-    res.end(buf)
+    const ext = path.extname(full).toLowerCase()
+    const headers = {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000',
+    }
+    // iOS media players request byte ranges, even for short WAV files.
+    if (ext === '.wav') {
+      headers['Accept-Ranges'] = 'bytes'
+      const range = req.method === 'GET' && /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '')
+      if (range && (range[1] || range[2])) {
+        const size = buf.length
+        let start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]))
+        let end = range[1] && range[2] ? Number(range[2]) : size - 1
+        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= size || end < start || (!range[1] && Number(range[2]) === 0)) {
+          res.writeHead(416, { ...headers, 'Content-Range': `bytes */${size}`, 'Content-Length': 0 })
+          return res.end()
+        }
+        end = Math.min(end, size - 1)
+        res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 })
+        return res.end(buf.subarray(start, end + 1))
+      }
+      headers['Content-Length'] = buf.length
+    }
+    res.writeHead(200, headers)
+    res.end(req.method === 'HEAD' ? undefined : buf)
   })
 }
 
@@ -2453,7 +2473,7 @@ const server = http.createServer(async (req, res) => {
 
   // GET/HEAD → 静态资源（前端页面；同域所以不需要 CORS）
   if (req.method === 'GET' || req.method === 'HEAD') {
-    return serveStatic(url, res)
+    return serveStatic(url, req, res)
   }
 
   const handler = ROUTES[url.pathname]

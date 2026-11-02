@@ -90,8 +90,8 @@ function reset() { if (confirm('重新设置将清除当前棋局，确定继续
 
 <template>
   <main class="go-page">
-    <audio ref="placeAudio" :src="placeSound" preload="auto"></audio>
-    <audio ref="captureAudio" :src="captureSound" preload="auto"></audio>
+    <audio ref="placeAudio" :src="placeSound + '?v=2'" preload="auto"></audio>
+    <audio ref="captureAudio" :src="captureSound + '?v=2'" preload="auto"></audio>
     <header class="go-head"><button class="plain" @click="started ? reset() : router.push('/lobby')">‹ {{ started ? '重新设置' : '游戏大厅' }}</button><h1>围棋</h1><button class="sound-toggle" :aria-pressed="soundEnabled" @click="toggleSound">{{ soundEnabled ? '音效：开' : '音效：关' }}</button></header>
     <p v-if="soundError" class="sound-error" role="status">{{ soundError }}</p>
     <section v-if="!started" class="panel settings">
