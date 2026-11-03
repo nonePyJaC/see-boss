@@ -23,6 +23,7 @@ import {
 const props = defineProps({
   /** 'online' | 'offline' —— 只显示对应模式的房间 */
   mode: { type: String, required: true },
+  gameType: { type: String, default: '' },
 })
 
 const router = useRouter()
@@ -35,7 +36,7 @@ const joinNo = ref('')
 const joinError = ref('')
 
 /** 按模式过滤后的房间列表 */
-const shownRooms = computed(() => rooms.value.filter((r) => r.mode === props.mode))
+const shownRooms = computed(() => rooms.value.filter((r) => r.mode === props.mode && (!props.gameType || r.gameType === props.gameType)))
 /** 我在的房间（置顶显示，回到房间入口） */
 const myRooms = computed(() => shownRooms.value.filter((r) => r.iAmIn))
 
@@ -54,7 +55,7 @@ async function refresh() {
   }
 }
 
-const roomPath = (roomNo, gameType) => (props.mode === 'online' ? (gameType === 'nanjing' ? '/room/mahjong' : '/room/online') : '/room/offline')
+const roomPath = (roomNo, gameType) => (props.mode === 'online' ? (gameType === 'nanjing' ? '/room/mahjong' : gameType === 'gomoku' ? '/gomoku' : '/room/online') : '/room/offline')
 
 function enter(r) {
   router.push({ path: roomPath(r.roomNo, r.gameType), query: { room: r.roomNo } })

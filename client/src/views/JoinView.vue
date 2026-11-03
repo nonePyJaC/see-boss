@@ -71,7 +71,7 @@ async function enter() {
       if (state.ok) gameType = state.data?.gameType
     }
     router.push({
-      path: mode.value === 'offline' ? '/room/offline' : gameType === 'nanjing' ? '/room/mahjong' : '/room/online',
+      path: mode.value === 'offline' ? '/room/offline' : gameType === 'nanjing' ? '/room/mahjong' : gameType === 'gomoku' ? '/gomoku' : '/room/online',
       query: { room: roomNo.value },
     })
   } finally {

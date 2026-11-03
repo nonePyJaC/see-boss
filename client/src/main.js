@@ -22,6 +22,7 @@ const router = createRouter({
     { path: '/room/offline', name: 'offline-room', component: () => import('./views/OfflineRoomView.vue') },
     { path: '/room/offline/entry', name: 'offline-entry', component: () => import('./views/OfflineEntryView.vue') },
     { path: '/room/online', name: 'online-room', component: () => import('./views/OnlineRoomView.vue') },
+    { path: '/gomoku', name: 'gomoku', component: () => import('./views/GomokuView.vue') },
     { path: '/go', name: 'go', component: () => import('./views/GoView.vue') },
     { path: '/room/mahjong', name: 'mahjong-room', component: () => import('./views/MahjongRoomView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/register' },

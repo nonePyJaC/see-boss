@@ -108,6 +108,12 @@ onActivated(async () => {
         <div class="mode-arrow">›</div>
       </button>
 
+      <button class="mode-card card" @click="router.push('/gomoku')">
+        <div class="mode-icon mode-icon--go"><span>⚪</span></div>
+        <div class="mode-info"><h2>五子棋</h2><p>本地练棋，或邀请好友对弈</p><div class="mode-tags"><span>禁手规则可选</span><span>双人对弈</span></div></div>
+        <div class="mode-arrow">›</div>
+      </button>
+
       <button class="mode-card card" @click="router.push('/go')">
         <div class="mode-icon mode-icon--go"><span>⚫</span></div>
         <div class="mode-info"><h2>围棋</h2><p>单机落子、摆棋与数目</p><div class="mode-tags"><span>19 路棋盘</span><span>无需房间码</span></div></div>

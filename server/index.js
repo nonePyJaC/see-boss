@@ -89,6 +89,7 @@ import {
   wipeData, dataCounts,
   saveUserLlmKeys, userLlmKeyStatus, userLlmKeys,
 } from './db.js'
+import { newGame as newGomokuGame, play as playGomoku } from '../shared/logic/gomoku.mjs'
 import { debugPage } from './debug-room-page.js'
 import { createMahjongSession, setMahjongReady, startMahjongHand, submitMahjongAction, expireMahjongWindowWithPolicy, projectMahjongSession, resetMahjongMatch, validateMahjongSnapshot, buildMahjongObservation } from './mahjong-room.mjs'
 import { saveMahjongSnapshot, makeMahjongHandRecord, makeAbandonedMahjongHandRecord } from './mahjong-store.mjs'
@@ -177,6 +178,13 @@ function newRoom({ id, hostUid, host, cfg }) {
     dealerUid: null,
     roundNo: 1,
     lastActive: Date.now(),
+  }
+  if (online && cfg.gameType === 'gomoku') {
+    hostSeat.account = accountByUid(hostUid)?.account ?? null
+    room.gomokuRules = newGomokuGame(cfg.rules).rules
+    room.gomokuGame = null
+    rooms.set(id, room)
+    return room
   }
   if (online && cfg.gameType === 'nanjing') {
     const amount = Number(cfg.initialSeeds ?? 100)
@@ -267,6 +275,8 @@ function tokenEq(got, expect) {
 function isOnline(room) { return room.mode === 'online' }
 function isMahjong(room) { return isOnline(room) && room.gameType === 'nanjing' }
 
+function isGomoku(room) { return isOnline(room) && room.gameType === 'gomoku' }
+
 /**
  * 座位认证。
  *   线上：必须 seatId + seatToken 同时匹配（timing-safe 比较），
@@ -291,6 +301,12 @@ function authSeat(room, body, uid) {
  * 绝不外泄 state.deck / room.hands（除自己的底牌）。
  */
 function publicState(room, viewerUid) {
+  if (isGomoku(room)) {
+    return { id: room.id, mode: room.mode, gameType: room.gameType, hostUid: room.hostUid, rev: room.rev ?? 0,
+      rules: room.gomokuRules, game: room.gomokuGame,
+      seats: room.seats.map((s, n) => ({ uid: s.uid, nickname: s.nickname, avatar: s.avatar,
+        color: n + 1, isMe: s.uid === viewerUid, isHost: s.uid === room.hostUid })) }
+  }
   if (isMahjong(room)) {
     const index = room.seats.findIndex((s) => s.uid === viewerUid && !s.left)
     return { id: room.id, mode: room.mode, gameType: room.gameType, hostUid: room.hostUid, rev: room.rev ?? 0,
@@ -584,6 +600,20 @@ function handleJoin(body, uid) {
   const room = rooms.get(id)
   if (!room) return fail('房间不存在', 'ROOM_NOT_FOUND')
 
+  if (isGomoku(room)) {
+    const existing = authSeat(room, body, uid)
+    if (existing) { bumpActivity(room); return ok({ ...publicState(room, existing.uid), seatId: existing.uid, seatToken: existing.seatToken }) }
+    const account = accountByUid(uid)
+    if (!account || uid === `unbound:${account.account}`) return fail('请先登录或注册账号再加入线上房间', 'LOGIN_REQUIRED')
+    if (room.seats.some(s => s.accountUid === uid || s.account === account.account)) return fail('请使用原座位凭证重连', 'AUTH_FAILED')
+    if (room.seats.length >= 2) return fail('房间已满', 'ROOM_FULL')
+    if (room.gomokuGame?.phase === 'playing') return fail('本局已经开始', 'HAND_IN_PROGRESS')
+    const seat = { uid: genSeatId(room), accountUid: uid, account: account.account, nickname: account.nickname,
+      avatar: account.avatar, kind: 'human', seatToken: genSeatToken(), joinedAt: Date.now() }
+    room.seats.push(seat); touch(room)
+    return ok({ ...publicState(room, seat.uid), seatId: seat.uid, seatToken: seat.seatToken })
+  }
+
   if (isMahjong(room)) {
     const existing = authSeat(room, body, uid)
     if (existing) { bumpActivity(room); return ok({ ...publicState(room, existing.uid), seatId: existing.uid, seatToken: existing.seatToken }) }
@@ -699,18 +729,18 @@ function handleList(body, uid) {
     list.push({
       roomNo: r.id,
       mode: r.mode,
-      ...(isMahjong(r) ? { gameType: 'nanjing' } : {}),
+      ...((isMahjong(r) || isGomoku(r)) ? { gameType: r.gameType } : {}),
       hostName: host?.nickname ?? '房主',
       hostAvatar: host?.avatar ?? 1,
       playerCount: r.seats.length,
       aiCount: r.seats.filter((s) => s.kind === 'ai').length,
-      maxSeats: isMahjong(r) ? 4 : MAX_SEATS,
+      maxSeats: isGomoku(r) ? 2 : isMahjong(r) ? 4 : MAX_SEATS,
       smallBlind: r.smallBlind,
       bigBlind: r.bigBlind,
       initialSeeds: r.initialSeeds,
       roundNo: r.roundNo,
-      full: r.seats.length >= (isMahjong(r) ? 4 : MAX_SEATS),
-      inProgress: isMahjong(r) ? !!(r.mahjongSession.game && r.mahjongSession.game.phase !== 'finished') : !!(r.state && !r.state.finished),
+      full: r.seats.length >= (isGomoku(r) ? 2 : isMahjong(r) ? 4 : MAX_SEATS),
+      inProgress: isGomoku(r) ? r.gomokuGame?.phase === 'playing' : isMahjong(r) ? !!(r.mahjongSession.game && r.mahjongSession.game.phase !== 'finished') : !!(r.state && !r.state.finished),
       isMine,
       iAmIn,
     })
@@ -767,6 +797,15 @@ function handleReorder(body, uid) {
 function handleStart(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在', 'ROOM_NOT_FOUND')
+  if (isGomoku(room)) {
+    const seat = authSeat(room, body, uid)
+    if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
+    if (seat.uid !== room.hostUid) return fail('只有房主可以开局', 'NOT_HOST')
+    if (room.seats.length !== 2) return fail('需要两位玩家', 'NOT_ENOUGH_PLAYERS')
+    if (room.gomokuGame?.phase === 'playing') return fail('本局还在进行', 'GAME_IN_PROGRESS')
+    room.gomokuGame = { ...newGomokuGame(room.gomokuRules), matchId: crypto.randomUUID() }
+    touch(room); return ok(publicState(room, seat.uid))
+  }
   if (isMahjong(room)) {
     const seat = authSeat(room, body, uid)
     if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
@@ -888,6 +927,17 @@ function syncSeats(room) {
 function handleAction(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return fail('房间不存在', 'ROOM_NOT_FOUND')
+  if (isGomoku(room)) {
+    const seat = authSeat(room, body, uid)
+    if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
+    const game = room.gomokuGame
+    if (!game || game.phase !== 'playing') return fail('棋局尚未开始或已结束', 'GAME_NOT_ACTIVE')
+    if (body.matchId !== game.matchId || body.moveNo !== game.moveNo) return fail('棋局已更新', 'STALE_MOVE')
+    if (room.seats.indexOf(seat) + 1 !== game.turn) return fail('还没轮到你', 'NOT_YOUR_TURN')
+    const move = playGomoku(game, body.index)
+    if (move.error) return fail(move.error, 'INVALID_MOVE')
+    room.gomokuGame = move.state; touch(room); return ok(publicState(room, seat.uid))
+  }
   if (isMahjong(room)) {
     const seat = authSeat(room, body, uid)
     if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
@@ -1992,6 +2042,14 @@ function handleExtendTurn(body, uid) {
 function handleLeave(body, uid) {
   const room = rooms.get(String(body?.roomId ?? ''))
   if (!room) return ok({ left: true })
+  if (isGomoku(room)) {
+    const seat = authSeat(room, body, uid)
+    if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
+    if (seat.uid === room.hostUid) { rooms.delete(room.id); return ok({ roomClosed: true }) }
+    room.seats = room.seats.filter(s => s.uid !== seat.uid)
+    if (room.gomokuGame?.phase === 'playing') room.gomokuGame = { ...room.gomokuGame, phase: 'finished', winner: 1, reason: '对手离开' }
+    touch(room); return ok({ left: true })
+  }
   if (isMahjong(room)) {
     const seat = authSeat(room, body, uid)
     if (!seat) return fail('身份验证失败', 'AUTH_FAILED')
@@ -2518,6 +2576,12 @@ const server = http.createServer(async (req, res) => {
   if (!uid && !NO_UID_NEEDED.includes(url.pathname)) {
     res.writeHead(400, { 'Content-Type': 'application/json' })
     return res.end(JSON.stringify(fail('缺少 uid')))
+  }
+
+  const targetRoom = rooms.get(String(body.roomId ?? ''))
+  if (targetRoom && isGomoku(targetRoom) && url.pathname.startsWith('/api/room/') &&
+      !['/api/room/join', '/api/room/state', '/api/room/start', '/api/room/action', '/api/room/leave'].includes(url.pathname)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(fail('五子棋不支持该操作', 'UNSUPPORTED')))
   }
 
   try {
