@@ -81,7 +81,11 @@ export function play(state, index) {
   if (state.board[index]) return { error: '此处已有棋子' }
   const board = state.board.slice(), color = state.turn; board[index] = color
   const rules = state.rules
-  if (color === 1) { const reason = forbidden(board, index, rules); if (reason) return { error: reason } }
+  if (color === 1) {
+    const reason = forbidden(board, index, rules)
+    if (reason) return { state: { ...state, board, turn: color, phase: 'finished', winner: 2,
+      reason: `黑棋${reason}判负`, winning: [], lastMove: index, moveNo: state.moveNo + 1 } }
+  }
   const lines = runs(board, index, color)
   const winning = lines.find(r => color === 1 && rules.overline ? r.length === 5 : r.length >= 5)
   const phase = winning || board.every(Boolean) ? 'finished' : 'playing'

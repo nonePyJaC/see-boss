@@ -40,7 +40,7 @@ test('双人房间：创建码、入座、认证、落子顺序、禁手、重�
  assert.equal((await api('/api/room/leave',host)).data.roomClosed,true)
 })
 
-test('服务器拒绝黑棋三三禁手并允许继续落子', async () => {
+test('服务器执行黑棋三三禁手判负', async () => {
  await register('host2','gohost2','甲方'); await register('guest2','goguest2','乙方')
  const created=await api('/api/room/create',{uid:'host2',me:{nickname:'甲'},createCode:'test-code',cfg:{mode:'online',gameType:'gomoku',rules:{doubleThree:true}}})
  assert.equal(created.ok,true,created.error);const host=auth('host2',created.data)
@@ -48,10 +48,10 @@ test('服务器拒绝黑棋三三禁手并允许继续落子', async () => {
  const started=await api('/api/room/start',host);let game=started.data.game
  const sequence=[[host,111],[guest,0],[host,113],[guest,1],[host,97],[guest,2],[host,127],[guest,3]]
  for(const [seat,index] of sequence){const r=await api('/api/room/action',{...seat,index,moveNo:game.moveNo,matchId:game.matchId});assert.equal(r.ok,true,r.error);game=r.data.game}
- const denied=await api('/api/room/action',{...host,index:112,moveNo:game.moveNo,matchId:game.matchId})
- assert.equal(denied.code,'INVALID_MOVE');assert.equal(denied.error,'三三禁手')
- const state=await api('/api/room/state',host);assert.equal(state.data.game.moveNo,8);assert.equal(state.data.game.board[112],0)
- const valid=await api('/api/room/action',{...host,index:114,moveNo:game.moveNo,matchId:game.matchId});assert.equal(valid.ok,true,valid.error)
+ const foul=await api('/api/room/action',{...host,index:112,moveNo:game.moveNo,matchId:game.matchId})
+ assert.equal(foul.ok,true);assert.equal(foul.data.game.winner,2);assert.equal(foul.data.game.reason,'黑棋三三禁手判负')
+ const state=await api('/api/room/state',guest);assert.equal(state.data.game.moveNo,9);assert.equal(state.data.game.board[112],1)
+ assert.equal((await api('/api/room/action',{...guest,index:4,moveNo:9,matchId:game.matchId})).code,'GAME_NOT_ACTIVE')
  await api('/api/room/leave',host)
 })
 

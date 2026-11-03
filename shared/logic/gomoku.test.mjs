@@ -12,12 +12,12 @@ test('先后手、落点、横竖斜胜负和满盘', () => {
 })
 test('三三、四四、长连可独立开启，成五优先', () => {
  const cross=[[6,7],[8,7],[7,6],[7,8]]
- assert.equal(play(position(cross,{doubleThree:true}),i(7,7)).error,'三三禁手')
+ assert.equal(play(position(cross,{doubleThree:true}),i(7,7)).state.reason,'黑棋三三禁手判负')
  assert.ok(play(position(cross),i(7,7)).state)
  const four=[[5,7],[6,7],[8,7],[7,5],[7,6],[7,8]]
- assert.equal(play(position(four,{doubleFour:true}),i(7,7)).error,'四四禁手')
+ assert.equal(play(position(four,{doubleFour:true}),i(7,7)).state.reason,'黑棋四四禁手判负')
  const over=[[3,7],[4,7],[5,7],[6,7],[8,7]]
- assert.equal(play(position(over,{overline:true}),i(7,7)).error,'长连禁手')
+ assert.equal(play(position(over,{overline:true}),i(7,7)).state.reason,'黑棋长连禁手判负')
  assert.equal(play(position(over),i(7,7)).state.winner,1)
  const exact=[[3,7],[4,7],[5,7],[6,7],[7,5],[7,6],[7,8],[6,6],[8,8]]
  assert.equal(play(position(exact,{doubleThree:true,doubleFour:true,overline:true}),i(7,7)).state.winner,1)
@@ -45,4 +45,10 @@ test('允许长连时六连获胜优先于其他禁手', () => {
  const stones=[[3,7],[4,7],[5,7],[6,7],[8,7],[7,6],[7,8],[6,6],[8,8]]
  const r=play(position(stones,{doubleThree:true,doubleFour:true,overline:false}),i(7,7))
  assert.equal(r.state?.winner,1)
+})
+
+test('禁手落子后保留棋子并判白胜，不能继续落子', () => {
+ const s=position([[6,7],[8,7],[7,6],[7,8]],{doubleThree:true}); const result=play(s,i(7,7)).state
+ assert.equal(result.phase,'finished'); assert.equal(result.winner,2); assert.equal(result.board[i(7,7)],1)
+ assert.equal(result.lastMove,i(7,7)); assert.equal(result.moveNo,1); assert.ok(play(result,i(0,0)).error)
 })

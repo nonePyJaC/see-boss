@@ -110,7 +110,7 @@ onActivated(async () => {
 
       <button class="mode-card card" @click="router.push('/gomoku')">
         <div class="mode-icon mode-icon--go"><span>⚪</span></div>
-        <div class="mode-info"><h2>五子棋</h2><p>本地练棋，或邀请好友对弈</p><div class="mode-tags"><span>禁手规则可选</span><span>双人对弈</span></div></div>
+        <div class="mode-info"><h2>五子棋</h2><p>挑战 AI，或邀请好友对弈</p><div class="mode-tags"><span>禁手规则可选</span><span>双人对弈</span></div></div>
         <div class="mode-arrow">›</div>
       </button>
 
