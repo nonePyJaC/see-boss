@@ -116,7 +116,7 @@ onActivated(async () => {
 
       <button class="mode-card card" @click="router.push('/go')">
         <div class="mode-icon mode-icon--go"><span>⚫</span></div>
-        <div class="mode-info"><h2>围棋</h2><p>单机落子、摆棋与数目</p><div class="mode-tags"><span>19 路棋盘</span><span>无需房间码</span></div></div>
+        <div class="mode-info"><h2>围棋</h2><p>级位训练、单机落子、摆棋与数目</p><div class="mode-tags"><span>6,124 道训练题</span><span>19 路棋盘</span></div></div>
         <div class="mode-arrow">›</div>
       </button>
 
