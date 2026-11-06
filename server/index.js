@@ -78,6 +78,7 @@ import { decideAction, fallbackAction } from './ai/policy.mjs'
 import { assertProductionLayout } from './production-layout.mjs'
 import { llmDecide, llmEnabled, modelReady, availableModels } from './ai/llm.mjs'
 import { writeDecisionReview } from './ai/decision-review.mjs'
+import { handleGoTraining } from './go-training.mjs'
 import { beginSelfHand, recordSelfAction, finishSelfHand, llmSelfContext, applyNextStyle } from './ai/llm-self.mjs'
 import {
   openDb, DB_PATH,
@@ -2461,6 +2462,12 @@ const MIME = {
 /** 静态资源；SPA 回退到 index.html（hash 路由，其实用不上，但兜底） */
 function serveStatic(url, req, res) {
   let p = decodeURIComponent(url.pathname)
+  if (p === '/go-training') {
+    res.writeHead(308, { Location: '/go-training/', 'Cache-Control': 'no-cache' })
+    return res.end()
+  }
+  const goTraining = p.startsWith('/go-training/')
+  if (p === '/go-training/') p += 'index.html'
   if (p === '/') p = '/index.html'
   // 防目录穿越。必须带 path.sep 比 —— 裸 startsWith 会被
   // `dist-evil/` 这种同前缀目录绕过去。
@@ -2482,6 +2489,7 @@ function serveStatic(url, req, res) {
 
   fs.readFile(full, (err, buf) => {
     if (err) {
+      if (goTraining) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Not Found') }
       // SPA 回退
       const idx = path.join(STATIC_DIR, 'index.html')
       return fs.readFile(idx, (e2, b2) => {
@@ -2493,7 +2501,7 @@ function serveStatic(url, req, res) {
     const ext = path.extname(full).toLowerCase()
     const headers = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000',
+      'Cache-Control': ext === '.html' || (goTraining && ['.js', '.mjs', '.css'].includes(ext)) ? 'no-cache' : 'public, max-age=31536000',
     }
     // iOS media players request byte ranges, even for short WAV files.
     if (ext === '.wav') {
@@ -2520,6 +2528,7 @@ function serveStatic(url, req, res) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x')
+  if (url.pathname === '/api/go-training/progress') return handleGoTraining(req, res)
 
   // 健康检查：不鉴权，服务器探活用
   if (url.pathname === '/health') {
